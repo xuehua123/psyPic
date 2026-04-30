@@ -162,6 +162,20 @@ type ApiLibraryPatchResponse = {
   };
 };
 
+type ApiPromptAssistResponse = {
+  data?: {
+    optimized_prompt: string;
+    sections: string[];
+    preservation_notes: string[];
+  };
+  request_id?: string;
+  error?: {
+    code: string;
+    message: string;
+    details?: { field?: string };
+  };
+};
+
 type TemplateFieldValue = string | boolean;
 type TemplateFieldValues = Record<string, TemplateFieldValue>;
 
@@ -207,6 +221,7 @@ export default function CreatorWorkspace() {
   const [streamEnabled, setStreamEnabled] = useState(false);
   const [partialImageCount, setPartialImageCount] = useState(2);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isAssistingPrompt, setIsAssistingPrompt] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [partialImages, setPartialImages] = useState<GenerationImage[]>([]);
@@ -680,6 +695,40 @@ export default function CreatorWorkspace() {
     return requestIds.length > 0
       ? `${message}（${requestIds.join(" · ")}）`
       : message;
+  }
+
+  async function optimizePrompt() {
+    if (!prompt.trim() || isAssistingPrompt) {
+      setErrorMessage("Prompt 不能为空。");
+      return;
+    }
+
+    setIsAssistingPrompt(true);
+    setErrorMessage("");
+
+    try {
+      const response = await fetch("/api/prompts/assist", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          prompt,
+          mode,
+          template_id: selectedTemplateId
+        })
+      });
+      const body = (await response.json()) as ApiPromptAssistResponse;
+
+      if (!response.ok || !body.data) {
+        setErrorMessage(body.error?.message ?? "Prompt 优化失败。");
+        return;
+      }
+
+      setPrompt(body.data.optimized_prompt);
+    } catch {
+      setErrorMessage("Prompt 优化失败，请检查网络。");
+    } finally {
+      setIsAssistingPrompt(false);
+    }
   }
 
   function isImageTaskSnapshot(value: ImageTaskSnapshot) {
@@ -1585,15 +1634,26 @@ export default function CreatorWorkspace() {
                 <span className="inline-hint">
                   默认不生成文字，不改变参考图主体。
                 </span>
-                <button
-                  className="primary-button"
-                  disabled={isGenerating}
-                  onClick={submitGeneration}
-                  type="button"
-                >
-                  <Play size={16} aria-hidden="true" />
-                  {isGenerating ? "生成中" : "生成图片"}
-                </button>
+                <div className="prompt-action-buttons">
+                  <button
+                    className="secondary-button"
+                    disabled={isAssistingPrompt || isGenerating}
+                    onClick={optimizePrompt}
+                    type="button"
+                  >
+                    <Sparkles size={16} aria-hidden="true" />
+                    {isAssistingPrompt ? "优化中" : "优化 Prompt"}
+                  </button>
+                  <button
+                    className="primary-button"
+                    disabled={isGenerating}
+                    onClick={submitGeneration}
+                    type="button"
+                  >
+                    <Play size={16} aria-hidden="true" />
+                    {isGenerating ? "生成中" : "生成图片"}
+                  </button>
+                </div>
               </div>
               {errorMessage ? (
                 <p className="error-message" role="alert">

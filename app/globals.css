@@ -375,6 +375,14 @@ a {
   margin-top: 10px;
 }
 
+.prompt-action-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .reference-dropzone {
   border: 1px dashed var(--line-strong);
   border-radius: 8px;

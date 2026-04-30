@@ -421,6 +421,41 @@ describe("CreatorWorkspace", () => {
     expect(promptBox.value).toContain("Create a commercial advertising banner visual");
   });
 
+  it("optimizes a Chinese prompt from the creator workspace", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            data: {
+              optimized_prompt:
+                "Create a high-quality commercial image.\n\nSubject: AI 生图社区小红书封面。\nConstraints: Avoid fake typography.",
+              sections: ["Scene", "Subject", "Constraints", "Output"],
+              preservation_notes: []
+            },
+            request_id: "psypic_req_prompt_assist"
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+    );
+
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByRole("textbox", { name: "Prompt" }),
+      "AI 生图社区小红书封面"
+    );
+    await user.click(screen.getByRole("button", { name: "优化 Prompt" }));
+
+    const promptBox = (await screen.findByRole("textbox", {
+      name: "Prompt"
+    })) as HTMLTextAreaElement;
+
+    expect(promptBox.value).toContain("Create a high-quality commercial image.");
+  });
+
   it("surfaces readable API errors with request ids", async () => {
     vi.stubGlobal(
       "fetch",

@@ -590,6 +590,41 @@ Content-Type: application/json
 }
 ```
 
+## Prompt Assistant
+
+`v0.8` 起启用。Prompt 助手不直接调用 Sub2API，不读取 API Key，只把用户输入整理为商业图片 brief。
+
+```http
+POST /api/prompts/assist
+Content-Type: application/json
+
+{
+  "prompt": "小红书首页爆款图。AI 生图社区相关的，卡通风",
+  "mode": "text",
+  "template_id": "tpl_social_cover"
+}
+```
+
+响应：
+
+```json
+{
+  "data": {
+    "optimized_prompt": "Create a high-quality commercial image...",
+    "sections": ["Scene", "Subject", "Constraints", "Output"],
+    "preservation_notes": []
+  },
+  "request_id": "psypic_req_xxx"
+}
+```
+
+规则：
+
+- `prompt` 必填。
+- `mode` 为 `text` 或 `image`，默认 `text`。
+- `template_id` 可选；存在时必须是已知模板。
+- `mode=image` 时自动加入参考图主体、比例、材质、标识和文字标签的保留约束。
+
 ## Community Works
 
 `v0.9` 建立最小作品发布模型，`v1.0` 完整信息流。
