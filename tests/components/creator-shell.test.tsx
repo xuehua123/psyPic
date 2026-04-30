@@ -401,6 +401,26 @@ describe("CreatorWorkspace", () => {
     expect(requestBody.prompt).toContain("AI 生图社区");
   });
 
+  it("applies structured commercial template fields to the prompt", async () => {
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /广告 Banner/ }));
+    await user.clear(screen.getByLabelText("活动主题"));
+    await user.type(screen.getByLabelText("活动主题"), "618 新品首发");
+    await user.clear(screen.getByLabelText("产品类型"));
+    await user.type(screen.getByLabelText("产品类型"), "降噪蓝牙耳机");
+    await user.click(screen.getByRole("button", { name: "应用模板" }));
+
+    const promptBox = screen.getByRole("textbox", {
+      name: "Prompt"
+    }) as HTMLTextAreaElement;
+
+    expect(promptBox.value).toContain("618 新品首发");
+    expect(promptBox.value).toContain("降噪蓝牙耳机");
+    expect(promptBox.value).toContain("Create a commercial advertising banner visual");
+  });
+
   it("surfaces readable API errors with request ids", async () => {
     vi.stubGlobal(
       "fetch",

@@ -36,7 +36,8 @@ export async function GET(request: Request) {
           label: field.label,
           type: field.type,
           required: field.required,
-          default_value: field.defaultValue
+          default_value: field.defaultValue,
+          options: field.options
         }))
       })),
       next_cursor: hasNextPage ? page.at(-1)?.id ?? null : null

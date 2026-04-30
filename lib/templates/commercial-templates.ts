@@ -11,6 +11,7 @@ export type CommercialTemplateField = {
   type: TemplateFieldType;
   required: boolean;
   defaultValue?: string | boolean;
+  options?: string[];
 };
 
 export type CommercialTemplate = {
@@ -75,21 +76,24 @@ export const commercialTemplates: CommercialTemplate[] = [
         label: "背景风格",
         type: "select",
         required: true,
-        defaultValue: "高级灰摄影棚"
+        defaultValue: "高级灰摄影棚",
+        options: ["高级灰摄影棚", "纯白电商背景", "浅色渐变背景", "自然桌面场景"]
       },
       {
         key: "lighting",
         label: "光线",
         type: "select",
         required: false,
-        defaultValue: "柔和侧光"
+        defaultValue: "柔和侧光",
+        options: ["柔和侧光", "顶部柔光", "高反差商业光", "自然窗光"]
       },
       {
         key: "composition",
         label: "构图",
         type: "select",
         required: false,
-        defaultValue: "居中构图"
+        defaultValue: "居中构图",
+        options: ["居中构图", "三分法构图", "低机位近景", "留白构图"]
       },
       {
         key: "leave_space",
@@ -103,7 +107,8 @@ export const commercialTemplates: CommercialTemplate[] = [
         label: "文字策略",
         type: "select",
         required: false,
-        defaultValue: "不添加文字"
+        defaultValue: "不添加文字",
+        options: ["不添加文字", "顶部留白不加字", "右侧留白不加字"]
       }
     ],
     promptTemplate: `Create a premium ecommerce main product image.
@@ -147,14 +152,16 @@ Output: High-end commercial product photography, ready for marketplace listing.`
         label: "承托表面",
         type: "select",
         required: false,
-        defaultValue: "轻微反光台面"
+        defaultValue: "轻微反光台面",
+        options: ["轻微反光台面", "哑光石材台面", "木质台面", "纯色背景无台面"]
       },
       {
         key: "shadow",
         label: "阴影",
         type: "select",
         required: false,
-        defaultValue: "自然柔和阴影"
+        defaultValue: "自然柔和阴影",
+        options: ["自然柔和阴影", "清晰接触阴影", "轻微投影"]
       },
       {
         key: "preserve_policy",
@@ -203,7 +210,8 @@ Output: Professional ecommerce product image with a clean commercial background.
         label: "氛围",
         type: "select",
         required: false,
-        defaultValue: "温暖高级"
+        defaultValue: "温暖高级",
+        options: ["温暖高级", "清爽自然", "现代科技", "奢华精致"]
       },
       {
         key: "props",
@@ -262,21 +270,24 @@ Output: High-quality commercial lifestyle image.`
         label: "视觉风格",
         type: "select",
         required: false,
-        defaultValue: "高端极简"
+        defaultValue: "高端极简",
+        options: ["高端极简", "明亮促销", "科技未来", "奢华质感"]
       },
       {
         key: "space_for_text",
         label: "文案留白位置",
         type: "select",
         required: false,
-        defaultValue: "右侧留白"
+        defaultValue: "右侧留白",
+        options: ["右侧留白", "左侧留白", "顶部留白", "中间留白"]
       },
       {
         key: "platform",
         label: "平台",
         type: "select",
         required: false,
-        defaultValue: "网站横幅"
+        defaultValue: "网站横幅",
+        options: ["网站横幅", "电商店铺 Banner", "公众号封面", "信息流广告"]
       }
     ],
     promptTemplate: `Create a commercial advertising banner visual.
@@ -307,7 +318,8 @@ Output: A refined banner background ready for adding copy in design software.`
         label: "平台",
         type: "select",
         required: true,
-        defaultValue: "小红书"
+        defaultValue: "小红书",
+        options: ["小红书", "抖音", "公众号", "Instagram"]
       },
       {
         key: "topic",
@@ -320,7 +332,8 @@ Output: A refined banner background ready for adding copy in design software.`
         label: "风格",
         type: "select",
         required: false,
-        defaultValue: "清爽高级"
+        defaultValue: "清爽高级",
+        options: ["清爽高级", "卡通风", "真实摄影", "杂志感", "科技感"]
       },
       {
         key: "subject",
@@ -334,7 +347,8 @@ Output: A refined banner background ready for adding copy in design software.`
         label: "标题区域",
         type: "select",
         required: false,
-        defaultValue: "顶部留白"
+        defaultValue: "顶部留白",
+        options: ["顶部留白", "底部留白", "左侧留白", "右侧留白"]
       }
     ],
     promptTemplate: `Create a social media cover image for {platform}.
@@ -434,7 +448,8 @@ Output: A realistic local edit that blends cleanly with the original image.`
         label: "文字策略",
         type: "select",
         required: false,
-        defaultValue: "留白不加字"
+        defaultValue: "留白不加字",
+        options: ["留白不加字", "中央主体不加字", "底部留白不加字"]
       }
     ],
     promptTemplate: `Create a premium brand poster visual.
@@ -465,28 +480,32 @@ Output: High-end brand poster background ready for final copywriting.`
         label: "头像类型",
         type: "select",
         required: true,
-        defaultValue: "商务头像"
+        defaultValue: "商务头像",
+        options: ["商务头像", "社交头像", "创始人头像", "简历头像"]
       },
       {
         key: "background",
         label: "背景",
         type: "select",
         required: false,
-        defaultValue: "干净中性背景"
+        defaultValue: "干净中性背景",
+        options: ["干净中性背景", "浅灰摄影棚", "办公室虚化背景", "纯色背景"]
       },
       {
         key: "lighting",
         label: "光线",
         type: "select",
         required: false,
-        defaultValue: "柔和正面光"
+        defaultValue: "柔和正面光",
+        options: ["柔和正面光", "自然窗光", "经典伦勃朗光", "明亮平光"]
       },
       {
         key: "style",
         label: "风格",
         type: "select",
         required: false,
-        defaultValue: "真实专业摄影"
+        defaultValue: "真实专业摄影",
+        options: ["真实专业摄影", "自然生活方式", "高级商业摄影"]
       },
       {
         key: "identity_policy",
@@ -542,14 +561,16 @@ Output: Clean professional profile portrait suitable for business use.`
         label: "风格",
         type: "select",
         required: false,
-        defaultValue: "现代科技商业"
+        defaultValue: "现代科技商业",
+        options: ["现代科技商业", "清爽 SaaS", "高级极简", "创意工作台"]
       },
       {
         key: "layout",
         label: "构图",
         type: "select",
         required: false,
-        defaultValue: "横版首屏背景"
+        defaultValue: "横版首屏背景",
+        options: ["横版首屏背景", "左侧留白", "右侧留白", "中心透视"]
       }
     ],
     promptTemplate: `Create a hero visual for a commercial website or app.

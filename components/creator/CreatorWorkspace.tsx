@@ -162,6 +162,9 @@ type ApiLibraryPatchResponse = {
   };
 };
 
+type TemplateFieldValue = string | boolean;
+type TemplateFieldValues = Record<string, TemplateFieldValue>;
+
 const taskStatusLabels: Record<CreatorTaskStatus, string> = {
   submitting: "提交中",
   queued: "排队中",
@@ -176,13 +179,20 @@ const taskTypeLabels: Record<NonNullable<CurrentTask["type"]>, string> = {
   edit: "图生图"
 };
 const maskCanvasSize = 512;
+const defaultTemplateId = "tpl_ecommerce_main";
 
 export default function CreatorWorkspace() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [mode, setMode] = useState<CreatorMode>("text");
-  const [selectedTemplateId, setSelectedTemplateId] = useState(
-    "tpl_ecommerce_main"
-  );
+  const [selectedTemplateId, setSelectedTemplateId] = useState(defaultTemplateId);
+  const [templateFieldValues, setTemplateFieldValues] =
+    useState<TemplateFieldValues>(() =>
+      createTemplateFieldValues(
+        commercialTemplates.find((template) => template.id === defaultTemplateId) ??
+          commercialTemplates[0],
+        "电商主图"
+      )
+    );
   const [prompt, setPrompt] = useState("");
   const [size, setSize] =
     useState<ImageGenerationParams["size"]>("1024x1024");
@@ -218,6 +228,10 @@ export default function CreatorWorkspace() {
   const mvpTemplates = useMemo(
     () => commercialTemplates.filter((template) => template.enabledForMvp),
     []
+  );
+  const selectedTemplate = useMemo(
+    () => commercialTemplates.find((template) => template.id === selectedTemplateId),
+    [selectedTemplateId]
   );
   const selectedCommercialSizeId =
     commercialSizePresets.find((preset) => preset.size === size)?.id ?? "custom";
@@ -937,39 +951,67 @@ export default function CreatorWorkspace() {
     setSelectedTemplateId(templateId);
 
     if (template) {
-      const rendered = renderCommercialPrompt(
-        template.id,
-        buildTemplateFieldValues(template)
+      const nextFieldValues = createTemplateFieldValues(
+        template,
+        prompt.trim() || template.name
       );
 
-      setPrompt(rendered.prompt);
-      setSize(rendered.params.size);
-      setQuality(rendered.params.quality);
-      setOutputFormat(rendered.params.output_format);
-      setN(rendered.params.n);
-      setOutputCompression(
-        rendered.params.output_compression === null
-          ? ""
-          : String(rendered.params.output_compression)
-      );
-      setModeration(rendered.params.moderation);
-      setMode(template.requiresImage ? "image" : "text");
-      setMaskEnabled(Boolean(template.requiresMask));
-      setErrorMessage("");
+      setTemplateFieldValues(nextFieldValues);
+      applyTemplateRender(template, nextFieldValues);
     }
   }
 
-  function buildTemplateFieldValues(template: CommercialTemplate) {
-    const seedText = prompt.trim() || template.name;
+  function updateTemplateFieldValue(key: string, value: TemplateFieldValue) {
+    setTemplateFieldValues((current) => ({
+      ...current,
+      [key]: value
+    }));
+  }
 
-    return Object.fromEntries(
-      template.fields.map((field) => [
-        field.key,
-        field.required && field.defaultValue === undefined
-          ? seedText
-          : undefined
-      ])
+  function applySelectedTemplate() {
+    if (!selectedTemplate) {
+      return;
+    }
+
+    applyTemplateRender(selectedTemplate, templateFieldValues);
+  }
+
+  function applyTemplateRender(
+    template: CommercialTemplate,
+    fieldValues: TemplateFieldValues
+  ) {
+    const missingField = template.fields.find((field) => {
+      const value = fieldValues[field.key];
+
+      return (
+        field.required &&
+        field.defaultValue === undefined &&
+        (value === undefined ||
+          (typeof value === "string" && value.trim().length === 0))
+      );
+    });
+
+    if (missingField) {
+      setErrorMessage(`${missingField.label} 不能为空。`);
+      return;
+    }
+
+    const rendered = renderCommercialPrompt(template.id, fieldValues);
+
+    setPrompt(rendered.prompt);
+    setSize(rendered.params.size);
+    setQuality(rendered.params.quality);
+    setOutputFormat(rendered.params.output_format);
+    setN(rendered.params.n);
+    setOutputCompression(
+      rendered.params.output_compression === null
+        ? ""
+        : String(rendered.params.output_compression)
     );
+    setModeration(rendered.params.moderation);
+    setMode(template.requiresImage ? "image" : "text");
+    setMaskEnabled(Boolean(template.requiresMask));
+    setErrorMessage("");
   }
 
   function selectCommercialSize(presetId: string) {
@@ -978,6 +1020,70 @@ export default function CreatorWorkspace() {
     if (preset) {
       setSize(preset.size);
     }
+  }
+
+  function renderTemplateField(field: CommercialTemplate["fields"][number]) {
+    const fieldId = `template-field-${field.key}`;
+    const value = templateFieldValues[field.key] ?? field.defaultValue ?? "";
+
+    if (field.type === "boolean") {
+      return (
+        <label className="checkbox-row template-checkbox-field" key={field.key}>
+          <input
+            aria-label={field.label}
+            checked={Boolean(value)}
+            onChange={(event) =>
+              updateTemplateFieldValue(field.key, event.currentTarget.checked)
+            }
+            type="checkbox"
+          />
+          {field.label}
+        </label>
+      );
+    }
+
+    if (field.type === "select") {
+      const optionValue = typeof value === "string" ? value : "";
+      const options =
+        field.options && field.options.length > 0 ? field.options : [optionValue];
+
+      return (
+        <div className="field template-field" key={field.key}>
+          <label htmlFor={fieldId}>{field.label}</label>
+          <select
+            aria-required={field.required}
+            className="select"
+            id={fieldId}
+            onChange={(event) =>
+              updateTemplateFieldValue(field.key, event.target.value)
+            }
+            value={optionValue}
+          >
+            {options.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    return (
+      <div className="field template-field" key={field.key}>
+        <label htmlFor={fieldId}>{field.label}</label>
+        <input
+          aria-required={field.required}
+          className="input"
+          id={fieldId}
+          onChange={(event) =>
+            updateTemplateFieldValue(field.key, event.target.value)
+          }
+          type="text"
+          value={typeof value === "string" ? value : ""}
+        />
+      </div>
+    );
   }
 
   async function handleResultAsReference(image: GenerationImage) {
@@ -1578,6 +1684,25 @@ export default function CreatorWorkspace() {
 
             <div className="field" data-testid="commercial-template-list">
               <div className="field-label">商业模板</div>
+              {selectedTemplate ? (
+                <div className="template-field-editor" aria-label="模板字段">
+                  <div className="template-editor-header">
+                    <strong>{selectedTemplate.name}</strong>
+                    <span>{selectedTemplate.description}</span>
+                  </div>
+                  <div className="template-field-grid">
+                    {selectedTemplate.fields.map(renderTemplateField)}
+                  </div>
+                  <button
+                    className="primary-button"
+                    onClick={applySelectedTemplate}
+                    type="button"
+                  >
+                    <Sparkles size={16} aria-hidden="true" />
+                    应用模板
+                  </button>
+                </div>
+              ) : null}
               <div className="template-list">
                 {mvpTemplates.map((template) => (
                   <button
@@ -1828,4 +1953,20 @@ export default function CreatorWorkspace() {
       </div>
     </main>
   );
+}
+
+function createTemplateFieldValues(
+  template: CommercialTemplate | undefined,
+  seedText: string
+): TemplateFieldValues {
+  if (!template) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    template.fields.map((field) => [
+      field.key,
+      field.defaultValue ?? (field.required ? seedText : "")
+    ])
+  ) as TemplateFieldValues;
 }
