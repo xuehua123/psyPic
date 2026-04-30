@@ -1,6 +1,8 @@
 import type { ImageGenerationParams } from "@/lib/validation/image-params";
 import { redactSensitiveValue } from "@/server/services/key-binding-service";
 
+const DEFAULT_SUB2API_TIMEOUT_MS = 110000;
+
 export type Sub2APIImage = {
   b64_json: string;
 };
@@ -46,7 +48,7 @@ export async function generateImageWithSub2API(input: {
   const controller = new AbortController();
   const timeout = setTimeout(
     () => controller.abort(),
-    input.timeoutMs ?? Number(process.env.SUB2API_TIMEOUT_MS ?? 60000)
+    input.timeoutMs ?? getSub2APITimeoutMs()
   );
 
   try {
@@ -127,7 +129,7 @@ export async function editImageWithSub2API(input: {
   const controller = new AbortController();
   const timeout = setTimeout(
     () => controller.abort(),
-    input.timeoutMs ?? Number(process.env.SUB2API_TIMEOUT_MS ?? 60000)
+    input.timeoutMs ?? getSub2APITimeoutMs()
   );
 
   try {
@@ -293,6 +295,16 @@ function mapStatusToCode(status: number) {
   }
 
   return "upstream_error";
+}
+
+function getSub2APITimeoutMs() {
+  const configuredTimeout = Number(process.env.SUB2API_TIMEOUT_MS);
+
+  if (Number.isFinite(configuredTimeout) && configuredTimeout > 0) {
+    return configuredTimeout;
+  }
+
+  return DEFAULT_SUB2API_TIMEOUT_MS;
 }
 
 function isRedirectStatus(status: number) {

@@ -56,6 +56,48 @@ describe("Sub2API image client", () => {
     expect(response.images[0].b64_json).toBe(Buffer.from("image-bytes").toString("base64"));
   });
 
+  it("uses the documented 110 second BFF timeout by default", async () => {
+    const previousTimeout = process.env.SUB2API_TIMEOUT_MS;
+    delete process.env.SUB2API_TIMEOUT_MS;
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ data: [] }), {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        })
+      )
+    );
+
+    try {
+      await generateImageWithSub2API({
+        baseUrl: "https://sub2api.example.com/v1",
+        apiKey: "secret-token-value",
+        params: {
+          prompt: "Create a premium product photo.",
+          model: "gpt-image-2",
+          size: "1024x1024",
+          quality: "medium",
+          n: 1,
+          output_format: "png",
+          output_compression: null,
+          background: "auto",
+          moderation: "auto"
+        }
+      });
+
+      expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 110000);
+    } finally {
+      timeoutSpy.mockRestore();
+      if (previousTimeout === undefined) {
+        delete process.env.SUB2API_TIMEOUT_MS;
+      } else {
+        process.env.SUB2API_TIMEOUT_MS = previousTimeout;
+      }
+    }
+  });
+
   it("accepts a full Images API endpoint as the configured Base URL", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(
