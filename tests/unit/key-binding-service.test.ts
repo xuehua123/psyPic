@@ -21,6 +21,24 @@ describe("key binding service", () => {
     expect(decryptKeyBindingSecret(binding)).toBe("secret-token-value");
   });
 
+  it("normalizes copied authorization header values before encrypting keys", () => {
+    const bearerBinding = createEncryptedKeyBinding({
+      userId: "user_test",
+      baseUrl: "https://sub2api.example.com/v1",
+      apiKey: "Bearer secret-token-value",
+      defaultModel: "gpt-image-2"
+    });
+    const headerBinding = createEncryptedKeyBinding({
+      userId: "user_test",
+      baseUrl: "https://sub2api.example.com/v1",
+      apiKey: "Authorization: Bearer secret-token-value",
+      defaultModel: "gpt-image-2"
+    });
+
+    expect(decryptKeyBindingSecret(bearerBinding)).toBe("secret-token-value");
+    expect(decryptKeyBindingSecret(headerBinding)).toBe("secret-token-value");
+  });
+
   it("redacts sensitive values for logs and diagnostics", () => {
     expect(redactSensitiveValue("Bearer secret-token-value")).toBe("[REDACTED]");
     expect(redactSensitiveValue("psypic_session=sess_secret")).toBe("[REDACTED]");

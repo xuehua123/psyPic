@@ -49,7 +49,7 @@ export function createEncryptedKeyBinding(
     id: createId("kb"),
     user_id: input.userId,
     sub2api_base_url: normalizeBaseUrl(input.baseUrl),
-    sub2api_api_key_ciphertext: encryptSecret(input.apiKey),
+    sub2api_api_key_ciphertext: encryptSecret(normalizeApiKey(input.apiKey)),
     sub2api_api_key_id: input.apiKeyId,
     default_model: input.defaultModel ?? "gpt-image-2",
     enabled_models: input.enabledModels ?? ["gpt-image-2"],
@@ -128,4 +128,13 @@ function getEncryptionKey() {
 
 function normalizeBaseUrl(baseUrl: string) {
   return baseUrl.trim().replace(/\/+$/, "");
+}
+
+function normalizeApiKey(apiKey: string) {
+  return apiKey
+    .trim()
+    .replace(/^authorization\s*:\s*/i, "")
+    .replace(/^bearer\s+/i, "")
+    .trim()
+    .replace(/^["']|["']$/g, "");
 }

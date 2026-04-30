@@ -110,7 +110,14 @@ export async function resetTempAssetStore() {
 }
 
 function getTempAssetRoot() {
-  return path.join(process.cwd(), "output", "temp-assets");
+  const workerId = process.env.VITEST_WORKER_ID;
+  const baseRoot = path.join(process.cwd(), "output", "temp-assets");
+
+  if (workerId) {
+    return path.join(baseRoot, `worker-${workerId.replace(/\W/g, "_")}`);
+  }
+
+  return baseRoot;
 }
 
 function getTempAssetPath(storageKey: string) {
