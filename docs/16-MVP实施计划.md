@@ -2,7 +2,7 @@
 
 ## 目标
 
-本计划只覆盖 `v0.1-v0.4`，目标是交付可公开试用 MVP：
+本计划原始范围覆盖 `v0.1-v0.4` 公开试用 MVP；当前已进入 `v0.5` 任务系统增强：
 
 - 独立 PsyPic 创作台可部署。
 - 支持 Sub2API 一键安全导入。
@@ -42,11 +42,11 @@
 
 更新时间：2026-05-01
 
-- 已完成并推送：`v0.1`、`v0.2`、`v0.3` 文生图 Alpha。
-- 本轮已完成：`v0.4` 图生图核心切片（edits API、单参考图上传、结果转参考图、商业尺寸预设、历史继续编辑、MVP 商业模板入口）。
+- 已完成并推送：`v0.1`、`v0.2`、`v0.3` 文生图 Alpha、`v0.4` 图生图与公开试用 MVP。
+- 本轮已完成：`v0.5` 任务状态查询/取消接口、同步生成任务记录、创作台任务状态展示、取消和重新生成入口。
 - 已完成 CI：GitHub Actions 执行 lint、typecheck、test、Prisma validate、build。
 - 当前主线：`main`。
-- 当前焦点：进入 `v0.5` 任务系统；已建立任务状态查询/取消接口骨架，后续接入流式 partial preview。
+- 当前焦点：继续 `v0.5` 流式 partial preview、任务队列和并发限制。
 
 ## 版本拆分
 
@@ -55,7 +55,8 @@
 | `v0.1` | 已完成 | 项目骨架和创作台静态闭环 | UI shell、参数面板、结果区、设置页 |
 | `v0.2` | 已完成 | Sub2API 导入和 BFF 安全边界 | session、key binding、import exchange、手动 key |
 | `v0.3` | 已完成 | 文生图可用 | `/api/images/generations`、TempAsset、下载、基础历史 |
-| `v0.4` | 下一阶段 | 图生图和公开试用 MVP | `/api/images/edits`、单参考图、继续编辑、MVP 验收 |
+| `v0.4` | 已完成 | 图生图和公开试用 MVP | `/api/images/edits`、单参考图、继续编辑、MVP 验收 |
+| `v0.5` | 进行中 | 流式和任务系统 | 任务状态、取消、重试、SSE partial preview、队列和并发限制 |
 
 ## `v0.1` 项目骨架
 
@@ -217,6 +218,30 @@
 - [x] 图生图错误提示清楚。
 - [ ] MVP 验收清单全部通过。
 
+## `v0.5` 流式和任务系统
+
+### 任务
+
+- [x] 建立服务端图片任务状态模型。
+- [x] 同步文生图、图生图接口创建任务并记录成功/失败状态。
+- [x] 实现 `GET /api/tasks/{task_id}` 查询当前 session 任务。
+- [x] 实现 `POST /api/tasks/{task_id}` 取消 queued/running 任务。
+- [x] 创作台展示当前任务状态、task id、耗时和上游 request id。
+- [x] 创作台支持从任务状态区取消 running/queued 任务。
+- [x] 创作台支持 canceled/failed 任务重新生成。
+- [ ] 接入 `stream=true` 和 `partial_images`。
+- [ ] 实现 SSE 转发路由。
+- [ ] 引入任务队列和用户并发限制。
+- [ ] 补齐流式、取消、并发限制的 API/组件/E2E 回归。
+
+### 验收
+
+- [x] 生成后可查询并展示服务端任务状态。
+- [x] running/queued 任务可从创作台触发取消。
+- [x] canceled/failed 任务可在不暴露 Key 的情况下重新提交。
+- [ ] partial preview 可展示中间图。
+- [ ] 并发超限返回 429 且错误提示可读。
+
 ## 关键文件建议
 
 ### 前端
@@ -238,6 +263,7 @@
 - `app/api/images/generations/route.ts`
 - `app/api/images/edits/route.ts`
 - `app/api/assets/[assetId]/route.ts`
+- `app/api/tasks/[taskId]/route.ts`
 
 ### 服务
 
@@ -245,6 +271,7 @@
 - `server/services/session-service.ts`
 - `server/services/key-binding-service.ts`
 - `server/services/image-service.ts`
+- `server/services/image-task-service.ts`
 - `server/services/temp-asset-service.ts`
 - `server/services/billing-service.ts`
 
@@ -266,7 +293,10 @@
 8. [x] 结果网格和本地历史。
 9. [x] 图生图上传和 edits API。
 10. [x] 继续编辑和商业尺寸预设。
-11. [ ] MVP 验收回归。
+11. [x] 任务状态接口和创作台任务状态区。
+12. [ ] 流式 partial preview。
+13. [ ] 任务队列和并发限制。
+14. [ ] MVP/v0.5 验收回归。
 
 ## 不允许的捷径
 

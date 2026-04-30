@@ -396,6 +396,70 @@ a {
   font-size: 13px;
 }
 
+.task-status-strip {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+
+.task-status-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-status-main strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 15px;
+}
+
+.task-status-pill {
+  border-radius: 999px;
+  background: #e8edf3;
+  color: #415064;
+  font-size: 12px;
+  padding: 4px 8px;
+  white-space: nowrap;
+}
+
+.task-status-running,
+.task-status-queued,
+.task-status-submitting {
+  border-color: #85c7be;
+  background: #f0fdfa;
+}
+
+.task-status-failed {
+  border-color: #f0b8b1;
+  background: #fff5f3;
+}
+
+.task-status-canceled {
+  border-color: #c8d1dc;
+  background: #f3f6f9;
+}
+
+.task-status-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.task-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .result-grid {
   width: 100%;
   display: grid;

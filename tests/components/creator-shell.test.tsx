@@ -94,6 +94,147 @@ describe("CreatorWorkspace", () => {
     );
   });
 
+  it("loads and displays the server task status after generation", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(
+        generationResponse({
+          taskId: "task_status_123",
+          assetId: "asset_status_123",
+          requestId: "psypic_req_status_123"
+        })
+      )
+      .mockResolvedValueOnce(
+        taskResponse({
+          taskId: "task_status_123",
+          status: "succeeded",
+          requestId: "psypic_req_task_status_123"
+        })
+      );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByRole("textbox", { name: "Prompt" }),
+      "Create a premium product photo."
+    );
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+
+    const taskStatus = await screen.findByRole("status", {
+      name: "任务状态"
+    });
+    expect(taskStatus).toHaveTextContent("task_status_123");
+    expect(taskStatus).toHaveTextContent("已完成");
+    expect(fetchSpy).toHaveBeenCalledWith("/api/tasks/task_status_123", {
+      method: "GET"
+    });
+  });
+
+  it("cancels a running task from the task status panel", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(
+        generationResponse({
+          taskId: "task_running_123",
+          assetId: "asset_running_123",
+          requestId: "psypic_req_running_123"
+        })
+      )
+      .mockResolvedValueOnce(
+        taskResponse({
+          taskId: "task_running_123",
+          status: "running",
+          requestId: "psypic_req_task_running_123"
+        })
+      )
+      .mockResolvedValueOnce(
+        taskResponse({
+          taskId: "task_running_123",
+          status: "canceled",
+          requestId: "psypic_req_task_canceled_123"
+        })
+      );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByRole("textbox", { name: "Prompt" }),
+      "Create a premium product photo."
+    );
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+    await user.click(await screen.findByRole("button", { name: "取消任务" }));
+
+    expect(await screen.findByText("已取消")).toBeInTheDocument();
+    expect(fetchSpy).toHaveBeenCalledWith("/api/tasks/task_running_123", {
+      method: "POST"
+    });
+  });
+
+  it("retries a canceled task from the task status panel", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(
+        generationResponse({
+          taskId: "task_retry_original",
+          assetId: "asset_retry_original",
+          requestId: "psypic_req_retry_original"
+        })
+      )
+      .mockResolvedValueOnce(
+        taskResponse({
+          taskId: "task_retry_original",
+          status: "running",
+          requestId: "psypic_req_task_retry_running"
+        })
+      )
+      .mockResolvedValueOnce(
+        taskResponse({
+          taskId: "task_retry_original",
+          status: "canceled",
+          requestId: "psypic_req_task_retry_canceled"
+        })
+      )
+      .mockResolvedValueOnce(
+        generationResponse({
+          taskId: "task_retry_next",
+          assetId: "asset_retry_next",
+          requestId: "psypic_req_retry_next"
+        })
+      )
+      .mockResolvedValueOnce(
+        taskResponse({
+          taskId: "task_retry_next",
+          status: "succeeded",
+          requestId: "psypic_req_task_retry_next"
+        })
+      );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByRole("textbox", { name: "Prompt" }),
+      "Create a premium product photo."
+    );
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+    await user.click(await screen.findByRole("button", { name: "取消任务" }));
+    await user.click(await screen.findByRole("button", { name: "重新生成" }));
+
+    expect((await screen.findAllByText("task_retry_next")).length).toBeGreaterThan(
+      0
+    );
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      4,
+      "/api/images/generations",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
   it("renders commercial template prompts into the workspace", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(
@@ -286,6 +427,13 @@ describe("CreatorWorkspace", () => {
           )
         )
         .mockResolvedValueOnce(
+          taskResponse({
+            taskId: "task_123",
+            status: "succeeded",
+            requestId: "psypic_req_task_123"
+          })
+        )
+        .mockResolvedValueOnce(
           new Response(imageBytes, {
             status: 200,
             headers: { "content-type": "image/png" }
@@ -341,6 +489,13 @@ describe("CreatorWorkspace", () => {
           )
         )
         .mockResolvedValueOnce(
+          taskResponse({
+            taskId: "task_history_123",
+            status: "succeeded",
+            requestId: "psypic_req_task_history_123"
+          })
+        )
+        .mockResolvedValueOnce(
           new Response(imageBytes, {
             status: 200,
             headers: { "content-type": "image/png" }
@@ -362,3 +517,72 @@ describe("CreatorWorkspace", () => {
     expect(screen.getByText("asset_history_123.png")).toBeInTheDocument();
   });
 });
+
+function generationResponse(input: {
+  taskId: string;
+  assetId: string;
+  requestId: string;
+}) {
+  return new Response(
+    JSON.stringify({
+      data: {
+        task_id: input.taskId,
+        images: [
+          {
+            asset_id: input.assetId,
+            url: `/api/assets/${input.assetId}`,
+            format: "png"
+          }
+        ],
+        usage: {
+          input_tokens: 10,
+          output_tokens: 20,
+          total_tokens: 30,
+          estimated_cost: "0.0000"
+        },
+        duration_ms: 1200
+      },
+      request_id: input.requestId
+    }),
+    { status: 200, headers: { "content-type": "application/json" } }
+  );
+}
+
+function taskResponse(input: {
+  taskId: string;
+  status: "queued" | "running" | "succeeded" | "failed" | "canceled";
+  requestId: string;
+}) {
+  return new Response(
+    JSON.stringify({
+      data: {
+        id: input.taskId,
+        type: "generation",
+        status: input.status,
+        prompt: "Create a premium product photo.",
+        params: {
+          model: "gpt-image-2",
+          size: "1024x1024",
+          quality: "medium",
+          n: 1,
+          output_format: "png",
+          output_compression: null,
+          background: "auto",
+          moderation: "auto"
+        },
+        images: [],
+        usage: {
+          input_tokens: 10,
+          output_tokens: 20,
+          total_tokens: 30,
+          estimated_cost: "0.0000"
+        },
+        duration_ms: 1200,
+        created_at: "2026-05-01T00:00:00.000Z",
+        updated_at: "2026-05-01T00:00:01.000Z"
+      },
+      request_id: input.requestId
+    }),
+    { status: 200, headers: { "content-type": "application/json" } }
+  );
+}

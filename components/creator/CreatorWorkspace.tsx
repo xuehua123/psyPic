@@ -11,7 +11,8 @@ import {
   RotateCcw,
   Settings,
   SlidersHorizontal,
-  Sparkles
+  Sparkles,
+  X
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, ClipboardEvent, DragEvent } from "react";
@@ -70,6 +71,60 @@ type ApiGenerationResponse = {
 };
 
 type CreatorMode = "text" | "image";
+type ImageTaskStatus =
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "canceled";
+type CreatorTaskStatus = ImageTaskStatus | "submitting";
+
+type ImageTaskSnapshot = {
+  id: string;
+  type: "generation" | "edit";
+  status: ImageTaskStatus;
+  prompt: string;
+  images: GenerationImage[];
+  usage?: GenerationResult["usage"];
+  upstream_request_id?: string;
+  error?: {
+    code: string;
+    message?: string;
+  };
+  duration_ms?: number;
+  updated_at?: string;
+};
+
+type CurrentTask = Omit<Partial<ImageTaskSnapshot>, "status"> & {
+  status: CreatorTaskStatus;
+  type?: "generation" | "edit";
+  prompt?: string;
+};
+
+type ApiTaskResponse = {
+  data?: ImageTaskSnapshot;
+  request_id?: string;
+  upstream_request_id?: string;
+  error?: {
+    code: string;
+    message: string;
+    details?: { field?: string };
+  };
+};
+
+const taskStatusLabels: Record<CreatorTaskStatus, string> = {
+  submitting: "提交中",
+  queued: "排队中",
+  running: "运行中",
+  succeeded: "已完成",
+  failed: "失败",
+  canceled: "已取消"
+};
+
+const taskTypeLabels: Record<NonNullable<CurrentTask["type"]>, string> = {
+  generation: "文生图",
+  edit: "图生图"
+};
 
 export default function CreatorWorkspace() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -93,6 +148,7 @@ export default function CreatorWorkspace() {
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [historyItems, setHistoryItems] = useState<LocalHistoryItem[]>([]);
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
+  const [currentTask, setCurrentTask] = useState<CurrentTask | null>(null);
 
   const mvpTemplates = useMemo(
     () => commercialTemplates.filter((template) => template.enabledForMvp),
@@ -124,6 +180,13 @@ export default function CreatorWorkspace() {
     }
 
     try {
+      const taskType = mode === "image" ? "edit" : "generation";
+      setCurrentTask({
+        status: "submitting",
+        type: taskType,
+        prompt: requestParams.prompt
+      });
+
       const response = await fetch(
         mode === "image" ? "/api/images/edits" : "/api/images/generations",
         mode === "image" && referenceImage
@@ -141,6 +204,12 @@ export default function CreatorWorkspace() {
 
       if (!response.ok || !body.data) {
         setErrorMessage(formatApiError(body));
+        setCurrentTask({
+          status: "failed",
+          type: taskType,
+          prompt: requestParams.prompt,
+          error: body.error
+        });
         return;
       }
 
@@ -150,6 +219,17 @@ export default function CreatorWorkspace() {
         upstream_request_id: body.upstream_request_id
       };
       setResult(nextResult);
+      setCurrentTask({
+        id: nextResult.task_id,
+        type: taskType,
+        status: "succeeded",
+        prompt: requestParams.prompt,
+        images: nextResult.images,
+        usage: nextResult.usage,
+        duration_ms: nextResult.duration_ms,
+        upstream_request_id: nextResult.upstream_request_id
+      });
+      void refreshTaskStatus(nextResult.task_id);
 
       const firstImage = nextResult.images[0];
       if (firstImage) {
@@ -178,6 +258,15 @@ export default function CreatorWorkspace() {
       }
     } catch {
       setErrorMessage("网络错误，请检查服务和 session。");
+      setCurrentTask({
+        status: "failed",
+        type: mode === "image" ? "edit" : "generation",
+        prompt: requestParams.prompt,
+        error: {
+          code: "network_error",
+          message: "网络错误，请检查服务和 session。"
+        }
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -213,6 +302,69 @@ export default function CreatorWorkspace() {
     }
 
     return `${message}（${requestIds.join(" · ")}）`;
+  }
+
+  async function refreshTaskStatus(taskId: string) {
+    try {
+      const response = await fetch(`/api/tasks/${taskId}`, { method: "GET" });
+      const body = (await response.json()) as ApiTaskResponse;
+
+      if (response.ok && body.data && isImageTaskSnapshot(body.data)) {
+        setCurrentTask(body.data);
+      }
+    } catch {
+      // 任务状态刷新失败不影响已返回的生成结果。
+    }
+  }
+
+  async function cancelCurrentTask() {
+    if (!currentTask?.id || !canCancelTask(currentTask)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/tasks/${currentTask.id}`, {
+        method: "POST"
+      });
+      const body = (await response.json()) as ApiTaskResponse;
+
+      if (!response.ok || !body.data || !isImageTaskSnapshot(body.data)) {
+        setErrorMessage(formatTaskError(body));
+        return;
+      }
+
+      setCurrentTask(body.data);
+    } catch {
+      setErrorMessage("取消任务失败，请检查网络。");
+    }
+  }
+
+  function formatTaskError(body: ApiTaskResponse) {
+    const message = body.error?.message ?? "任务操作失败，请稍后重试。";
+    const requestIds = [
+      body.request_id ? `request_id: ${body.request_id}` : "",
+      body.upstream_request_id
+        ? `upstream_request_id: ${body.upstream_request_id}`
+        : ""
+    ].filter(Boolean);
+
+    return requestIds.length > 0
+      ? `${message}（${requestIds.join(" · ")}）`
+      : message;
+  }
+
+  function isImageTaskSnapshot(value: ImageTaskSnapshot) {
+    return Boolean(value.id && value.status && taskStatusLabels[value.status]);
+  }
+
+  function canCancelTask(task: CurrentTask) {
+    return Boolean(
+      task.id && (task.status === "queued" || task.status === "running")
+    );
+  }
+
+  function canRetryTask(task: CurrentTask) {
+    return task.status === "failed" || task.status === "canceled";
   }
 
   async function copyPrompt() {
@@ -626,6 +778,69 @@ export default function CreatorWorkspace() {
                 </p>
               ) : null}
             </div>
+
+            {currentTask ? (
+              <section
+                aria-label="任务状态"
+                className={`task-status-strip task-status-${currentTask.status}`}
+                role="status"
+              >
+                <div className="task-status-main">
+                  <div>
+                    <span className="field-label">任务状态</span>
+                    <strong>{taskStatusLabels[currentTask.status]}</strong>
+                  </div>
+                  <span className="task-status-pill">
+                    {currentTask.type ? taskTypeLabels[currentTask.type] : "任务"}
+                  </span>
+                </div>
+                <div className="task-status-meta">
+                  <span>{currentTask.id ?? "等待任务 ID"}</span>
+                  {currentTask.duration_ms ? (
+                    <span>{currentTask.duration_ms}ms</span>
+                  ) : null}
+                  {currentTask.upstream_request_id ? (
+                    <span>{currentTask.upstream_request_id}</span>
+                  ) : null}
+                  {currentTask.error?.message ? (
+                    <span>{currentTask.error.message}</span>
+                  ) : null}
+                </div>
+                <div className="task-status-actions">
+                  {currentTask.id ? (
+                    <button
+                      className="secondary-button"
+                      onClick={() => void refreshTaskStatus(currentTask.id ?? "")}
+                      type="button"
+                    >
+                      <RotateCcw size={16} aria-hidden="true" />
+                      刷新状态
+                    </button>
+                  ) : null}
+                  {canCancelTask(currentTask) ? (
+                    <button
+                      className="secondary-button"
+                      onClick={() => void cancelCurrentTask()}
+                      type="button"
+                    >
+                      <X size={16} aria-hidden="true" />
+                      取消任务
+                    </button>
+                  ) : null}
+                  {canRetryTask(currentTask) ? (
+                    <button
+                      className="secondary-button"
+                      disabled={isGenerating}
+                      onClick={submitGeneration}
+                      type="button"
+                    >
+                      <RotateCcw size={16} aria-hidden="true" />
+                      重新生成
+                    </button>
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
 
             <div className="field" data-testid="commercial-template-list">
               <div className="field-label">商业模板</div>
