@@ -412,6 +412,64 @@ DELETE /api/history/{task_id}
 - 软删除任务记录。
 - 用户要求物理删除时，异步删除对象存储文件。
 
+## Library
+
+`v0.7` 起启用。素材库按图片资产维度展示，服务端必须按当前 session 做所有权过滤。
+
+```http
+GET /api/library?cursor=asset_xxx&limit=30&favorite=true&tag=电商主图&q=香水
+```
+
+规则：
+
+- 只返回当前用户已成功任务中的图片资产。
+- `favorite` 可选；为 `true` 时只返回收藏资产，为 `false` 时只返回未收藏资产。
+- `tag` 精确匹配规范化后的标签。
+- `q` 匹配 `asset_id`、`task_id`、prompt 和 tags。
+- `next_cursor` 使用当前页最后一条 `asset_id`。
+
+响应：
+
+```json
+{
+  "data": {
+    "items": [
+      {
+        "asset_id": "asset_xxx",
+        "task_id": "task_xxx",
+        "type": "generation",
+        "prompt": "一张高端电商产品主图...",
+        "url": "/api/assets/asset_xxx",
+        "thumbnail_url": "/api/assets/asset_xxx",
+        "format": "png",
+        "favorite": true,
+        "tags": ["电商主图", "香水"],
+        "created_at": "2026-05-01T12:00:00.000Z"
+      }
+    ],
+    "next_cursor": null
+  },
+  "request_id": "psypic_req_xxx"
+}
+```
+
+```http
+PATCH /api/library/{asset_id}
+Content-Type: application/json
+
+{
+  "favorite": true,
+  "tags": ["电商主图", "香水"]
+}
+```
+
+规则：
+
+- 只能更新当前用户可访问资产。
+- `favorite` 必须是布尔值。
+- `tags` 必须是字符串数组；服务端去重、裁剪空白，并限制单个标签长度。
+- 资产不存在或不属于当前用户时返回 404。
+
 ## Templates
 
 ```http
