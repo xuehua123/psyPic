@@ -66,6 +66,10 @@ describe("CreatorWorkspace", () => {
 
     expect(await screen.findByText("asset_library_123")).toBeInTheDocument();
     expect(screen.getAllByText("电商主图").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole("link", { name: "详情" })).toHaveAttribute(
+      "href",
+      "/library/asset_library_123"
+    );
 
     await user.click(screen.getByRole("button", { name: "收藏素材" }));
 
@@ -700,6 +704,41 @@ describe("CreatorWorkspace", () => {
 
     expect(screen.getByText("asset_123.png")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "图生图" })).toHaveClass("active");
+  });
+
+  it("loads a library reference asset from the URL query", async () => {
+    window.history.pushState({}, "", "/?reference_asset=asset_query_123");
+    const imageBytes = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a
+    ]);
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          libraryPatchResponse({
+            assetId: "asset_query_123",
+            taskId: "task_query_123",
+            favorite: false,
+            tags: []
+          })
+        )
+        .mockResolvedValueOnce(
+          new Response(imageBytes, {
+            status: 200,
+            headers: { "content-type": "image/png" }
+          })
+        )
+    );
+
+    try {
+      render(<CreatorWorkspace />);
+
+      expect(await screen.findByText("asset_query_123.png")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "图生图" })).toHaveClass("active");
+    } finally {
+      window.history.pushState({}, "", "/");
+    }
   });
 
   it("continues editing from a local history result", async () => {

@@ -6,6 +6,7 @@ import {
   Copy,
   Download,
   Eraser,
+  ExternalLink,
   FlipHorizontal,
   History,
   ImagePlus,
@@ -225,6 +226,70 @@ export default function CreatorWorkspace() {
     void listLocalHistoryItems()
       .then(setHistoryItems)
       .catch(() => setHistoryItems([]));
+  }, []);
+
+  useEffect(() => {
+    const assetId = new URLSearchParams(window.location.search).get(
+      "reference_asset"
+    );
+
+    if (!assetId) {
+      return;
+    }
+
+    let active = true;
+
+    async function loadReferenceAsset() {
+      try {
+        const response = await fetch(`/api/library/${assetId}`);
+        const body = (await response.json()) as ApiLibraryPatchResponse;
+
+        if (!active || !response.ok || !body.data) {
+          return;
+        }
+
+        const asset = body.data;
+        const imageResponse = await fetch(asset.thumbnail_url);
+        const blob = await imageResponse.blob();
+        const extension = asset.format === "jpeg" ? "jpg" : asset.format;
+        const reference = new File([blob], `${asset.asset_id}.${extension}`, {
+          type:
+            blob.type ||
+            (asset.format === "jpeg" || asset.format === "jpg"
+              ? "image/jpeg"
+              : `image/${asset.format}`)
+        });
+
+        if (!active) {
+          return;
+        }
+
+        setReferenceImage(reference);
+        setPrompt(asset.prompt);
+        setSize(asset.params.size);
+        setQuality(asset.params.quality);
+        setOutputFormat(asset.params.output_format);
+        setN(asset.params.n);
+        setOutputCompression(
+          asset.params.output_compression === null
+            ? ""
+            : String(asset.params.output_compression)
+        );
+        setModeration(asset.params.moderation);
+        setMode("image");
+        setErrorMessage("");
+      } catch {
+        if (active) {
+          setErrorMessage("无法读取素材作为参考图。");
+        }
+      }
+    }
+
+    void loadReferenceAsset();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -1703,6 +1768,13 @@ export default function CreatorWorkspace() {
                           />
                           {item.favorite ? "取消收藏" : "收藏素材"}
                         </button>
+                        <Link
+                          className="secondary-button"
+                          href={`/library/${item.asset_id}`}
+                        >
+                          <ExternalLink size={16} aria-hidden="true" />
+                          详情
+                        </Link>
                       </div>
                     </div>
                   </div>
