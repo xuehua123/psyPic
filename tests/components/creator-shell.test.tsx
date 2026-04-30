@@ -881,6 +881,53 @@ describe("CreatorWorkspace", () => {
     }
   });
 
+  it("loads a same-generation draft from the URL query", async () => {
+    window.history.pushState({}, "", "/?same_work=work_same_query_123");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            data: {
+              draft: {
+                prompt: "按社区作品生成同款商业图片。",
+                params: {
+                  prompt: "",
+                  model: "gpt-image-2",
+                  size: "1536x1024",
+                  quality: "medium",
+                  n: 1,
+                  output_format: "png",
+                  output_compression: null,
+                  background: "auto",
+                  moderation: "auto"
+                }
+              }
+            },
+            request_id: "psypic_req_same_query"
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+    );
+
+    try {
+      render(<CreatorWorkspace />);
+      const promptBox = (await screen.findByRole("textbox", {
+        name: "Prompt"
+      })) as HTMLTextAreaElement;
+
+      expect(promptBox.value).toBe("按社区作品生成同款商业图片。");
+      expect(fetch).toHaveBeenCalledWith(
+        "/api/community/works/work_same_query_123/same",
+        { method: "POST" }
+      );
+      expect(screen.getByLabelText("尺寸")).toHaveValue("1536x1024");
+    } finally {
+      window.history.pushState({}, "", "/");
+    }
+  });
+
   it("continues editing from a local history result", async () => {
     const imageBytes = new Uint8Array([
       0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a

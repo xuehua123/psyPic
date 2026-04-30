@@ -195,6 +195,21 @@ type ApiCommunityWorkResponse = {
   };
 };
 
+type ApiSameGenerationDraftResponse = {
+  data?: {
+    draft: {
+      prompt: string;
+      params?: Partial<ImageGenerationParams>;
+      reference_asset_id?: string;
+    };
+  };
+  request_id?: string;
+  error?: {
+    code: string;
+    message: string;
+  };
+};
+
 type TemplateFieldValue = string | boolean;
 type TemplateFieldValues = Record<string, TemplateFieldValue>;
 
@@ -348,6 +363,74 @@ export default function CreatorWorkspace() {
     }
 
     void loadReferenceAsset();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const workId = new URLSearchParams(window.location.search).get("same_work");
+
+    if (!workId) {
+      return;
+    }
+
+    let active = true;
+
+    async function loadSameGenerationDraft() {
+      try {
+        const response = await fetch(`/api/community/works/${workId}/same`, {
+          method: "POST"
+        });
+        const body = (await response.json()) as ApiSameGenerationDraftResponse;
+
+        if (!active || !response.ok || !body.data) {
+          return;
+        }
+
+        const draft = body.data.draft;
+        setPrompt(draft.prompt);
+
+        if (draft.params?.size) {
+          setSize(draft.params.size);
+        }
+
+        if (draft.params?.quality) {
+          setQuality(draft.params.quality);
+        }
+
+        if (draft.params?.output_format) {
+          setOutputFormat(draft.params.output_format);
+        }
+
+        if (draft.params?.n) {
+          setN(draft.params.n);
+        }
+
+        if ("output_compression" in (draft.params ?? {})) {
+          setOutputCompression(
+            draft.params?.output_compression === null ||
+              draft.params?.output_compression === undefined
+              ? ""
+              : String(draft.params.output_compression)
+          );
+        }
+
+        if (draft.params?.moderation) {
+          setModeration(draft.params.moderation);
+        }
+
+        setMode("text");
+        setErrorMessage("");
+      } catch {
+        if (active) {
+          setErrorMessage("无法读取社区同款草稿。");
+        }
+      }
+    }
+
+    void loadSameGenerationDraft();
 
     return () => {
       active = false;

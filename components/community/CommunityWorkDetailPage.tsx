@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 
 export type CommunityWorkDetail = {
   work_id: string;
@@ -12,11 +15,27 @@ export type CommunityWorkDetail = {
   created_at: string;
 };
 
+type SameGenerationDraftResponse = {
+  data?: {
+    draft: {
+      prompt: string;
+      params?: Record<string, unknown>;
+    };
+  };
+  error?: {
+    message: string;
+  };
+};
+
 export default function CommunityWorkDetailPage({
   work
 }: {
   work: CommunityWorkDetail | null;
 }) {
+  const [samePrompt, setSamePrompt] = useState("");
+  const [sameError, setSameError] = useState("");
+  const [sameLoading, setSameLoading] = useState(false);
+
   if (!work) {
     return (
       <main className="community-shell">
@@ -57,10 +76,55 @@ export default function CommunityWorkDetailPage({
             </section>
           ) : null}
           {work.same_generation_available ? (
-            <span className="inline-hint">发布者允许同款生成。</span>
+            <section className="community-disclosed-block">
+              <div className="field-label">同款生成</div>
+              <button
+                className="primary-button"
+                disabled={sameLoading}
+                onClick={() => void loadSameGenerationDraft(work.work_id)}
+                type="button"
+              >
+                {sameLoading ? "生成中" : "生成同款草稿"}
+              </button>
+              {samePrompt ? (
+                <>
+                  <p>{samePrompt}</p>
+                  <Link
+                    className="secondary-button"
+                    href={`/?same_work=${work.work_id}`}
+                  >
+                    套用到创作台
+                  </Link>
+                </>
+              ) : null}
+              {sameError ? <p className="error-message">{sameError}</p> : null}
+            </section>
           ) : null}
         </aside>
       </div>
     </main>
   );
+
+  async function loadSameGenerationDraft(workId: string) {
+    setSameLoading(true);
+    setSameError("");
+
+    try {
+      const response = await fetch(`/api/community/works/${workId}/same`, {
+        method: "POST"
+      });
+      const body = (await response.json()) as SameGenerationDraftResponse;
+
+      if (!response.ok || !body.data) {
+        setSameError(body.error?.message ?? "同款草稿生成失败。");
+        return;
+      }
+
+      setSamePrompt(body.data.draft.prompt);
+    } catch {
+      setSameError("同款草稿生成失败，请检查网络。");
+    } finally {
+      setSameLoading(false);
+    }
+  }
 }
