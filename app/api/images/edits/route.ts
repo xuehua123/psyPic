@@ -2,7 +2,13 @@ import { parseGenerationParams } from "@/lib/validation/image-params";
 import { validateReferenceImageUpload } from "@/lib/validation/upload";
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
 import { getKeyBinding, getSession } from "@/server/services/dev-store";
-import { decryptKeyBindingSecret, createId } from "@/server/services/key-binding-service";
+import { decryptKeyBindingSecret } from "@/server/services/key-binding-service";
+import {
+  createImageTask,
+  markImageTaskFailed,
+  markImageTaskRunning,
+  markImageTaskSucceeded
+} from "@/server/services/image-task-service";
 import { editImageWithSub2API, Sub2APIError } from "@/server/services/sub2api-client";
 import { createTempAssetFromBase64 } from "@/server/services/temp-asset-service";
 import { readSessionIdFromRequest } from "@/server/services/session-service";
@@ -91,7 +97,14 @@ export async function POST(request: Request) {
   }
 
   const startedAt = Date.now();
-  const taskId = createId("task");
+  const task = createImageTask({
+    userId: session.user_id,
+    keyBindingId: binding.id,
+    type: "edit",
+    prompt: parsed.data.prompt,
+    params: parsed.data
+  });
+  markImageTaskRunning(task.id);
 
   try {
     const upstream = await editImageWithSub2API({
@@ -104,7 +117,7 @@ export async function POST(request: Request) {
       upstream.images.map(async (upstreamImage) => {
         const asset = await createTempAssetFromBase64({
           userId: session.user_id,
-          taskId,
+          taskId: task.id,
           b64Json: upstreamImage.b64_json,
           format: parsed.data.output_format
         });
@@ -118,13 +131,20 @@ export async function POST(request: Request) {
         };
       })
     );
+    const durationMs = Date.now() - startedAt;
+    markImageTaskSucceeded(task.id, {
+      images,
+      usage: upstream.usage,
+      durationMs,
+      upstreamRequestId: upstream.upstreamRequestId
+    });
 
     return jsonOk(
       {
-        task_id: taskId,
+        task_id: task.id,
         images,
         usage: upstream.usage,
-        duration_ms: Date.now() - startedAt
+        duration_ms: durationMs
       },
       requestId,
       {
@@ -133,6 +153,13 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     if (error instanceof Sub2APIError) {
+      markImageTaskFailed(task.id, {
+        code: error.code,
+        message: error.message,
+        durationMs: Date.now() - startedAt,
+        upstreamRequestId: error.upstreamRequestId
+      });
+
       return jsonError({
         status: error.status,
         code: error.code,
@@ -141,6 +168,12 @@ export async function POST(request: Request) {
         upstreamRequestId: error.upstreamRequestId
       });
     }
+
+    markImageTaskFailed(task.id, {
+      code: "upstream_error",
+      message: "图片编辑失败",
+      durationMs: Date.now() - startedAt
+    });
 
     return jsonError({
       status: 502,
