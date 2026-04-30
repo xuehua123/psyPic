@@ -730,7 +730,12 @@ export default function CreatorWorkspace() {
     }
 
     setReferenceImage(file);
-    setMaskEnabled(false);
+    setMaskEnabled(
+      Boolean(
+        commercialTemplates.find((template) => template.id === selectedTemplateId)
+          ?.requiresMask
+      )
+    );
     setErrorMessage("");
   }
 
@@ -837,6 +842,7 @@ export default function CreatorWorkspace() {
       );
       setModeration(rendered.params.moderation);
       setMode(template.requiresImage ? "image" : "text");
+      setMaskEnabled(Boolean(template.requiresMask));
       setErrorMessage("");
     }
   }

@@ -13,6 +13,7 @@ describe("commercial template seed library", () => {
       "tpl_lifestyle_scene",
       "tpl_ad_banner",
       "tpl_social_cover",
+      "tpl_mask_local_edit",
       "tpl_brand_poster",
       "tpl_portrait_avatar",
       "tpl_app_hero"
@@ -29,7 +30,8 @@ describe("commercial template seed library", () => {
       "tpl_product_background",
       "tpl_lifestyle_scene",
       "tpl_ad_banner",
-      "tpl_social_cover"
+      "tpl_social_cover",
+      "tpl_mask_local_edit"
     ]);
   });
 
@@ -70,5 +72,22 @@ describe("commercial template seed library", () => {
 
     expect(rendered.prompt).toContain("Keep the original 香水瓶 exactly the same");
     expect(rendered.prompt).toContain("Do not change the product shape");
+  });
+
+  it("renders a mask local edit prompt that preserves unmasked areas", () => {
+    const template = getCommercialTemplate("tpl_mask_local_edit");
+
+    expect(template?.requiresImage).toBe(true);
+    expect(template?.requiresMask).toBe(true);
+
+    const rendered = renderCommercialPrompt("tpl_mask_local_edit", {
+      edit_target: "替换瓶身背后的杂乱背景",
+      desired_change: "高级灰摄影棚背景"
+    });
+
+    expect(rendered.prompt).toContain("Edit only the masked area");
+    expect(rendered.prompt).toContain("替换瓶身背后的杂乱背景");
+    expect(rendered.prompt).toContain("高级灰摄影棚背景");
+    expect(rendered.prompt).toContain("Preserve every unmasked pixel");
   });
 });

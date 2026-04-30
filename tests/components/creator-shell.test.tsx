@@ -532,6 +532,46 @@ describe("CreatorWorkspace", () => {
     }
   });
 
+  it("selects the mask local edit template and enables mask editing", async () => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+      configurable: true,
+      value: () => ({
+        clearRect: vi.fn(),
+        fillRect: vi.fn(),
+        fillStyle: "",
+        globalCompositeOperation: "source-over"
+      })
+    });
+
+    try {
+      render(<CreatorWorkspace />);
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "图生图" }));
+      await user.upload(
+        screen.getByLabelText("参考图"),
+        new File(
+          [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+          "product.png",
+          { type: "image/png" }
+        )
+      );
+      await user.click(screen.getByRole("button", { name: /局部编辑/ }));
+
+      expect(screen.getByRole("checkbox", { name: "遮罩编辑" })).toBeChecked();
+      expect(
+        (screen.getByRole("textbox", { name: "Prompt" }) as HTMLTextAreaElement)
+          .value
+      ).toContain("Edit only the masked area");
+    } finally {
+      Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+        configurable: true,
+        value: originalGetContext
+      });
+    }
+  });
+
   it("accepts a pasted reference image in image-to-image mode", async () => {
     render(<CreatorWorkspace />);
 

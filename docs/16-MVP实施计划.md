@@ -46,7 +46,7 @@
 - 本轮已完成：`v0.5` 任务状态查询/取消接口、同步生成任务记录、创作台任务状态展示、取消、重新生成、partial preview、用户并发限制，以及 `v0.6` 遮罩编辑最小闭环。
 - 已完成 CI：GitHub Actions 执行 lint、typecheck、test、Prisma validate、build。
 - 当前主线：`main`。
-- 当前焦点：继续 `v0.6` 局部编辑 prompt 模板；`v0.5` 任务队列仍保留为后续异步任务系统收口项。
+- 当前焦点：进入 `v0.7` 服务端历史、素材库和相册；`v0.5` 任务队列仍保留为后续异步任务系统收口项。
 
 ## 版本拆分
 
@@ -57,7 +57,7 @@
 | `v0.3` | 已完成 | 文生图可用 | `/api/images/generations`、TempAsset、下载、基础历史 |
 | `v0.4` | 已完成 | 图生图和公开试用 MVP | `/api/images/edits`、单参考图、继续编辑、MVP 验收 |
 | `v0.5` | 进行中 | 流式和任务系统 | 任务状态、取消、重试、SSE partial preview、并发限制和队列 |
-| `v0.6` | 进行中 | 遮罩编辑 | 遮罩画布、PNG mask、edits multipart mask |
+| `v0.6` | 已完成 | 遮罩编辑 | 遮罩画布、PNG mask、edits multipart mask、局部编辑模板 |
 
 ## `v0.1` 项目骨架
 
@@ -255,7 +255,7 @@
 - [x] BFF 校验 mask MIME、扩展名和文件头。
 - [x] 校验 mask 与参考图尺寸一致。
 - [x] Sub2API edits multipart 转发 `mask` 字段。
-- [ ] 补齐局部编辑 prompt 模板。
+- [x] 补齐局部编辑 prompt 模板。
 
 ### 验收
 
@@ -263,6 +263,7 @@
 - [x] 非 PNG mask 返回 415 且不调用 Sub2API。
 - [x] 上游请求中包含 `image` 和 `mask`。
 - [x] mask 尺寸不一致时返回可读错误。
+- [x] 局部编辑模板会启用遮罩编辑并生成保留未遮罩区域的 prompt。
 
 ## 关键文件建议
 
@@ -321,8 +322,9 @@
 14. [ ] 任务队列。
 15. [x] 遮罩编辑最小闭环。
 16. [x] mask 尺寸一致性校验。
-17. [ ] 局部编辑 prompt 模板。
-18. [ ] MVP/v0.5/v0.6 验收回归。
+17. [x] 局部编辑 prompt 模板。
+18. [ ] 服务端历史、素材库和相册。
+19. [ ] MVP/v0.5/v0.6 验收回归。
 
 ## 不允许的捷径
 

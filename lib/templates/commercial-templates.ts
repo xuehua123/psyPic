@@ -19,6 +19,7 @@ export type CommercialTemplate = {
   scene: string;
   description: string;
   requiresImage: boolean;
+  requiresMask?: boolean;
   enabledForMvp: boolean;
   defaultParams: {
     size: "1024x1024" | "1536x1024" | "1024x1536";
@@ -346,6 +347,49 @@ Lighting: Bright and polished, suitable for mobile feed.
 Text: Do not generate text. Leave clean space for text overlay.
 Constraints: Avoid clutter, fake typography, watermarks, low-resolution details.
 Output: Eye-catching cover image ready for social media publishing.`
+  },
+  {
+    id: "tpl_mask_local_edit",
+    name: "局部编辑",
+    scene: "local_edit",
+    description: "只改涂抹区域，保留其它内容",
+    requiresImage: true,
+    requiresMask: true,
+    enabledForMvp: true,
+    defaultParams: {
+      size: "1024x1024",
+      ...commonParams
+    },
+    fields: [
+      {
+        key: "edit_target",
+        label: "修改区域",
+        type: "text",
+        required: true
+      },
+      {
+        key: "desired_change",
+        label: "目标效果",
+        type: "text",
+        required: true,
+        defaultValue: "替换为干净自然的商业画面"
+      },
+      {
+        key: "preserve_policy",
+        label: "保留要求",
+        type: "text",
+        required: false,
+        defaultValue: "保留未涂抹区域的主体、材质、文字、边缘、光影和构图"
+      }
+    ],
+    promptTemplate: `Edit only the masked area of the input image.
+
+Target area: {edit_target}.
+Desired change: {desired_change}.
+Mask rule: Use the provided mask as the strict edit boundary.
+Preservation: {preserve_policy}. Preserve every unmasked pixel as much as possible.
+Constraints: Do not alter unmasked product shape, logo, label, material, color, proportions, camera angle, or surrounding details. Do not add text unless explicitly requested.
+Output: A realistic local edit that blends cleanly with the original image.`
   },
   {
     id: "tpl_brand_poster",
