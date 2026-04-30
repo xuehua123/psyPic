@@ -1,0 +1,89 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  user
+  admin
+}
+
+enum KeyBindingStatus {
+  active
+  disabled
+  expired
+}
+
+model User {
+  id            String       @id
+  sub2apiUserId String?      @map("sub2api_user_id")
+  displayName   String?      @map("display_name")
+  avatarUrl     String?      @map("avatar_url")
+  role          UserRole     @default(user)
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+  sessions      Session[]
+  keyBindings   KeyBinding[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+model Session {
+  id           String     @id
+  userId       String     @map("user_id")
+  keyBindingId String?    @map("key_binding_id")
+  expiresAt    DateTime   @map("expires_at")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  lastSeenAt   DateTime   @default(now()) @map("last_seen_at")
+  revokedAt    DateTime?  @map("revoked_at")
+  user         User       @relation(fields: [userId], references: [id])
+  keyBinding   KeyBinding? @relation(fields: [keyBindingId], references: [id])
+
+  @@index([userId])
+  @@index([keyBindingId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model KeyBinding {
+  id                         String             @id
+  userId                     String             @map("user_id")
+  sub2apiBaseUrl             String             @map("sub2api_base_url")
+  sub2apiApiKeyCiphertext    String?            @map("sub2api_api_key_ciphertext")
+  sub2apiApiKeyId            String?            @map("sub2api_api_key_id")
+  defaultModel               String             @default("gpt-image-2") @map("default_model")
+  enabledModels              Json               @map("enabled_models")
+  limits                     Json
+  status                     KeyBindingStatus   @default(active)
+  createdAt                  DateTime           @default(now()) @map("created_at")
+  updatedAt                  DateTime           @updatedAt @map("updated_at")
+  user                       User               @relation(fields: [userId], references: [id])
+  sessions                   Session[]
+
+  @@index([userId])
+  @@index([status])
+  @@map("key_bindings")
+}
+
+model AuditLog {
+  id            String   @id
+  actorUserId   String?  @map("actor_user_id")
+  action        String
+  targetType    String   @map("target_type")
+  targetId      String   @map("target_id")
+  requestId     String   @map("request_id")
+  ipHash        String?  @map("ip_hash")
+  userAgentHash String?  @map("user_agent_hash")
+  metadata      Json
+  createdAt     DateTime @default(now()) @map("created_at")
+  actor         User?    @relation(fields: [actorUserId], references: [id])
+
+  @@index([actorUserId])
+  @@index([requestId])
+  @@index([targetType, targetId])
+  @@map("audit_logs")
+}
