@@ -456,6 +456,28 @@ describe("CreatorWorkspace", () => {
     expect(promptBox.value).toContain("Create a high-quality commercial image.");
   });
 
+  it("saves and reapplies a prompt favorite", async () => {
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    const promptBox = screen.getByRole("textbox", {
+      name: "Prompt"
+    }) as HTMLTextAreaElement;
+
+    await user.type(promptBox, "Create a premium perfume product photo.");
+    await user.click(screen.getByRole("button", { name: "收藏 Prompt" }));
+
+    expect(
+      (await screen.findAllByText("Create a premium perfume product photo."))
+        .length
+    ).toBeGreaterThan(1);
+
+    await user.clear(promptBox);
+    await user.click(screen.getByRole("button", { name: "套用 Prompt" }));
+
+    expect(promptBox.value).toBe("Create a premium perfume product photo.");
+  });
+
   it("surfaces readable API errors with request ids", async () => {
     vi.stubGlobal(
       "fetch",

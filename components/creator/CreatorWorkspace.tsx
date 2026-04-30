@@ -33,6 +33,11 @@ import {
   saveLocalHistoryItem,
   type LocalHistoryItem
 } from "@/lib/history/local-history";
+import {
+  listPromptFavorites,
+  savePromptFavorite,
+  type PromptFavoriteItem
+} from "@/lib/prompts/prompt-favorites";
 import { commercialSizePresets } from "@/lib/templates/commercial-size-presets";
 import {
   commercialTemplates,
@@ -226,6 +231,9 @@ export default function CreatorWorkspace() {
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [partialImages, setPartialImages] = useState<GenerationImage[]>([]);
   const [historyItems, setHistoryItems] = useState<LocalHistoryItem[]>([]);
+  const [promptFavorites, setPromptFavorites] = useState<PromptFavoriteItem[]>(
+    []
+  );
   const [libraryItems, setLibraryItems] = useState<LibraryAssetItem[]>([]);
   const [libraryStatus, setLibraryStatus] = useState<
     "idle" | "loading" | "loaded" | "unavailable"
@@ -255,6 +263,12 @@ export default function CreatorWorkspace() {
     void listLocalHistoryItems()
       .then(setHistoryItems)
       .catch(() => setHistoryItems([]));
+  }, []);
+
+  useEffect(() => {
+    void listPromptFavorites()
+      .then(setPromptFavorites)
+      .catch(() => setPromptFavorites([]));
   }, []);
 
   useEffect(() => {
@@ -729,6 +743,34 @@ export default function CreatorWorkspace() {
     } finally {
       setIsAssistingPrompt(false);
     }
+  }
+
+  async function saveCurrentPromptFavorite() {
+    if (!prompt.trim()) {
+      setErrorMessage("Prompt 不能为空。");
+      return;
+    }
+
+    const item = await savePromptFavorite({
+      prompt,
+      templateId: selectedTemplateId,
+      mode
+    });
+
+    setPromptFavorites((items) => [
+      item,
+      ...items.filter((current) => current.prompt !== item.prompt)
+    ]);
+    setErrorMessage("");
+  }
+
+  function applyPromptFavorite(item: PromptFavoriteItem) {
+    setPrompt(item.prompt);
+    setMode(item.mode);
+    if (item.templateId) {
+      setSelectedTemplateId(item.templateId);
+    }
+    setErrorMessage("");
   }
 
   function isImageTaskSnapshot(value: ImageTaskSnapshot) {
@@ -1645,6 +1687,15 @@ export default function CreatorWorkspace() {
                     {isAssistingPrompt ? "优化中" : "优化 Prompt"}
                   </button>
                   <button
+                    className="secondary-button"
+                    disabled={isGenerating}
+                    onClick={() => void saveCurrentPromptFavorite()}
+                    type="button"
+                  >
+                    <Star size={16} aria-hidden="true" />
+                    收藏 Prompt
+                  </button>
+                  <button
                     className="primary-button"
                     disabled={isGenerating}
                     onClick={submitGeneration}
@@ -1906,6 +1957,28 @@ export default function CreatorWorkspace() {
               </div>
             ) : null}
 
+            {promptFavorites.length > 0 ? (
+              <div className="library-section">
+                {promptFavorites.map((item) => (
+                  <div className="history-item" key={item.id}>
+                    <strong>{item.title}</strong>
+                    <p>{item.prompt}</p>
+                    <p>{item.mode === "image" ? "图生图" : "文生图"}</p>
+                    <div className="history-actions">
+                      <button
+                        className="secondary-button"
+                        onClick={() => applyPromptFavorite(item)}
+                        type="button"
+                      >
+                        <Copy size={16} aria-hidden="true" />
+                        套用 Prompt
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
             {libraryItems.length > 0 ? (
               <div className="library-section">
                 {libraryItems.map((item) => (
@@ -1967,7 +2040,9 @@ export default function CreatorWorkspace() {
               </div>
             ) : null}
 
-            {historyItems.length === 0 && libraryItems.length === 0 ? (
+            {historyItems.length === 0 &&
+            libraryItems.length === 0 &&
+            promptFavorites.length === 0 ? (
               <div className="history-item">
                 <strong>尚未生成</strong>
                 <p>生成后会显示 prompt、参数、request id、耗时和 usage。</p>
