@@ -19,6 +19,7 @@ import {
   Sparkles,
   Star,
   Tags,
+  UploadCloud,
   X
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -26,6 +27,7 @@ import type {
   ChangeEvent,
   ClipboardEvent,
   DragEvent,
+  FormEvent,
   PointerEvent as ReactPointerEvent
 } from "react";
 import {
@@ -181,6 +183,18 @@ type ApiPromptAssistResponse = {
   };
 };
 
+type ApiCommunityWorkResponse = {
+  data?: {
+    work_id: string;
+  };
+  request_id?: string;
+  error?: {
+    code: string;
+    message: string;
+    details?: { field?: string };
+  };
+};
+
 type TemplateFieldValue = string | boolean;
 type TemplateFieldValues = Record<string, TemplateFieldValue>;
 
@@ -240,6 +254,11 @@ export default function CreatorWorkspace() {
   >("idle");
   const [libraryFavoriteOnly, setLibraryFavoriteOnly] = useState(false);
   const [libraryTagFilter, setLibraryTagFilter] = useState("");
+  const [publishAssetId, setPublishAssetId] = useState<string | null>(null);
+  const [publishingAssetId, setPublishingAssetId] = useState<string | null>(null);
+  const [publishMessages, setPublishMessages] = useState<Record<string, string>>(
+    {}
+  );
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
   const [maskEnabled, setMaskEnabled] = useState(false);
   const [maskMode, setMaskMode] = useState<MaskMode>("paint");
@@ -1251,6 +1270,66 @@ export default function CreatorWorkspace() {
     }
   }
 
+  async function publishLibraryItem(
+    event: FormEvent<HTMLFormElement>,
+    item: LibraryAssetItem
+  ) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    const title = readFormString(formData, "title") || defaultCommunityTitle(item);
+    const visibility = readFormString(formData, "visibility") || "private";
+
+    setPublishingAssetId(item.asset_id);
+    setPublishMessages((messages) => ({
+      ...messages,
+      [item.asset_id]: "发布中"
+    }));
+
+    try {
+      const response = await fetch("/api/community/works", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          task_id: item.task_id,
+          asset_id: item.asset_id,
+          visibility,
+          title,
+          scene: "general",
+          tags: item.tags,
+          disclose_prompt: formData.get("disclose_prompt") === "on",
+          disclose_params: formData.get("disclose_params") === "on",
+          disclose_reference_images:
+            formData.get("disclose_reference_images") === "on",
+          allow_same_generation: formData.get("allow_same_generation") === "on",
+          allow_reference_reuse: formData.get("allow_reference_reuse") === "on",
+          public_confirmed: formData.get("public_confirmed") === "on"
+        })
+      });
+      const body = (await response.json()) as ApiCommunityWorkResponse;
+
+      if (!response.ok || !body.data) {
+        setPublishMessages((messages) => ({
+          ...messages,
+          [item.asset_id]: body.error?.message ?? "发布失败"
+        }));
+        return;
+      }
+
+      setPublishMessages((messages) => ({
+        ...messages,
+        [item.asset_id]: `已发布：${body.data?.work_id ?? ""}`
+      }));
+      setPublishAssetId(null);
+    } catch {
+      setPublishMessages((messages) => ({
+        ...messages,
+        [item.asset_id]: "发布失败，请检查网络。"
+      }));
+    } finally {
+      setPublishingAssetId(null);
+    }
+  }
+
   async function handleLibraryContinueEdit(item: LibraryAssetItem) {
     try {
       const response = await fetch(item.thumbnail_url);
@@ -1317,6 +1396,16 @@ export default function CreatorWorkspace() {
     const extension = item.format === "jpeg" ? "jpg" : item.format;
 
     return `${item.asset_id}.${extension}`;
+  }
+
+  function defaultCommunityTitle(item: LibraryAssetItem) {
+    return item.prompt.trim().slice(0, 28) || item.asset_id;
+  }
+
+  function readFormString(formData: FormData, key: string) {
+    const value = formData.get(key);
+
+    return typeof value === "string" ? value.trim() : "";
   }
 
   function mimeTypeForFormat(format: string) {
@@ -2026,6 +2115,18 @@ export default function CreatorWorkspace() {
                           />
                           {item.favorite ? "取消收藏" : "收藏素材"}
                         </button>
+                        <button
+                          className="secondary-button"
+                          onClick={() =>
+                            setPublishAssetId((current) =>
+                              current === item.asset_id ? null : item.asset_id
+                            )
+                          }
+                          type="button"
+                        >
+                          <UploadCloud size={16} aria-hidden="true" />
+                          发布作品
+                        </button>
                         <Link
                           className="secondary-button"
                           href={`/library/${item.asset_id}`}
@@ -2034,6 +2135,88 @@ export default function CreatorWorkspace() {
                           详情
                         </Link>
                       </div>
+                      {publishAssetId === item.asset_id ? (
+                        <form
+                          className="community-publish-panel"
+                          onSubmit={(event) => void publishLibraryItem(event, item)}
+                        >
+                          <div className="field">
+                            <label htmlFor={`publish-title-${item.asset_id}`}>
+                              作品标题
+                            </label>
+                            <input
+                              className="input"
+                              defaultValue={defaultCommunityTitle(item)}
+                              id={`publish-title-${item.asset_id}`}
+                              name="title"
+                              type="text"
+                            />
+                          </div>
+                          <div className="field">
+                            <label htmlFor={`publish-visibility-${item.asset_id}`}>
+                              可见性
+                            </label>
+                            <select
+                              className="select"
+                              defaultValue="private"
+                              id={`publish-visibility-${item.asset_id}`}
+                              name="visibility"
+                            >
+                              <option value="private">私有</option>
+                              <option value="unlisted">链接可见</option>
+                              <option value="public">公开社区</option>
+                            </select>
+                          </div>
+                          <div className="community-publish-options">
+                            <label className="checkbox-row">
+                              <input name="disclose_prompt" type="checkbox" />
+                              公开 Prompt
+                            </label>
+                            <label className="checkbox-row">
+                              <input name="disclose_params" type="checkbox" />
+                              公开参数
+                            </label>
+                            <label className="checkbox-row">
+                              <input
+                                name="disclose_reference_images"
+                                type="checkbox"
+                              />
+                              公开参考图
+                            </label>
+                            <label className="checkbox-row">
+                              <input
+                                defaultChecked
+                                name="allow_same_generation"
+                                type="checkbox"
+                              />
+                              允许同款生成
+                            </label>
+                            <label className="checkbox-row">
+                              <input name="allow_reference_reuse" type="checkbox" />
+                              允许参考复用
+                            </label>
+                            <label className="checkbox-row">
+                              <input name="public_confirmed" type="checkbox" />
+                              确认公开发布
+                            </label>
+                          </div>
+                          <button
+                            className="primary-button"
+                            disabled={publishingAssetId === item.asset_id}
+                            type="submit"
+                          >
+                            <UploadCloud size={16} aria-hidden="true" />
+                            {publishingAssetId === item.asset_id
+                              ? "发布中"
+                              : "确认发布"}
+                          </button>
+                        </form>
+                      ) : null}
+                      {publishMessages[item.asset_id] ? (
+                        <p className="inline-hint">
+                          {publishMessages[item.asset_id]}
+                        </p>
+                      ) : null}
                     </div>
                   </div>
                 ))}

@@ -90,6 +90,69 @@ describe("CreatorWorkspace", () => {
     );
   });
 
+  it("publishes a server library asset to the community with privacy defaults", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(
+        libraryResponse({
+          assetId: "asset_publish_123",
+          taskId: "task_publish_123",
+          favorite: false,
+          tags: ["电商主图"]
+        })
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              work_id: "work_publish_123",
+              task_id: "task_publish_123",
+              asset_id: "asset_publish_123",
+              visibility: "unlisted",
+              title: "社区展示作品"
+            },
+            request_id: "psypic_req_publish_123"
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "同步素材库" }));
+    await screen.findByText("asset_publish_123");
+    await user.click(screen.getByRole("button", { name: "发布作品" }));
+    await user.clear(screen.getByLabelText("作品标题"));
+    await user.type(screen.getByLabelText("作品标题"), "社区展示作品");
+    await user.selectOptions(screen.getByLabelText("可见性"), "unlisted");
+    await user.click(screen.getByRole("button", { name: "确认发布" }));
+
+    expect(await screen.findByText(/已发布：work_publish_123/)).toBeInTheDocument();
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      2,
+      "/api/community/works",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          task_id: "task_publish_123",
+          asset_id: "asset_publish_123",
+          visibility: "unlisted",
+          title: "社区展示作品",
+          scene: "general",
+          tags: ["电商主图"],
+          disclose_prompt: false,
+          disclose_params: false,
+          disclose_reference_images: false,
+          allow_same_generation: true,
+          allow_reference_reuse: false,
+          public_confirmed: false
+        })
+      })
+    );
+  });
+
   it("submits text-to-image requests and renders result metadata", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
         new Response(
