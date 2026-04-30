@@ -169,6 +169,52 @@ export function getImageTaskConcurrencyState(userId: string) {
   };
 }
 
+export function listImageTaskHistoryForUser(
+  userId: string,
+  input?: {
+    cursor?: string | null;
+    limit?: number;
+  }
+) {
+  const limit = clampHistoryLimit(input?.limit);
+  const tasks = Array.from(imageTasks.values())
+    .filter(
+      (task) =>
+        task.user_id === userId &&
+        task.status === "succeeded" &&
+        task.images.length > 0
+    )
+    .sort((left, right) => right.created_at.localeCompare(left.created_at));
+  const startIndex = input?.cursor
+    ? tasks.findIndex((task) => task.id === input.cursor) + 1
+    : 0;
+  const safeStartIndex = Math.max(startIndex, 0);
+  const page = tasks.slice(safeStartIndex, safeStartIndex + limit);
+  const hasNextPage = tasks.length > safeStartIndex + page.length;
+
+  return {
+    items: page,
+    nextCursor: hasNextPage ? page.at(-1)?.id ?? null : null
+  };
+}
+
+export function serializeImageTaskHistoryItem(task: ImageTask) {
+  return {
+    task_id: task.id,
+    type: task.type,
+    prompt: task.prompt,
+    params: task.params,
+    thumbnail_url: task.images[0]?.url,
+    images: task.images,
+    usage: task.usage,
+    upstream_request_id: task.upstream_request_id,
+    duration_ms: task.duration_ms,
+    created_at: task.created_at,
+    favorite: false,
+    tags: []
+  };
+}
+
 export function serializeImageTask(task: ImageTask) {
   return {
     id: task.id,
@@ -206,4 +252,12 @@ function updateTask(taskId: string, patch: Partial<ImageTask>) {
   imageTasks.set(taskId, updated);
 
   return updated;
+}
+
+function clampHistoryLimit(limit: number | undefined) {
+  if (typeof limit !== "number" || !Number.isInteger(limit)) {
+    return 30;
+  }
+
+  return Math.min(Math.max(limit, 1), 50);
 }

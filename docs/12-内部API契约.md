@@ -347,11 +347,19 @@ data: {"task_id":"task_xxx","code":"upstream_error","message":"上游失败","re
 
 ## History
 
-MVP 可先 IndexedDB 保存历史；`v0.7` 后服务端历史可用。
+MVP 可先 IndexedDB 保存历史；`v0.7` 起服务端历史从当前用户已成功的图片任务派生。
 
 ```http
-GET /api/history?cursor=xxx&limit=30&type=image_generation
+GET /api/history?cursor=task_xxx&limit=30
 ```
+
+规则：
+
+- 只返回当前 session 所属用户的 `succeeded` 图片任务。
+- `limit` 默认 30，范围 1-50。
+- `next_cursor` 使用当前页最后一条 `task_id`；下一页从该任务之后开始。
+- 未登录返回 HTTP 401，错误码 `unauthorized`。
+- 响应不得包含 API Key、session cookie 或 key binding secret。
 
 响应：
 
@@ -361,15 +369,36 @@ GET /api/history?cursor=xxx&limit=30&type=image_generation
     "items": [
       {
         "task_id": "task_xxx",
+        "type": "generation",
         "prompt": "一张高端电商产品主图...",
+        "params": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        },
         "thumbnail_url": "/api/assets/asset_xxx",
-        "created_at": "2026-04-30T12:00:00Z",
+        "images": [
+          {
+            "asset_id": "asset_xxx",
+            "url": "/api/assets/asset_xxx",
+            "format": "png"
+          }
+        ],
+        "usage": {
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "total_tokens": 0
+        },
+        "upstream_request_id": "req_xxx",
+        "duration_ms": 12000,
+        "created_at": "2026-05-01T12:00:00.000Z",
         "favorite": false,
-        "tags": ["电商主图"]
+        "tags": []
       }
     ],
-    "next_cursor": "next_xxx"
-  }
+    "next_cursor": null
+  },
+  "request_id": "psypic_req_xxx"
 }
 ```
 
