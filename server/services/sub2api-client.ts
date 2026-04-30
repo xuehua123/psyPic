@@ -1,7 +1,7 @@
 import type { ImageGenerationParams } from "@/lib/validation/image-params";
 import { redactSensitiveValue } from "@/server/services/key-binding-service";
 
-const DEFAULT_SUB2API_TIMEOUT_MS = 110000;
+const DEFAULT_SUB2API_TIMEOUT_MS = 300000;
 
 export type Sub2APIImage = {
   b64_json: string;

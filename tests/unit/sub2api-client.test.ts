@@ -56,7 +56,7 @@ describe("Sub2API image client", () => {
     expect(response.images[0].b64_json).toBe(Buffer.from("image-bytes").toString("base64"));
   });
 
-  it("uses the documented 110 second BFF timeout by default", async () => {
+  it("uses the 5 minute BFF timeout by default", async () => {
     const previousTimeout = process.env.SUB2API_TIMEOUT_MS;
     delete process.env.SUB2API_TIMEOUT_MS;
     const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
@@ -87,7 +87,7 @@ describe("Sub2API image client", () => {
         }
       });
 
-      expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 110000);
+      expect(timeoutSpy).toHaveBeenCalledWith(expect.any(Function), 300000);
     } finally {
       timeoutSpy.mockRestore();
       if (previousTimeout === undefined) {
