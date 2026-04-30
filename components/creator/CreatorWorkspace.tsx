@@ -14,11 +14,13 @@ import {
   Sparkles
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import type { ChangeEvent, ClipboardEvent, DragEvent } from "react";
 import {
   listLocalHistoryItems,
   saveLocalHistoryItem,
   type LocalHistoryItem
 } from "@/lib/history/local-history";
+import { commercialSizePresets } from "@/lib/templates/commercial-size-presets";
 import { commercialTemplates } from "@/lib/templates/commercial-templates";
 import {
   GENERATION_SIZE_OPTIONS,
@@ -63,8 +65,11 @@ type ApiGenerationResponse = {
   };
 };
 
+type CreatorMode = "text" | "image";
+
 export default function CreatorWorkspace() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [mode, setMode] = useState<CreatorMode>("text");
   const [selectedTemplateId, setSelectedTemplateId] = useState(
     "tpl_ecommerce_main"
   );
@@ -83,11 +88,14 @@ export default function CreatorWorkspace() {
   const [errorMessage, setErrorMessage] = useState("");
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [historyItems, setHistoryItems] = useState<LocalHistoryItem[]>([]);
+  const [referenceImage, setReferenceImage] = useState<File | null>(null);
 
   const mvpTemplates = useMemo(
     () => commercialTemplates.filter((template) => template.enabledForMvp),
     []
   );
+  const selectedCommercialSizeId =
+    commercialSizePresets.find((preset) => preset.size === size)?.id ?? "custom";
 
   useEffect(() => {
     void listLocalHistoryItems()
@@ -105,13 +113,26 @@ export default function CreatorWorkspace() {
     setErrorMessage("");
 
     const requestParams = buildGenerationRequest();
+    if (mode === "image" && !referenceImage) {
+      setIsGenerating(false);
+      setErrorMessage("请先上传一张参考图。");
+      return;
+    }
 
     try {
-      const response = await fetch("/api/images/generations", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(requestParams)
-      });
+      const response = await fetch(
+        mode === "image" ? "/api/images/edits" : "/api/images/generations",
+        mode === "image" && referenceImage
+          ? {
+              method: "POST",
+              body: buildEditFormData(requestParams, referenceImage)
+            }
+          : {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(requestParams)
+            }
+      );
       const body = (await response.json()) as ApiGenerationResponse;
 
       if (!response.ok || !body.data) {
@@ -178,6 +199,92 @@ export default function CreatorWorkspace() {
     await navigator.clipboard?.writeText(prompt);
   }
 
+  function buildEditFormData(params: ImageGenerationParams, image: File) {
+    const formData = new FormData();
+    formData.set("image", image);
+
+    Object.entries(params).forEach(([key, value]) => {
+      if (key === "output_compression" && value === null) {
+        return;
+      }
+
+      if (value !== undefined && value !== null) {
+        formData.set(key, String(value));
+      }
+    });
+
+    return formData;
+  }
+
+  function handleReferenceInput(event: ChangeEvent<HTMLInputElement>) {
+    selectReferenceImage(event.target.files?.[0]);
+  }
+
+  function handleReferenceDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    selectReferenceImage(event.dataTransfer.files[0]);
+  }
+
+  function handleReferencePaste(event: ClipboardEvent<HTMLDivElement>) {
+    const image = Array.from(event.clipboardData.files).find((file) =>
+      file.type.startsWith("image/")
+    );
+
+    selectReferenceImage(image);
+  }
+
+  function selectReferenceImage(file: File | undefined) {
+    if (!file) {
+      return;
+    }
+
+    setReferenceImage(file);
+    setErrorMessage("");
+  }
+
+  function selectCommercialTemplate(templateId: string) {
+    const template = commercialTemplates.find((item) => item.id === templateId);
+
+    setSelectedTemplateId(templateId);
+
+    if (template) {
+      setSize(template.defaultParams.size);
+      setMode(template.requiresImage ? "image" : "text");
+    }
+  }
+
+  function selectCommercialSize(presetId: string) {
+    const preset = commercialSizePresets.find((item) => item.id === presetId);
+
+    if (preset) {
+      setSize(preset.size);
+    }
+  }
+
+  async function handleResultAsReference(image: GenerationImage) {
+    try {
+      const response = await fetch(image.url);
+      const blob = await response.blob();
+      const reference = new File([blob], `${image.asset_id}.${image.format}`, {
+        type: blob.type || mimeTypeForFormat(image.format)
+      });
+
+      setReferenceImage(reference);
+      setMode("image");
+      setErrorMessage("");
+    } catch {
+      setErrorMessage("无法读取生成结果作为参考图。");
+    }
+  }
+
+  function mimeTypeForFormat(format: string) {
+    if (format === "jpeg" || format === "jpg") {
+      return "image/jpeg";
+    }
+
+    return `image/${format}`;
+  }
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -213,10 +320,18 @@ export default function CreatorWorkspace() {
             <div className="field">
               <div className="field-label">模式</div>
               <div className="segmented">
-                <button className="segment active" type="button">
+                <button
+                  className={`segment ${mode === "text" ? "active" : ""}`}
+                  onClick={() => setMode("text")}
+                  type="button"
+                >
                   文生图
                 </button>
-                <button className="segment" type="button">
+                <button
+                  className={`segment ${mode === "image" ? "active" : ""}`}
+                  onClick={() => setMode("image")}
+                  type="button"
+                >
                   图生图
                 </button>
               </div>
@@ -226,6 +341,23 @@ export default function CreatorWorkspace() {
               <label htmlFor="model">模型</label>
               <select className="select" id="model" defaultValue="gpt-image-2">
                 <option value="gpt-image-2">gpt-image-2</option>
+              </select>
+            </div>
+
+            <div className="field">
+              <label htmlFor="commercial-size">商业尺寸</label>
+              <select
+                className="select"
+                id="commercial-size"
+                onChange={(event) => selectCommercialSize(event.target.value)}
+                value={selectedCommercialSizeId}
+              >
+                {commercialSizePresets.map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.label} · {preset.size}
+                  </option>
+                ))}
+                <option value="custom">按尺寸选择</option>
               </select>
             </div>
 
@@ -356,6 +488,31 @@ export default function CreatorWorkspace() {
             </button>
           </div>
           <div className="panel-body field-stack">
+            {mode === "image" ? (
+              <div
+                className="reference-dropzone"
+                data-testid="reference-dropzone"
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={handleReferenceDrop}
+                onPaste={handleReferencePaste}
+                tabIndex={0}
+              >
+                <label className="reference-upload">
+                  <input
+                    accept="image/png,image/jpeg,image/webp"
+                    aria-label="参考图"
+                    onChange={handleReferenceInput}
+                    type="file"
+                  />
+                  <ImagePlus size={18} aria-hidden="true" />
+                  <span>
+                    <strong>参考图</strong>
+                    <span>{referenceImage ? referenceImage.name : "点击、拖拽或粘贴一张图片"}</span>
+                  </span>
+                </label>
+              </div>
+            ) : null}
+
             <div className="field">
               <label htmlFor="prompt">Prompt</label>
               <textarea
@@ -393,7 +550,7 @@ export default function CreatorWorkspace() {
                   <button
                     className="template-button"
                     key={template.id}
-                    onClick={() => setSelectedTemplateId(template.id)}
+                    onClick={() => selectCommercialTemplate(template.id)}
                     type="button"
                   >
                     <span>
@@ -442,6 +599,14 @@ export default function CreatorWorkspace() {
                           >
                             <RotateCcw size={16} aria-hidden="true" />
                             重试
+                          </button>
+                          <button
+                            className="secondary-button"
+                            onClick={() => void handleResultAsReference(image)}
+                            type="button"
+                          >
+                            <ImagePlus size={16} aria-hidden="true" />
+                            作为参考图
                           </button>
                         </div>
                       </div>

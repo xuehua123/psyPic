@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { generateImageWithSub2API } from "@/server/services/sub2api-client";
+import {
+  editImageWithSub2API,
+  generateImageWithSub2API
+} from "@/server/services/sub2api-client";
 
 describe("Sub2API image client", () => {
   it("posts generation requests to the Images API without unsupported MVP fields", async () => {
@@ -87,5 +90,62 @@ describe("Sub2API image client", () => {
       status: 429,
       message: expect.not.stringContaining("secret-token-value")
     });
+  });
+
+  it("posts image edit requests as multipart form data", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ b64_json: Buffer.from("edited-image").toString("base64") }],
+          usage: { input_tokens: 15, output_tokens: 25, total_tokens: 40 }
+        }),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/json",
+            "x-request-id": "upstream_edit_req_123"
+          }
+        }
+      )
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+    const image = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "product.png", {
+      type: "image/png"
+    });
+
+    const response = await editImageWithSub2API({
+      baseUrl: "https://sub2api.example.com/v1",
+      apiKey: "secret-token-value",
+      image,
+      params: {
+        prompt: "Replace the background with a premium studio scene.",
+        model: "gpt-image-2",
+        size: "1024x1024",
+        quality: "medium",
+        n: 1,
+        output_format: "png",
+        output_compression: null,
+        background: "auto",
+        moderation: "auto"
+      }
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://sub2api.example.com/v1/images/edits",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          authorization: "Bearer secret-token-value"
+        })
+      })
+    );
+    const body = fetchSpy.mock.calls[0][1].body;
+    expect(body).toBeInstanceOf(FormData);
+    expect(body.get("image")).toBeInstanceOf(File);
+    expect(body.get("prompt")).toBe("Replace the background with a premium studio scene.");
+    expect(body.get("stream")).toBeNull();
+    expect(body.get("input_fidelity")).toBeNull();
+    expect(response.upstreamRequestId).toBe("upstream_edit_req_123");
+    expect(response.images[0].b64_json).toBe(Buffer.from("edited-image").toString("base64"));
   });
 });

@@ -305,6 +305,52 @@ a {
   margin-top: 10px;
 }
 
+.reference-dropzone {
+  border: 1px dashed var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  outline: none;
+}
+
+.reference-dropzone:focus-within,
+.reference-dropzone:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+}
+
+.reference-upload {
+  min-height: 76px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  cursor: pointer;
+}
+
+.reference-upload input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.reference-upload strong,
+.reference-upload span span {
+  display: block;
+}
+
+.reference-upload strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.reference-upload span span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .result-stage {
   min-height: 340px;
   border: 1px dashed var(--line-strong);

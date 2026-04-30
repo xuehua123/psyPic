@@ -107,14 +107,88 @@ export async function generateImageWithSub2API(input: {
   }
 }
 
+export async function editImageWithSub2API(input: {
+  baseUrl: string;
+  apiKey: string;
+  params: ImageGenerationParams;
+  image: File;
+  timeoutMs?: number;
+}): Promise<Sub2APIGenerationResponse> {
+  const controller = new AbortController();
+  const timeout = setTimeout(
+    () => controller.abort(),
+    input.timeoutMs ?? Number(process.env.SUB2API_TIMEOUT_MS ?? 60000)
+  );
+
+  try {
+    const response = await fetch(buildImageUrl(input.baseUrl, "edits"), {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${input.apiKey}`
+      },
+      body: buildEditPayload(input.params, input.image),
+      signal: controller.signal
+    });
+    const upstreamRequestId =
+      response.headers.get("x-request-id") ??
+      response.headers.get("x-openai-request-id") ??
+      undefined;
+    const body = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Sub2APIError({
+        status: response.status,
+        code: mapStatusToCode(response.status),
+        message: extractErrorMessage(body, response.status),
+        upstreamRequestId
+      });
+    }
+
+    const data = Array.isArray(body.data) ? body.data : [];
+    const usage = normalizeUsage(body.usage);
+
+    return {
+      images: data
+        .filter((item: { b64_json?: unknown }) => typeof item.b64_json === "string")
+        .map((item: { b64_json: string }) => ({ b64_json: item.b64_json })),
+      usage,
+      upstreamRequestId
+    };
+  } catch (error) {
+    if (error instanceof Sub2APIError) {
+      throw error;
+    }
+
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Sub2APIError({
+        status: 408,
+        code: "timeout",
+        message: "图片编辑请求超时"
+      });
+    }
+
+    throw new Sub2APIError({
+      status: 502,
+      code: "upstream_error",
+      message: error instanceof Error ? error.message : "上游服务失败"
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 function buildGenerationUrl(baseUrl: string) {
+  return buildImageUrl(baseUrl, "generations");
+}
+
+function buildImageUrl(baseUrl: string, action: "generations" | "edits") {
   const normalizedBase = baseUrl.trim().replace(/\/+$/, "");
 
   if (normalizedBase.endsWith("/v1")) {
-    return `${normalizedBase}/images/generations`;
+    return `${normalizedBase}/images/${action}`;
   }
 
-  return `${normalizedBase}/v1/images/generations`;
+  return `${normalizedBase}/v1/images/${action}`;
 }
 
 function buildGenerationPayload(params: ImageGenerationParams) {
@@ -127,6 +201,23 @@ function buildGenerationPayload(params: ImageGenerationParams) {
       return value !== undefined;
     })
   );
+}
+
+function buildEditPayload(params: ImageGenerationParams, image: File) {
+  const formData = new FormData();
+  formData.set("image", image);
+
+  for (const [key, value] of Object.entries(params)) {
+    if (key === "output_compression" && value === null) {
+      continue;
+    }
+
+    if (value !== undefined) {
+      formData.set(key, String(value));
+    }
+  }
+
+  return formData;
 }
 
 function normalizeUsage(usage: Sub2APIUsage | undefined): Required<Sub2APIUsage> {

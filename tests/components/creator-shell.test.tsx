@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { vi } from "vitest";
@@ -39,9 +39,7 @@ describe("CreatorWorkspace", () => {
   });
 
   it("submits text-to-image requests and renders result metadata", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
+    const fetchSpy = vi.fn().mockResolvedValue(
         new Response(
           JSON.stringify({
             data: {
@@ -66,12 +64,16 @@ describe("CreatorWorkspace", () => {
           }),
           { status: 200, headers: { "content-type": "application/json" } }
         )
-      )
     );
+    vi.stubGlobal("fetch", fetchSpy);
 
     render(<CreatorWorkspace />);
 
     const user = userEvent.setup();
+    await user.selectOptions(
+      screen.getByLabelText("商业尺寸"),
+      "ad_banner_landscape"
+    );
     await user.type(
       screen.getByRole("textbox", { name: "Prompt" }),
       "Create a premium product photo."
@@ -87,5 +89,144 @@ describe("CreatorWorkspace", () => {
       "href",
       "/api/assets/asset_123"
     );
+    expect(JSON.parse(fetchSpy.mock.calls[0][1].body as string).size).toBe(
+      "1536x1024"
+    );
+  });
+
+  it("submits image-to-image requests with one selected reference image", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            task_id: "task_edit_123",
+            images: [
+              {
+                asset_id: "asset_edit_123",
+                url: "/api/assets/asset_edit_123",
+                format: "png"
+              }
+            ],
+            usage: {
+              input_tokens: 15,
+              output_tokens: 25,
+              total_tokens: 40,
+              estimated_cost: "0.0000"
+            },
+            duration_ms: 1500
+          },
+          request_id: "psypic_req_edit_123",
+          upstream_request_id: "upstream_edit_req_123"
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "图生图" }));
+    const reference = new File(
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+      "product.png",
+      { type: "image/png" }
+    );
+    await user.upload(screen.getByLabelText("参考图"), reference);
+    await user.type(
+      screen.getByRole("textbox", { name: "Prompt" }),
+      "Replace the background with a premium studio scene."
+    );
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+
+    expect(await screen.findByText("asset_edit_123")).toBeInTheDocument();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/images/edits",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.any(FormData)
+      })
+    );
+    const body = fetchSpy.mock.calls[0][1].body as FormData;
+    expect(body.get("image")).toBe(reference);
+    expect(body.get("prompt")).toBe(
+      "Replace the background with a premium studio scene."
+    );
+    expect(screen.getByText("product.png")).toBeInTheDocument();
+  });
+
+  it("accepts a pasted reference image in image-to-image mode", async () => {
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "图生图" }));
+    const reference = new File(
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+      "pasted.png",
+      { type: "image/png" }
+    );
+
+    fireEvent.paste(screen.getByTestId("reference-dropzone"), {
+      clipboardData: {
+        files: [reference]
+      }
+    });
+
+    expect(screen.getByText("pasted.png")).toBeInTheDocument();
+  });
+
+  it("turns a generated result into the next reference image", async () => {
+    const imageBytes = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a
+    ]);
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              data: {
+                task_id: "task_123",
+                images: [
+                  {
+                    asset_id: "asset_123",
+                    url: "/api/assets/asset_123",
+                    format: "png"
+                  }
+                ],
+                usage: {
+                  input_tokens: 10,
+                  output_tokens: 20,
+                  total_tokens: 30,
+                  estimated_cost: "0.0000"
+                },
+                duration_ms: 1200
+              },
+              request_id: "psypic_req_123"
+            }),
+            { status: 200, headers: { "content-type": "application/json" } }
+          )
+        )
+        .mockResolvedValueOnce(
+          new Response(imageBytes, {
+            status: 200,
+            headers: { "content-type": "image/png" }
+          })
+        )
+    );
+
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByRole("textbox", { name: "Prompt" }),
+      "Create a premium product photo."
+    );
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+    await user.click(await screen.findByRole("button", { name: "作为参考图" }));
+
+    expect(screen.getByText("asset_123.png")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "图生图" })).toHaveClass("active");
   });
 });
