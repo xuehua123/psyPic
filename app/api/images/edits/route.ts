@@ -104,6 +104,16 @@ export async function POST(request: Request) {
       });
     }
 
+    if (!sameImageDimensions(imageValidation.data, maskValidation.data)) {
+      return jsonError({
+        status: 400,
+        code: "invalid_parameter",
+        message: "遮罩尺寸必须与参考图一致",
+        field: "mask",
+        requestId
+      });
+    }
+
     maskFile = maskValidation.data.file;
   }
 
@@ -261,4 +271,20 @@ function compressionFromFormData(formData: FormData) {
   }
 
   return Number(value);
+}
+
+function sameImageDimensions(
+  image: { width?: number; height?: number },
+  mask: { width?: number; height?: number }
+) {
+  if (
+    image.width === undefined ||
+    image.height === undefined ||
+    mask.width === undefined ||
+    mask.height === undefined
+  ) {
+    return true;
+  }
+
+  return image.width === mask.width && image.height === mask.height;
 }

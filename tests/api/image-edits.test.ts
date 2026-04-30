@@ -63,6 +63,35 @@ function validEditFormData() {
   return formData;
 }
 
+function pngWithDimensions(width: number, height: number) {
+  return new Uint8Array([
+    0x89,
+    0x50,
+    0x4e,
+    0x47,
+    0x0d,
+    0x0a,
+    0x1a,
+    0x0a,
+    0x00,
+    0x00,
+    0x00,
+    0x0d,
+    0x49,
+    0x48,
+    0x44,
+    0x52,
+    (width >>> 24) & 0xff,
+    (width >>> 16) & 0xff,
+    (width >>> 8) & 0xff,
+    width & 0xff,
+    (height >>> 24) & 0xff,
+    (height >>> 16) & 0xff,
+    (height >>> 8) & 0xff,
+    height & 0xff
+  ]);
+}
+
 function createRunningTaskForCookie(cookie: string) {
   const sessionId = cookie.replace("psypic_session=", "");
   const session = getSession(sessionId);
@@ -201,6 +230,30 @@ describe("POST /api/images/edits", () => {
     expect(response.status).toBe(415);
     expect(body.error.code).toBe("unsupported_media_type");
     expect(body.error.details.field).toBe("mask");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects masks whose dimensions do not match the reference image", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    const cookie = await bindSession();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const formData = validEditFormData();
+    formData.set("image", new File([pngWithDimensions(1024, 1024)], "product.png", {
+      type: "image/png"
+    }));
+    formData.set("mask", new File([pngWithDimensions(512, 512)], "mask.png", {
+      type: "image/png"
+    }));
+
+    const response = await editImage(editRequest(cookie, formData));
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error.code).toBe("invalid_parameter");
+    expect(body.error.details.field).toBe("mask");
+    expect(body.error.message).toContain("尺寸");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

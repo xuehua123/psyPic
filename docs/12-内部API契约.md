@@ -252,7 +252,7 @@ commercial_preset=product_background
 - 多参考图进入 V1。
 - `mask` 自 `v0.6` 起可选启用，必须是 PNG；前端遮罩画布导出 alpha PNG 后通过 multipart 的 `mask` 字段提交。
 - 文件大小受 `MAX_IMAGE_UPLOAD_MB` 限制。
-- 后端校验 MIME、扩展名和实际文件头；mask 尺寸一致性校验后续接入。
+- 后端校验 MIME、扩展名、实际文件头，并在可解析尺寸时要求 mask 与参考图尺寸一致。
 
 响应同 `/api/images/generations`。
 
