@@ -138,6 +138,39 @@ describe("CreatorWorkspace", () => {
     expect(requestBody.prompt).toContain("AI 生图社区");
   });
 
+  it("surfaces readable API errors with request ids", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: {
+              code: "rate_limited",
+              message: "Sub2API 请求被限流或额度不足，请检查 Key 额度与频率限制。"
+            },
+            request_id: "psypic_req_rate_123",
+            upstream_request_id: "upstream_rate_123"
+          }),
+          { status: 429, headers: { "content-type": "application/json" } }
+        )
+      )
+    );
+
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByRole("textbox", { name: "Prompt" }),
+      "Create a premium product photo."
+    );
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("额度不足");
+    expect(alert).toHaveTextContent("psypic_req_rate_123");
+    expect(alert).toHaveTextContent("upstream_rate_123");
+  });
+
   it("submits image-to-image requests with one selected reference image", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(

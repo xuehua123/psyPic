@@ -140,7 +140,7 @@ export default function CreatorWorkspace() {
       const body = (await response.json()) as ApiGenerationResponse;
 
       if (!response.ok || !body.data) {
-        setErrorMessage(body.error?.message ?? "生成失败，请稍后重试。");
+        setErrorMessage(formatApiError(body));
         return;
       }
 
@@ -197,6 +197,22 @@ export default function CreatorWorkspace() {
           : Number(outputCompression),
       moderation
     };
+  }
+
+  function formatApiError(body: ApiGenerationResponse) {
+    const message = body.error?.message ?? "生成失败，请稍后重试。";
+    const requestIds = [
+      body.request_id ? `request_id: ${body.request_id}` : "",
+      body.upstream_request_id
+        ? `upstream_request_id: ${body.upstream_request_id}`
+        : ""
+    ].filter(Boolean);
+
+    if (requestIds.length === 0) {
+      return message;
+    }
+
+    return `${message}（${requestIds.join(" · ")}）`;
   }
 
   async function copyPrompt() {
