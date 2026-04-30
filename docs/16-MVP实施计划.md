@@ -38,14 +38,23 @@
 - TempAsset：本地开发用临时目录，生产用 R2/S3 临时前缀。
 - 手动 Key：开发和调试可用，生产默认隐藏或放高级设置。
 
+## 当前开发状态
+
+更新时间：2026-05-01
+
+- 已完成并推送：`v0.1`、`v0.2`、`v0.3` 文生图 Alpha。
+- 已完成 CI：GitHub Actions 执行 lint、typecheck、test、Prisma validate、build。
+- 当前主线：`main`。
+- 当前焦点：进入 `v0.4`，完成图生图、单参考图、继续编辑、商业尺寸预设和公开试用 MVP 回归。
+
 ## 版本拆分
 
-| 版本 | 目标 | 交付物 |
-| --- | --- | --- |
-| `v0.1` | 项目骨架和创作台静态闭环 | UI shell、参数面板、结果区、设置页 |
-| `v0.2` | Sub2API 导入和 BFF 安全边界 | session、key binding、import exchange、手动 key |
-| `v0.3` | 文生图可用 | `/api/images/generations`、TempAsset、下载、基础历史 |
-| `v0.4` | 图生图和公开试用 MVP | `/api/images/edits`、单参考图、继续编辑、MVP 验收 |
+| 版本 | 状态 | 目标 | 交付物 |
+| --- | --- | --- | --- |
+| `v0.1` | 已完成 | 项目骨架和创作台静态闭环 | UI shell、参数面板、结果区、设置页 |
+| `v0.2` | 已完成 | Sub2API 导入和 BFF 安全边界 | session、key binding、import exchange、手动 key |
+| `v0.3` | 已完成 | 文生图可用 | `/api/images/generations`、TempAsset、下载、基础历史 |
+| `v0.4` | 下一阶段 | 图生图和公开试用 MVP | `/api/images/edits`、单参考图、继续编辑、MVP 验收 |
 
 ## `v0.1` 项目骨架
 
@@ -126,85 +135,83 @@
 
 ### 任务
 
-1. 实现 `POST /api/images/generations`。
-2. BFF 校验参数：
-   - `prompt` 必填。
-   - `n` 不超过 limits。
-   - 禁止 `background=transparent`。
-   - MVP 不传 `input_fidelity`。
-   - MVP 不启用 `stream`。
-3. BFF 调 Sub2API：
-   - `POST {sub2api_base_url}/v1/images/generations`
-4. 实现 TempAsset：
-   - 生成结果写入临时资产。
-   - 返回 `/api/assets/{asset_id}`。
-   - `GET /api/assets/{asset_id}` 校验 session 后返回图片。
-5. 实现结果卡：
-   - 预览。
-   - 下载。
-   - 复制 prompt。
-   - 重试。
-   - 作为参考图。
-6. 实现 IndexedDB 基础历史：
-   - prompt。
-   - 参数。
-   - 缩略图。
-   - 本地 asset 引用。
-7. 展示 request id、耗时、usage/估算成本。
-8. 错误提示覆盖：
-   - 400。
-   - 401。
-   - 403。
-   - 429。
-   - 超时。
-   - upstream error。
+- [x] 实现 `POST /api/images/generations`。
+- [x] BFF 校验参数：
+  - `prompt` 必填。
+  - `n` 不超过 limits。
+  - 禁止 `background=transparent`。
+  - MVP 不传 `input_fidelity`。
+  - MVP 不启用 `stream`。
+- [x] BFF 调 Sub2API：`POST {sub2api_base_url}/v1/images/generations`。
+- [x] 实现 TempAsset：
+  - 生成结果写入临时资产。
+  - 返回 `/api/assets/{asset_id}`。
+  - `GET /api/assets/{asset_id}` 校验 session 后返回图片。
+- [x] 实现结果卡：
+  - 预览。
+  - 下载。
+  - 复制 prompt。
+  - 重试。
+- [ ] 结果卡支持“作为参考图”，并进入图生图模式。
+- [x] 实现 IndexedDB 基础历史：
+  - prompt。
+  - 参数。
+  - 缩略图。
+  - 本地 asset 引用。
+- [x] 展示 request id、耗时、usage/估算成本。
+- [ ] 补齐错误提示自动化覆盖：
+  - 403。
+  - 超时。
+  - upstream error。
 
 ### 验收
 
-- 手动 key 和导入 session 两种模式至少一种可完成文生图。
-- 生成结果可下载。
-- 刷新页面后基础历史仍可见。
-- 上游错误不会泄露 API Key。
-- BFF 日志能追踪 request id。
+- [x] 导入 session 模式可完成文生图契约测试。
+- [x] 生成结果可下载。
+- [x] 基础历史可保存并重新读取。
+- [x] 上游错误不会泄露 API Key。
+- [ ] 手动 key 模式接真实 Sub2API 完成浏览器验收。
+- [ ] BFF 日志链路补齐 request id 追踪。
 
 ## `v0.4` 图生图与公开试用 MVP
 
 ### 任务
 
-1. 实现 `POST /api/images/edits`。
-2. 上传组件支持：
-   - 点击选择图片。
-   - 拖拽。
-   - 粘贴。
-3. MVP 只支持单参考图。
-4. 校验上传：
-   - MIME。
-   - 扩展名。
-   - 文件头。
-   - 大小。
-5. 实现结果转参考图。
-6. 实现继续编辑：
-   - 从历史结果进入图生图。
-   - 从结果卡进入图生图。
-7. 实现商业场景入口：
-   - 电商主图。
-   - 产品换背景。
-   - 商品场景图。
-   - 广告 Banner。
-   - 社媒封面。
-   - 人像头像。
-8. 实现商业尺寸预设：
-   - 单次只选择一个目标尺寸。
-   - 不做批量多尺寸。
-9. 回归 MVP 验收清单。
+- [ ] 实现 `POST /api/images/edits`。
+- [ ] 上传组件支持：
+  - 点击选择图片。
+  - 拖拽。
+  - 粘贴。
+- [ ] MVP 只支持单参考图。
+- [ ] 校验上传：
+  - MIME。
+  - 扩展名。
+  - 文件头。
+  - 大小。
+- [ ] 实现结果转参考图。
+- [ ] 实现继续编辑：
+  - 从历史结果进入图生图。
+  - 从结果卡进入图生图。
+- [ ] 实现商业场景入口：
+  - 电商主图。
+  - 产品换背景。
+  - 商品场景图。
+  - 广告 Banner。
+  - 社媒封面。
+  - 人像头像。
+- [ ] 实现商业尺寸预设：
+  - 单次只选择一个目标尺寸。
+  - 不做批量多尺寸。
+- [ ] 补齐 Playwright 或等价 E2E 主流程验收。
+- [ ] 回归 MVP 验收清单。
 
 ### 验收
 
-- 用户能上传单参考图并生成结果。
-- 用户能把上一张结果作为参考图继续编辑。
-- 商业尺寸预设能正常约束尺寸。
-- 图生图错误提示清楚。
-- MVP 验收清单全部通过。
+- [ ] 用户能上传单参考图并生成结果。
+- [ ] 用户能把上一张结果作为参考图继续编辑。
+- [ ] 商业尺寸预设能正常约束尺寸。
+- [ ] 图生图错误提示清楚。
+- [ ] MVP 验收清单全部通过。
 
 ## 关键文件建议
 
@@ -245,17 +252,17 @@
 
 ## 实施顺序
 
-1. 项目骨架和 UI shell。
-2. 参数 schema 和表单。
-3. session/key binding。
-4. import exchange。
-5. Sub2API client。
-6. 文生图 API。
-7. TempAsset 和下载。
-8. 结果网格和本地历史。
-9. 图生图上传和 edits API。
-10. 继续编辑和商业尺寸预设。
-11. MVP 验收回归。
+1. [x] 项目骨架和 UI shell。
+2. [x] 参数 schema 和表单。
+3. [x] session/key binding。
+4. [x] import exchange。
+5. [x] Sub2API client。
+6. [x] 文生图 API。
+7. [x] TempAsset 和下载。
+8. [x] 结果网格和本地历史。
+9. [ ] 图生图上传和 edits API。
+10. [ ] 继续编辑和商业尺寸预设。
+11. [ ] MVP 验收回归。
 
 ## 不允许的捷径
 
