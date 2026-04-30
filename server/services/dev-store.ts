@@ -84,6 +84,19 @@ export function createManualKeySession(input: {
   });
 }
 
+export function createAdminSessionForDev() {
+  const bound = createBoundSession({
+    baseUrl: "https://sub2api.example.com/v1",
+    apiKey: createId("adminkey"),
+    displayName: "PsyPic Admin"
+  });
+
+  bound.user.role = "admin";
+  store.users.set(bound.user.id, bound.user);
+
+  return bound;
+}
+
 export function getSession(sessionId: string) {
   const session = store.sessions.get(sessionId);
 

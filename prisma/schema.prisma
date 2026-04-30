@@ -43,6 +43,12 @@ enum CommunityWorkReviewStatus {
   taken_down
 }
 
+enum CommunityReportStatus {
+  open
+  reviewed
+  dismissed
+}
+
 model User {
   id            String       @id
   sub2apiUserId String?      @map("sub2api_user_id")
@@ -59,6 +65,8 @@ model User {
   imageAssetTags ImageAssetTag[]
   albums        Album[]
   communityWorks CommunityWork[]
+  communityReports CommunityReport[] @relation("CommunityReportsMade")
+  reviewedCommunityReports CommunityReport[] @relation("CommunityReportsReviewed")
 
   @@map("users")
 }
@@ -241,9 +249,31 @@ model CommunityWork {
   user                    User                      @relation(fields: [userId], references: [id])
   task                    ImageTask                 @relation(fields: [taskId], references: [id])
   asset                   ImageAsset                @relation(fields: [assetId], references: [id])
+  reports                 CommunityReport[]
 
   @@index([userId, createdAt])
   @@index([assetId])
   @@index([visibility, reviewStatus, createdAt])
   @@map("community_works")
+}
+
+model CommunityReport {
+  id             String                @id
+  workId         String                @map("work_id")
+  reporterUserId String                @map("reporter_user_id")
+  reason         String
+  details        String?
+  status         CommunityReportStatus @default(open)
+  reviewerUserId String?               @map("reviewer_user_id")
+  reviewedAt     DateTime?             @map("reviewed_at")
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+  work           CommunityWork         @relation(fields: [workId], references: [id])
+  reporter       User                  @relation("CommunityReportsMade", fields: [reporterUserId], references: [id])
+  reviewer       User?                 @relation("CommunityReportsReviewed", fields: [reviewerUserId], references: [id])
+
+  @@index([workId, status])
+  @@index([reporterUserId, createdAt])
+  @@index([reviewerUserId])
+  @@map("community_reports")
 }

@@ -47,4 +47,14 @@ describe("Prisma v0.2 data model", () => {
     expect(schema).toContain("allowReferenceReuse");
     expect(schema).toContain("@@index([visibility, reviewStatus, createdAt])");
   });
+
+  it("defines the v0.9 community report moderation model", () => {
+    const schema = readFileSync("prisma/schema.prisma", "utf8");
+
+    expect(schema).toContain("enum CommunityReportStatus");
+    expect(schema).toContain("model CommunityReport");
+    expect(schema).toContain("reporterUserId");
+    expect(schema).toContain("reviewerUserId");
+    expect(schema).toContain("@@index([workId, status])");
+  });
 });

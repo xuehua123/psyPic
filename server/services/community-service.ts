@@ -11,6 +11,7 @@ export type CommunityWorkReviewStatus =
   | "approved"
   | "rejected"
   | "taken_down";
+export type CommunityReportStatus = "open" | "reviewed" | "dismissed";
 
 type CommunityWork = {
   id: string;
@@ -37,6 +38,19 @@ type CommunityWork = {
   updated_at: string;
 };
 
+type CommunityReport = {
+  id: string;
+  work_id: string;
+  reporter_user_id: string;
+  reason: string;
+  details: string | null;
+  status: CommunityReportStatus;
+  reviewer_user_id: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type CreateCommunityWorkInput = {
   taskId: string;
   assetId: string;
@@ -53,14 +67,22 @@ export type CreateCommunityWorkInput = {
 
 declare global {
   var __psypicCommunityWorks: Map<string, CommunityWork> | undefined;
+  var __psypicCommunityReports: Map<string, CommunityReport> | undefined;
 }
 
 const communityWorks =
   globalThis.__psypicCommunityWorks ?? new Map<string, CommunityWork>();
 globalThis.__psypicCommunityWorks = communityWorks;
+const communityReports =
+  globalThis.__psypicCommunityReports ?? new Map<string, CommunityReport>();
+globalThis.__psypicCommunityReports = communityReports;
 
 export function resetCommunityWorkStore() {
   communityWorks.clear();
+}
+
+export function resetCommunityReportStore() {
+  communityReports.clear();
 }
 
 export function createCommunityWorkForUser(
@@ -149,6 +171,76 @@ export function createCommunitySameGenerationDraft(
   };
 }
 
+export function createCommunityReportForUser(
+  userId: string,
+  input: {
+    workId: string;
+    reason: string;
+    details?: string | null;
+  }
+) {
+  const work = communityWorks.get(input.workId);
+
+  if (!work || !canViewCommunityWork(work, userId)) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const report: CommunityReport = {
+    id: createId("report"),
+    work_id: work.id,
+    reporter_user_id: userId,
+    reason: input.reason,
+    details: input.details?.trim() ? input.details.trim().slice(0, 500) : null,
+    status: "open",
+    reviewer_user_id: null,
+    reviewed_at: null,
+    created_at: now,
+    updated_at: now
+  };
+
+  communityReports.set(report.id, report);
+  return serializeCommunityReport(report);
+}
+
+export function takeDownCommunityWork(
+  workId: string,
+  input: {
+    reviewerUserId: string;
+    reason?: string | null;
+  }
+) {
+  const work = communityWorks.get(workId);
+
+  if (!work) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const updated: CommunityWork = {
+    ...work,
+    review_status: "taken_down",
+    taken_down_at: now,
+    updated_at: now
+  };
+
+  communityWorks.set(work.id, updated);
+
+  for (const report of communityReports.values()) {
+    if (report.work_id === work.id && report.status === "open") {
+      communityReports.set(report.id, {
+        ...report,
+        status: "reviewed",
+        reviewer_user_id: input.reviewerUserId,
+        reviewed_at: now,
+        updated_at: now
+      });
+    }
+  }
+
+  return serializeCommunityWork(updated, { detail: true });
+}
+
 function serializeCommunityWork(
   work: CommunityWork,
   options?: { detail?: boolean }
@@ -171,6 +263,7 @@ function serializeCommunityWork(
     allow_reference_reuse: work.allow_reference_reuse,
     same_generation_available: work.allow_same_generation,
     published_at: work.published_at,
+    taken_down_at: work.taken_down_at,
     created_at: work.created_at,
     updated_at: work.updated_at,
     ...(options?.detail && work.disclose_prompt
@@ -182,6 +275,18 @@ function serializeCommunityWork(
     ...(options?.detail && work.disclose_reference_images
       ? { reference_images: [] }
       : {})
+  };
+}
+
+function serializeCommunityReport(report: CommunityReport) {
+  return {
+    report_id: report.id,
+    work_id: report.work_id,
+    reason: report.reason,
+    details: report.details,
+    status: report.status,
+    created_at: report.created_at,
+    updated_at: report.updated_at
   };
 }
 
