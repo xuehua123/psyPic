@@ -266,5 +266,21 @@ function extractErrorMessage(body: unknown, status: number) {
     return body.error.message;
   }
 
+  return fallbackErrorMessage(status);
+}
+
+function fallbackErrorMessage(status: number) {
+  if (status === 401) {
+    return "Sub2API Key 无效、已过期，或 Base URL 与 Key 不匹配，请重新配置或从 Sub2API 重新导入。";
+  }
+
+  if (status === 403) {
+    return "当前 Sub2API Key 无权调用 Images API，或额度/分组限制不允许。";
+  }
+
+  if (status === 429) {
+    return "Sub2API 请求被限流或额度不足，请检查 Key 额度与频率限制。";
+  }
+
   return `Sub2API 请求失败，HTTP ${status}`;
 }

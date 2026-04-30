@@ -92,6 +92,43 @@ describe("Sub2API image client", () => {
     });
   });
 
+  it("explains upstream 401 as a Sub2API credential configuration problem without leaking keys", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({}), {
+          status: 401,
+          headers: { "content-type": "application/json" }
+        })
+      )
+    );
+
+    const request = generateImageWithSub2API({
+      baseUrl: "https://sub2api.example.com/v1",
+      apiKey: "secret-token-value",
+      params: {
+        prompt: "Create a premium product photo.",
+        model: "gpt-image-2",
+        size: "1024x1024",
+        quality: "medium",
+        n: 1,
+        output_format: "png",
+        output_compression: null,
+        background: "auto",
+        moderation: "auto"
+      }
+    });
+
+    await expect(request).rejects.toMatchObject({
+      code: "unauthorized",
+      status: 401,
+      message: expect.stringContaining("Sub2API Key")
+    });
+    await expect(request).rejects.toMatchObject({
+      message: expect.not.stringContaining("secret-token-value")
+    });
+  });
+
   it("posts image edit requests as multipart form data", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(

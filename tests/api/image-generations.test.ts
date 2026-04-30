@@ -103,6 +103,41 @@ describe("POST /api/images/generations", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("returns an actionable message when Sub2API rejects the configured key", async () => {
+    resetDevStore();
+    await resetTempAssetStore();
+    const cookie = await bindSession();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({}), {
+          status: 401,
+          headers: { "content-type": "application/json" }
+        })
+      )
+    );
+
+    const response = await generateImage(
+      generationRequest(cookie, {
+        prompt: "Create a premium product photo.",
+        model: "gpt-image-2",
+        size: "1024x1024",
+        quality: "medium",
+        n: 1,
+        output_format: "png",
+        background: "auto",
+        moderation: "auto"
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(401);
+    expect(body.error.code).toBe("unauthorized");
+    expect(body.error.message).toContain("Sub2API Key");
+    expect(body.error.message).toContain("Base URL");
+    expect(JSON.stringify(body)).not.toContain("secret-token");
+  });
+
   it("requires an authenticated session with a key binding", async () => {
     resetDevStore();
 
