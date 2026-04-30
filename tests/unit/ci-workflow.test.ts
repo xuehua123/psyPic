@@ -17,5 +17,6 @@ describe("GitHub Actions CI", () => {
 
     expect(workflow).toContain("pnpm/action-setup");
     expect(workflow).toContain("DATABASE_URL");
+    expect(workflow).toContain("FORCE_JAVASCRIPT_ACTIONS_TO_NODE24");
   });
 });
