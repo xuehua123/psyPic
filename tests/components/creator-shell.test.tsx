@@ -235,6 +235,76 @@ describe("CreatorWorkspace", () => {
     );
   });
 
+  it("streams partial previews and the completed image from the creator", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      streamResponse([
+        {
+          event: "task_started",
+          data: {
+            task_id: "task_stream_123",
+            status: "running",
+            request_id: "psypic_req_stream_123",
+            upstream_request_id: "upstream_stream_123"
+          }
+        },
+        {
+          event: "partial_image",
+          data: {
+            task_id: "task_stream_123",
+            index: 0,
+            asset_id: "asset_partial_123",
+            url: "/api/assets/asset_partial_123",
+            format: "png"
+          }
+        },
+        {
+          event: "completed",
+          data: {
+            task_id: "task_stream_123",
+            images: [
+              {
+                asset_id: "asset_stream_final_123",
+                url: "/api/assets/asset_stream_final_123",
+                format: "png"
+              }
+            ],
+            usage: {
+              input_tokens: 10,
+              output_tokens: 20,
+              total_tokens: 30,
+              estimated_cost: "0.0000"
+            },
+            duration_ms: 1300
+          }
+        }
+      ])
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("checkbox", { name: "流式预览" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Prompt" }),
+      "Create a premium product photo."
+    );
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+
+    expect(await screen.findByText("asset_partial_123")).toBeInTheDocument();
+    expect(await screen.findByText("asset_stream_final_123")).toBeInTheDocument();
+    expect((await screen.findAllByText("task_stream_123")).length).toBeGreaterThan(
+      0
+    );
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/images/generations/stream",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.stringContaining('"stream":true')
+      })
+    );
+  });
+
   it("renders commercial template prompts into the workspace", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(
@@ -585,4 +655,29 @@ function taskResponse(input: {
     }),
     { status: 200, headers: { "content-type": "application/json" } }
   );
+}
+
+function streamResponse(
+  events: Array<{ event: string; data: Record<string, unknown> }>
+) {
+  const stream = new ReadableStream({
+    start(controller) {
+      const encoder = new TextEncoder();
+
+      for (const event of events) {
+        controller.enqueue(
+          encoder.encode(
+            `event: ${event.event}\ndata: ${JSON.stringify(event.data)}\n\n`
+          )
+        );
+      }
+
+      controller.close();
+    }
+  });
+
+  return new Response(stream, {
+    status: 200,
+    headers: { "content-type": "text/event-stream" }
+  });
 }

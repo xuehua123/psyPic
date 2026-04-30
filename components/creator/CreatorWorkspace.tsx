@@ -143,9 +143,12 @@ export default function CreatorWorkspace() {
   const [outputCompression, setOutputCompression] = useState("");
   const [moderation, setModeration] =
     useState<ImageGenerationParams["moderation"]>("auto");
+  const [streamEnabled, setStreamEnabled] = useState(false);
+  const [partialImageCount, setPartialImageCount] = useState(2);
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [result, setResult] = useState<GenerationResult | null>(null);
+  const [partialImages, setPartialImages] = useState<GenerationImage[]>([]);
   const [historyItems, setHistoryItems] = useState<LocalHistoryItem[]>([]);
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
   const [currentTask, setCurrentTask] = useState<CurrentTask | null>(null);
@@ -171,11 +174,17 @@ export default function CreatorWorkspace() {
 
     setIsGenerating(true);
     setErrorMessage("");
+    setPartialImages([]);
 
     const requestParams = buildGenerationRequest();
     if (mode === "image" && !referenceImage) {
       setIsGenerating(false);
       setErrorMessage("请先上传一张参考图。");
+      return;
+    }
+
+    if (streamEnabled && mode === "text") {
+      await submitStreamingGeneration(requestParams);
       return;
     }
 
@@ -218,7 +227,7 @@ export default function CreatorWorkspace() {
         request_id: body.request_id ?? "",
         upstream_request_id: body.upstream_request_id
       };
-      setResult(nextResult);
+      commitGenerationResult(nextResult, requestParams);
       setCurrentTask({
         id: nextResult.task_id,
         type: taskType,
@@ -231,31 +240,6 @@ export default function CreatorWorkspace() {
       });
       void refreshTaskStatus(nextResult.task_id);
 
-      const firstImage = nextResult.images[0];
-      if (firstImage) {
-        const historyItem: LocalHistoryItem = {
-          taskId: nextResult.task_id,
-          prompt: requestParams.prompt,
-          params: {
-            model: requestParams.model,
-            size: requestParams.size,
-            quality: requestParams.quality,
-            n: requestParams.n,
-            output_format: requestParams.output_format,
-            output_compression: requestParams.output_compression,
-            background: requestParams.background,
-            moderation: requestParams.moderation
-          },
-          thumbnailUrl: firstImage.url,
-          requestId: nextResult.request_id,
-          durationMs: nextResult.duration_ms,
-          totalTokens: nextResult.usage.total_tokens,
-          createdAt: new Date().toISOString()
-        };
-
-        setHistoryItems((items) => [historyItem, ...items]);
-        void saveLocalHistoryItem(historyItem).catch(() => undefined);
-      }
     } catch {
       setErrorMessage("网络错误，请检查服务和 session。");
       setCurrentTask({
@@ -270,6 +254,178 @@ export default function CreatorWorkspace() {
     } finally {
       setIsGenerating(false);
     }
+  }
+
+  async function submitStreamingGeneration(requestParams: ImageGenerationParams) {
+    setCurrentTask({
+      status: "submitting",
+      type: "generation",
+      prompt: requestParams.prompt
+    });
+
+    try {
+      const response = await fetch("/api/images/generations/stream", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          ...requestParams,
+          stream: true,
+          partial_images: partialImageCount
+        })
+      });
+
+      if (!response.ok || !response.body) {
+        const body = (await response.json().catch(() => ({}))) as ApiGenerationResponse;
+        setErrorMessage(formatApiError(body));
+        setCurrentTask({
+          status: "failed",
+          type: "generation",
+          prompt: requestParams.prompt,
+          error: body.error
+        });
+        return;
+      }
+
+      await readGenerationStream(response.body, requestParams);
+    } catch {
+      setErrorMessage("网络错误，请检查流式生成服务。");
+      setCurrentTask({
+        status: "failed",
+        type: "generation",
+        prompt: requestParams.prompt,
+        error: {
+          code: "network_error",
+          message: "网络错误，请检查流式生成服务。"
+        }
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  async function readGenerationStream(
+    body: ReadableStream<Uint8Array>,
+    requestParams: ImageGenerationParams
+  ) {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let requestId = "";
+    let upstreamRequestId: string | undefined;
+
+    while (true) {
+      const { value, done } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split(/\r?\n\r?\n/);
+      buffer = parts.pop() ?? "";
+
+      for (const part of parts) {
+        const event = parseSseBlock(part);
+        const data = parseJsonRecord(event.data);
+
+        if (event.event === "task_started") {
+          requestId = readString(data, "request_id") ?? "";
+          upstreamRequestId = readString(data, "upstream_request_id");
+          setCurrentTask({
+            id: readString(data, "task_id"),
+            type: "generation",
+            status: "running",
+            prompt: requestParams.prompt,
+            upstream_request_id: upstreamRequestId
+          });
+        }
+
+        if (event.event === "partial_image") {
+          const partial = parseGenerationImage(data);
+
+          if (partial) {
+            setPartialImages((items) => [...items, partial]);
+          }
+        }
+
+        if (event.event === "completed") {
+          const taskId = readString(data, "task_id") ?? "";
+          const images = parseGenerationImages(data);
+          const usage = parseUsage(data);
+          const durationMs = readNumber(data, "duration_ms") ?? 0;
+          const nextResult: GenerationResult = {
+            task_id: taskId,
+            images,
+            usage,
+            duration_ms: durationMs,
+            request_id: requestId,
+            upstream_request_id: upstreamRequestId
+          };
+
+          commitGenerationResult(nextResult, requestParams);
+          setCurrentTask({
+            id: taskId,
+            type: "generation",
+            status: "succeeded",
+            prompt: requestParams.prompt,
+            images,
+            usage,
+            duration_ms: durationMs,
+            upstream_request_id: upstreamRequestId
+          });
+        }
+
+        if (event.event === "error") {
+          const message = readString(data, "message") ?? "流式生成失败。";
+          setErrorMessage(message);
+          setCurrentTask({
+            id: readString(data, "task_id"),
+            type: "generation",
+            status: "failed",
+            prompt: requestParams.prompt,
+            error: {
+              code: readString(data, "code") ?? "upstream_error",
+              message
+            }
+          });
+        }
+      }
+    }
+  }
+
+  function commitGenerationResult(
+    nextResult: GenerationResult,
+    requestParams: ImageGenerationParams
+  ) {
+    setResult(nextResult);
+
+    const firstImage = nextResult.images[0];
+    if (!firstImage) {
+      return;
+    }
+
+    const historyItem: LocalHistoryItem = {
+      taskId: nextResult.task_id,
+      prompt: requestParams.prompt,
+      params: {
+        model: requestParams.model,
+        size: requestParams.size,
+        quality: requestParams.quality,
+        n: requestParams.n,
+        output_format: requestParams.output_format,
+        output_compression: requestParams.output_compression,
+        background: requestParams.background,
+        moderation: requestParams.moderation
+      },
+      thumbnailUrl: firstImage.url,
+      requestId: nextResult.request_id,
+      durationMs: nextResult.duration_ms,
+      totalTokens: nextResult.usage.total_tokens,
+      createdAt: new Date().toISOString()
+    };
+
+    setHistoryItems((items) => [historyItem, ...items]);
+    void saveLocalHistoryItem(historyItem).catch(() => undefined);
   }
 
   function buildGenerationRequest(): ImageGenerationParams {
@@ -365,6 +521,92 @@ export default function CreatorWorkspace() {
 
   function canRetryTask(task: CurrentTask) {
     return task.status === "failed" || task.status === "canceled";
+  }
+
+  function parseSseBlock(block: string) {
+    const lines = block.split(/\r?\n/);
+    const data: string[] = [];
+    let event = "";
+
+    for (const line of lines) {
+      if (line.startsWith("event:")) {
+        event = line.slice("event:".length).trim();
+      }
+
+      if (line.startsWith("data:")) {
+        data.push(line.slice("data:".length).trim());
+      }
+    }
+
+    return {
+      event,
+      data: data.join("\n")
+    };
+  }
+
+  function parseJsonRecord(input: string) {
+    try {
+      const parsed = JSON.parse(input);
+
+      return isRecord(parsed) ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function parseGenerationImage(input: Record<string, unknown> | null) {
+    const assetId = readString(input, "asset_id");
+    const url = readString(input, "url");
+    const format = readString(input, "format");
+
+    if (!assetId || !url || !format) {
+      return null;
+    }
+
+    return {
+      asset_id: assetId,
+      url,
+      format
+    };
+  }
+
+  function parseGenerationImages(input: Record<string, unknown> | null) {
+    const images = input?.images;
+
+    if (!Array.isArray(images)) {
+      return [];
+    }
+
+    return images
+      .map((image) => (isRecord(image) ? parseGenerationImage(image) : null))
+      .filter((image): image is GenerationImage => image !== null);
+  }
+
+  function parseUsage(input: Record<string, unknown> | null) {
+    const usage = isRecord(input?.usage) ? input.usage : {};
+
+    return {
+      input_tokens: readNumber(usage, "input_tokens") ?? 0,
+      output_tokens: readNumber(usage, "output_tokens") ?? 0,
+      total_tokens: readNumber(usage, "total_tokens") ?? 0,
+      estimated_cost: readString(usage, "estimated_cost") ?? "0.0000"
+    };
+  }
+
+  function readString(input: Record<string, unknown> | null, key: string) {
+    const value = input?.[key];
+
+    return typeof value === "string" ? value : undefined;
+  }
+
+  function readNumber(input: Record<string, unknown> | null, key: string) {
+    const value = input?.[key];
+
+    return typeof value === "number" ? value : undefined;
+  }
+
+  function isRecord(input: unknown): input is Record<string, unknown> {
+    return typeof input === "object" && input !== null && !Array.isArray(input);
   }
 
   async function copyPrompt() {
@@ -662,6 +904,35 @@ export default function CreatorWorkspace() {
               />
             </div>
 
+            <label className="toggle-row">
+              <input
+                aria-label="流式预览"
+                checked={streamEnabled}
+                onChange={(event) => setStreamEnabled(event.target.checked)}
+                type="checkbox"
+              />
+              <span>流式预览</span>
+            </label>
+
+            {streamEnabled ? (
+              <div className="field">
+                <label htmlFor="partial-images">Partial Images</label>
+                <select
+                  className="select"
+                  id="partial-images"
+                  onChange={(event) =>
+                    setPartialImageCount(Number(event.target.value))
+                  }
+                  value={partialImageCount}
+                >
+                  <option value={0}>0</option>
+                  <option value={1}>1</option>
+                  <option value={2}>2</option>
+                  <option value={3}>3</option>
+                </select>
+              </div>
+            ) : null}
+
             <button
               aria-expanded={advancedOpen}
               className="secondary-button"
@@ -838,6 +1109,23 @@ export default function CreatorWorkspace() {
                       重新生成
                     </button>
                   ) : null}
+                </div>
+              </section>
+            ) : null}
+
+            {partialImages.length > 0 ? (
+              <section className="partial-preview-strip" aria-label="流式预览结果">
+                <div className="field-label">流式预览</div>
+                <div className="partial-preview-list">
+                  {partialImages.map((image, index) => (
+                    <article className="partial-preview-item" key={image.asset_id}>
+                      <img alt="流式预览" src={image.url} />
+                      <div>
+                        <strong>{image.asset_id}</strong>
+                        <span>#{index + 1}</span>
+                      </div>
+                    </article>
+                  ))}
                 </div>
               </section>
             ) : null}

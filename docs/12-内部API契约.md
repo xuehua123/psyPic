@@ -322,14 +322,17 @@ Accept: text/event-stream
 事件：
 
 ```text
+event: task_started
+data: {"task_id":"task_xxx","status":"running","request_id":"psypic_req_xxx","upstream_request_id":"req_xxx"}
+
 event: partial_image
-data: {"index":0,"url":"/api/temp/partial_xxx","progress":0.4}
+data: {"task_id":"task_xxx","index":0,"asset_id":"asset_xxx","url":"/api/assets/asset_xxx","format":"png"}
 
 event: completed
-data: {"task_id":"task_xxx","images":[...],"usage":{...}}
+data: {"task_id":"task_xxx","images":[...],"usage":{...},"duration_ms":12000}
 
 event: error
-data: {"code":"upstream_error","message":"上游失败"}
+data: {"task_id":"task_xxx","code":"upstream_error","message":"上游失败","request_id":"psypic_req_xxx"}
 ```
 
 ## History

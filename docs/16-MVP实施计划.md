@@ -43,10 +43,10 @@
 更新时间：2026-05-01
 
 - 已完成并推送：`v0.1`、`v0.2`、`v0.3` 文生图 Alpha、`v0.4` 图生图与公开试用 MVP。
-- 本轮已完成：`v0.5` 任务状态查询/取消接口、同步生成任务记录、创作台任务状态展示、取消和重新生成入口。
+- 本轮已完成：`v0.5` 任务状态查询/取消接口、同步生成任务记录、创作台任务状态展示、取消、重新生成和 partial preview。
 - 已完成 CI：GitHub Actions 执行 lint、typecheck、test、Prisma validate、build。
 - 当前主线：`main`。
-- 当前焦点：继续 `v0.5` 流式 partial preview、任务队列和并发限制。
+- 当前焦点：继续 `v0.5` 任务队列和并发限制。
 
 ## 版本拆分
 
@@ -229,17 +229,18 @@
 - [x] 创作台展示当前任务状态、task id、耗时和上游 request id。
 - [x] 创作台支持从任务状态区取消 running/queued 任务。
 - [x] 创作台支持 canceled/failed 任务重新生成。
-- [ ] 接入 `stream=true` 和 `partial_images`。
-- [ ] 实现 SSE 转发路由。
+- [x] 接入 `stream=true` 和 `partial_images`。
+- [x] 实现 SSE 转发路由。
+- [x] 创作台支持流式 partial preview。
 - [ ] 引入任务队列和用户并发限制。
-- [ ] 补齐流式、取消、并发限制的 API/组件/E2E 回归。
+- [ ] 补齐流式、取消、并发限制的 E2E 回归。
 
 ### 验收
 
 - [x] 生成后可查询并展示服务端任务状态。
 - [x] running/queued 任务可从创作台触发取消。
 - [x] canceled/failed 任务可在不暴露 Key 的情况下重新提交。
-- [ ] partial preview 可展示中间图。
+- [x] partial preview 可展示中间图。
 - [ ] 并发超限返回 429 且错误提示可读。
 
 ## 关键文件建议
@@ -294,7 +295,7 @@
 9. [x] 图生图上传和 edits API。
 10. [x] 继续编辑和商业尺寸预设。
 11. [x] 任务状态接口和创作台任务状态区。
-12. [ ] 流式 partial preview。
+12. [x] 流式 partial preview。
 13. [ ] 任务队列和并发限制。
 14. [ ] MVP/v0.5 验收回归。
 

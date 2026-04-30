@@ -20,6 +20,11 @@ export type Sub2APIGenerationResponse = {
   upstreamRequestId?: string;
 };
 
+export type Sub2APIStreamResponse = {
+  response: Response;
+  upstreamRequestId?: string;
+};
+
 export class Sub2APIError extends Error {
   code: string;
   status: number;
@@ -116,6 +121,85 @@ export async function generateImageWithSub2API(input: {
     });
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+export async function requestImageGenerationStreamWithSub2API(input: {
+  baseUrl: string;
+  apiKey: string;
+  params: ImageGenerationParams;
+  partialImages: number;
+  signal?: AbortSignal;
+}): Promise<Sub2APIStreamResponse> {
+  try {
+    const response = await fetch(buildGenerationUrl(input.baseUrl), {
+      method: "POST",
+      redirect: "manual",
+      headers: {
+        accept: "text/event-stream",
+        "content-type": "application/json",
+        authorization: `Bearer ${input.apiKey}`
+      },
+      body: JSON.stringify({
+        ...buildGenerationPayload(input.params),
+        stream: true,
+        partial_images: input.partialImages
+      }),
+      signal: input.signal
+    });
+    const upstreamRequestId =
+      response.headers.get("x-request-id") ??
+      response.headers.get("x-openai-request-id") ??
+      undefined;
+
+    if (isRedirectStatus(response.status)) {
+      throw new Sub2APIError({
+        status: 502,
+        code: "upstream_redirect",
+        message: redirectErrorMessage(),
+        upstreamRequestId
+      });
+    }
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+
+      throw new Sub2APIError({
+        status: response.status,
+        code: mapStatusToCode(response.status),
+        message: extractErrorMessage(body, response.status),
+        upstreamRequestId
+      });
+    }
+
+    if (!response.body) {
+      throw new Sub2APIError({
+        status: 502,
+        code: "upstream_error",
+        message: "Sub2API 未返回可读取的图片生成流",
+        upstreamRequestId
+      });
+    }
+
+    return { response, upstreamRequestId };
+  } catch (error) {
+    if (error instanceof Sub2APIError) {
+      throw error;
+    }
+
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Sub2APIError({
+        status: 408,
+        code: "timeout",
+        message: "图片生成流请求超时"
+      });
+    }
+
+    throw new Sub2APIError({
+      status: 502,
+      code: "upstream_error",
+      message: error instanceof Error ? error.message : "上游服务失败"
+    });
   }
 }
 
@@ -264,7 +348,9 @@ function buildEditPayload(params: ImageGenerationParams, image: File) {
   return formData;
 }
 
-function normalizeUsage(usage: Sub2APIUsage | undefined): Required<Sub2APIUsage> {
+export function normalizeUsage(
+  usage: Sub2APIUsage | undefined
+): Required<Sub2APIUsage> {
   return {
     input_tokens: usage?.input_tokens ?? 0,
     output_tokens: usage?.output_tokens ?? 0,
@@ -297,7 +383,7 @@ function mapStatusToCode(status: number) {
   return "upstream_error";
 }
 
-function getSub2APITimeoutMs() {
+export function getSub2APITimeoutMs() {
   const configuredTimeout = Number(process.env.SUB2API_TIMEOUT_MS);
 
   if (Number.isFinite(configuredTimeout) && configuredTimeout > 0) {
