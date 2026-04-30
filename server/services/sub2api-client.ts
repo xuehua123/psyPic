@@ -52,6 +52,7 @@ export async function generateImageWithSub2API(input: {
   try {
     const response = await fetch(buildGenerationUrl(input.baseUrl), {
       method: "POST",
+      redirect: "manual",
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${input.apiKey}`
@@ -64,6 +65,15 @@ export async function generateImageWithSub2API(input: {
       response.headers.get("x-openai-request-id") ??
       undefined;
     const body = await response.json().catch(() => ({}));
+
+    if (isRedirectStatus(response.status)) {
+      throw new Sub2APIError({
+        status: 502,
+        code: "upstream_redirect",
+        message: redirectErrorMessage(),
+        upstreamRequestId
+      });
+    }
 
     if (!response.ok) {
       throw new Sub2APIError({
@@ -123,6 +133,7 @@ export async function editImageWithSub2API(input: {
   try {
     const response = await fetch(buildImageUrl(input.baseUrl, "edits"), {
       method: "POST",
+      redirect: "manual",
       headers: {
         authorization: `Bearer ${input.apiKey}`
       },
@@ -134,6 +145,15 @@ export async function editImageWithSub2API(input: {
       response.headers.get("x-openai-request-id") ??
       undefined;
     const body = await response.json().catch(() => ({}));
+
+    if (isRedirectStatus(response.status)) {
+      throw new Sub2APIError({
+        status: 502,
+        code: "upstream_redirect",
+        message: redirectErrorMessage(),
+        upstreamRequestId
+      });
+    }
 
     if (!response.ok) {
       throw new Sub2APIError({
@@ -182,13 +202,35 @@ function buildGenerationUrl(baseUrl: string) {
 }
 
 function buildImageUrl(baseUrl: string, action: "generations" | "edits") {
-  const normalizedBase = baseUrl.trim().replace(/\/+$/, "");
+  const normalizedBase = normalizeImageBaseUrl(baseUrl);
 
   if (normalizedBase.endsWith("/v1")) {
     return `${normalizedBase}/images/${action}`;
   }
 
   return `${normalizedBase}/v1/images/${action}`;
+}
+
+function normalizeImageBaseUrl(baseUrl: string) {
+  const normalizedBase = baseUrl.trim().replace(/\/+$/, "");
+
+  try {
+    const url = new URL(normalizedBase);
+    url.hash = "";
+    url.search = "";
+
+    const path = url.pathname.replace(/\/+$/, "");
+    const imagePathMatch = path.match(/^(.*\/v1)\/images(?:\/(?:generations|edits))?$/);
+
+    if (imagePathMatch?.[1]) {
+      url.pathname = imagePathMatch[1];
+      return url.toString().replace(/\/+$/, "");
+    }
+
+    return normalizedBase;
+  } catch {
+    return normalizedBase.replace(/\/v1\/images(?:\/(?:generations|edits))?$/, "/v1");
+  }
 }
 
 function buildGenerationPayload(params: ImageGenerationParams) {
@@ -253,6 +295,10 @@ function mapStatusToCode(status: number) {
   return "upstream_error";
 }
 
+function isRedirectStatus(status: number) {
+  return status >= 300 && status < 400;
+}
+
 function extractErrorMessage(body: unknown, status: number) {
   if (
     typeof body === "object" &&
@@ -267,6 +313,10 @@ function extractErrorMessage(body: unknown, status: number) {
   }
 
   return fallbackErrorMessage(status);
+}
+
+function redirectErrorMessage() {
+  return "Sub2API Base URL 发生跳转，鉴权头可能被丢弃；请把设置里的 Base URL 改成最终 HTTPS 地址。";
 }
 
 function fallbackErrorMessage(status: number) {

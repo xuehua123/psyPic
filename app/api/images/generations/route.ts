@@ -102,7 +102,8 @@ export async function POST(request: Request) {
         status: error.status,
         code: error.code,
         message: error.message,
-        requestId
+        requestId,
+        upstreamRequestId: error.upstreamRequestId
       });
     }
 

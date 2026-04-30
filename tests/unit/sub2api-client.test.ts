@@ -56,6 +56,75 @@ describe("Sub2API image client", () => {
     expect(response.images[0].b64_json).toBe(Buffer.from("image-bytes").toString("base64"));
   });
 
+  it("accepts a full Images API endpoint as the configured Base URL", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ b64_json: Buffer.from("image-bytes").toString("base64") }]
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        }
+      )
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await generateImageWithSub2API({
+      baseUrl: "https://sub2api.example.com/v1/images/generations",
+      apiKey: "secret-token-value",
+      params: {
+        prompt: "Create a premium product photo.",
+        model: "gpt-image-2",
+        size: "1024x1024",
+        quality: "medium",
+        n: 1,
+        output_format: "png",
+        output_compression: null,
+        background: "auto",
+        moderation: "auto"
+      }
+    });
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://sub2api.example.com/v1/images/generations",
+      expect.any(Object)
+    );
+  });
+
+  it("does not silently follow Sub2API redirects that can drop authorization", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(null, {
+        status: 302,
+        headers: { location: "https://sub2api.example.com/v1/images/generations" }
+      })
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await expect(
+      generateImageWithSub2API({
+        baseUrl: "http://sub2api.example.com/v1",
+        apiKey: "secret-token-value",
+        params: {
+          prompt: "Create a premium product photo.",
+          model: "gpt-image-2",
+          size: "1024x1024",
+          quality: "medium",
+          n: 1,
+          output_format: "png",
+          output_compression: null,
+          background: "auto",
+          moderation: "auto"
+        }
+      })
+    ).rejects.toMatchObject({
+      code: "upstream_redirect",
+      status: 502,
+      message: expect.stringContaining("Base URL 发生跳转")
+    });
+    expect(fetchSpy.mock.calls[0][1]).toMatchObject({ redirect: "manual" });
+  });
+
   it("normalizes upstream 429 into a rate limited error without leaking keys", async () => {
     vi.stubGlobal(
       "fetch",

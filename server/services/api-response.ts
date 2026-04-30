@@ -33,6 +33,7 @@ export function jsonError(input: {
   message: string;
   requestId: string;
   field?: string;
+  upstreamRequestId?: string;
 }) {
   return Response.json(
     {
@@ -41,7 +42,10 @@ export function jsonError(input: {
         message: input.message,
         details: input.field ? { field: input.field } : undefined
       },
-      request_id: input.requestId
+      request_id: input.requestId,
+      ...(input.upstreamRequestId
+        ? { upstream_request_id: input.upstreamRequestId }
+        : {})
     },
     {
       status: input.status,

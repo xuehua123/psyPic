@@ -112,7 +112,10 @@ describe("POST /api/images/generations", () => {
       vi.fn().mockResolvedValue(
         new Response(JSON.stringify({}), {
           status: 401,
-          headers: { "content-type": "application/json" }
+          headers: {
+            "content-type": "application/json",
+            "x-request-id": "upstream_auth_req_123"
+          }
         })
       )
     );
@@ -135,6 +138,7 @@ describe("POST /api/images/generations", () => {
     expect(body.error.code).toBe("unauthorized");
     expect(body.error.message).toContain("Sub2API Key");
     expect(body.error.message).toContain("Base URL");
+    expect(body.upstream_request_id).toBe("upstream_auth_req_123");
     expect(JSON.stringify(body)).not.toContain("secret-token");
   });
 
