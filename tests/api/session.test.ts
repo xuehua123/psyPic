@@ -34,7 +34,9 @@ describe("session API", () => {
     expect(body.data.binding.base_url).toBe("https://sub2api.example.com/v1");
     expect(body.data.binding.default_model).toBe("gpt-image-2");
     expect(body.data.limits.max_n).toBe(4);
-    expect(body.data.features.stream).toBe(false);
+    expect(body.data.features.stream).toBe(true);
+    expect(body.data.features.community).toBe(true);
+    expect(body.data.features.public_publish).toBe(true);
     expect(JSON.stringify(body)).not.toContain("api_key");
     expect(JSON.stringify(body)).not.toContain("ciphertext");
   });
@@ -49,7 +51,27 @@ describe("session API", () => {
 
     expect(response.status).toBe(200);
     expect(body.data.authenticated).toBe(false);
-    expect(body.data.features.community).toBe(false);
+    expect(body.data.features.community).toBe(true);
+  });
+
+  it("applies runtime max_n limits to session metadata", async () => {
+    resetDevStore();
+    process.env.PSYPIC_MAX_IMAGE_N = "1";
+    const cookie = await bindSession();
+
+    try {
+      const response = await getSession(
+        new Request("http://localhost/api/session", {
+          headers: { cookie }
+        })
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body.data.limits.max_n).toBe(1);
+    } finally {
+      delete process.env.PSYPIC_MAX_IMAGE_N;
+    }
   });
 
   it("expires the session cookie on logout", async () => {

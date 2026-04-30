@@ -373,6 +373,38 @@ export function listImageAlbumsForUser(userId: string) {
     .map(serializeImageAlbum);
 }
 
+export function summarizeImageUsageForUser(userId: string) {
+  const tasks = listSucceededImageTasks(userId);
+  const summary = tasks.reduce(
+    (accumulator, task) => {
+      accumulator.task_count += 1;
+      accumulator.image_count += task.images.length;
+      accumulator.input_tokens += task.usage?.input_tokens ?? 0;
+      accumulator.output_tokens += task.usage?.output_tokens ?? 0;
+      accumulator.total_tokens += task.usage?.total_tokens ?? 0;
+      accumulator.estimatedCost += parseEstimatedCost(task.usage?.estimated_cost);
+      return accumulator;
+    },
+    {
+      task_count: 0,
+      image_count: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+      total_tokens: 0,
+      estimatedCost: 0
+    }
+  );
+
+  return {
+    task_count: summary.task_count,
+    image_count: summary.image_count,
+    input_tokens: summary.input_tokens,
+    output_tokens: summary.output_tokens,
+    total_tokens: summary.total_tokens,
+    estimated_cost: summary.estimatedCost.toFixed(4)
+  };
+}
+
 export function serializeImageTask(task: ImageTask) {
   return {
     id: task.id,
@@ -519,4 +551,14 @@ function normalizeTags(tags: string[]) {
 
 function normalizeTag(tag: string) {
   return tag.trim().replace(/\s+/g, " ").slice(0, 24);
+}
+
+function parseEstimatedCost(value: string | undefined) {
+  const cost = Number(value);
+
+  if (Number.isFinite(cost) && cost >= 0) {
+    return cost;
+  }
+
+  return 0;
 }

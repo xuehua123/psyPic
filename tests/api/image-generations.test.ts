@@ -215,6 +215,35 @@ describe("POST /api/images/generations", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("enforces the runtime max_n limit before calling Sub2API", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    process.env.PSYPIC_MAX_IMAGE_N = "1";
+    const cookie = await bindSession();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    try {
+      const response = await generateImage(
+        generationRequest(cookie, {
+          ...validGenerationBody,
+          n: 2
+        })
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(body.error).toMatchObject({
+        code: "invalid_parameter",
+        details: { field: "n" }
+      });
+      expect(body.error.message).toContain("1");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      delete process.env.PSYPIC_MAX_IMAGE_N;
+    }
+  });
+
   it("does not let concurrent generation requests both pass the active task check", async () => {
     resetDevStore();
     resetImageTaskStore();

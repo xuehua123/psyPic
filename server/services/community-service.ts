@@ -1,0 +1,231 @@
+import type { ImageGenerationParams } from "@/lib/validation/image-params";
+import { createId } from "@/server/services/key-binding-service";
+import {
+  getImageLibraryAssetForUser,
+  getImageTaskForUser
+} from "@/server/services/image-task-service";
+
+export type CommunityWorkVisibility = "private" | "unlisted" | "public";
+export type CommunityWorkReviewStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "taken_down";
+
+type CommunityWork = {
+  id: string;
+  user_id: string;
+  task_id: string;
+  asset_id: string;
+  visibility: CommunityWorkVisibility;
+  review_status: CommunityWorkReviewStatus;
+  title: string;
+  scene: string | null;
+  tags: string[];
+  image_url: string;
+  thumbnail_url: string;
+  prompt_snapshot: string;
+  params_snapshot: ImageGenerationParams;
+  disclose_prompt: boolean;
+  disclose_params: boolean;
+  disclose_reference_images: boolean;
+  allow_same_generation: boolean;
+  allow_reference_reuse: boolean;
+  published_at: string | null;
+  taken_down_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CreateCommunityWorkInput = {
+  taskId: string;
+  assetId: string;
+  visibility: CommunityWorkVisibility;
+  title: string;
+  scene: string | null;
+  tags: string[];
+  disclosePrompt: boolean;
+  discloseParams: boolean;
+  discloseReferenceImages: boolean;
+  allowSameGeneration: boolean;
+  allowReferenceReuse: boolean;
+};
+
+declare global {
+  var __psypicCommunityWorks: Map<string, CommunityWork> | undefined;
+}
+
+const communityWorks =
+  globalThis.__psypicCommunityWorks ?? new Map<string, CommunityWork>();
+globalThis.__psypicCommunityWorks = communityWorks;
+
+export function resetCommunityWorkStore() {
+  communityWorks.clear();
+}
+
+export function createCommunityWorkForUser(
+  userId: string,
+  input: CreateCommunityWorkInput
+) {
+  const task = getImageTaskForUser(input.taskId, userId);
+  const asset = getImageLibraryAssetForUser(userId, input.assetId);
+
+  if (!task || !asset || asset.task_id !== task.id) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const work: CommunityWork = {
+    id: createId("work"),
+    user_id: userId,
+    task_id: task.id,
+    asset_id: asset.asset_id,
+    visibility: input.visibility,
+    review_status: "approved",
+    title: input.title,
+    scene: input.scene,
+    tags: normalizeTags(input.tags),
+    image_url: asset.url,
+    thumbnail_url: asset.thumbnail_url,
+    prompt_snapshot: task.prompt,
+    params_snapshot: task.params,
+    disclose_prompt: input.disclosePrompt,
+    disclose_params: input.discloseParams,
+    disclose_reference_images: input.discloseReferenceImages,
+    allow_same_generation: input.allowSameGeneration,
+    allow_reference_reuse: input.allowReferenceReuse,
+    published_at: input.visibility === "private" ? null : now,
+    taken_down_at: null,
+    created_at: now,
+    updated_at: now
+  };
+
+  communityWorks.set(work.id, work);
+  return serializeCommunityWork(work);
+}
+
+export function getCommunityWorkForViewer(
+  workId: string,
+  viewerUserId: string | null
+) {
+  const work = communityWorks.get(workId);
+
+  if (!work || !canViewCommunityWork(work, viewerUserId)) {
+    return null;
+  }
+
+  return serializeCommunityWork(work, { detail: true });
+}
+
+export function createCommunitySameGenerationDraft(
+  workId: string,
+  viewerUserId: string | null
+) {
+  const work = communityWorks.get(workId);
+
+  if (!work || !canViewCommunityWork(work, viewerUserId)) {
+    return { status: "not_found" as const };
+  }
+
+  if (!work.allow_same_generation) {
+    return { status: "disabled" as const };
+  }
+
+  const draft = {
+    prompt: work.disclose_prompt
+      ? work.prompt_snapshot
+      : buildPrivatePromptFallback(work),
+    params: work.disclose_params
+      ? work.params_snapshot
+      : buildPublicParamsFallback(work.params_snapshot),
+    ...(work.disclose_reference_images && work.allow_reference_reuse
+      ? { reference_asset_id: work.asset_id }
+      : {})
+  };
+
+  return {
+    status: "ok" as const,
+    draft
+  };
+}
+
+function serializeCommunityWork(
+  work: CommunityWork,
+  options?: { detail?: boolean }
+) {
+  return {
+    work_id: work.id,
+    task_id: work.task_id,
+    asset_id: work.asset_id,
+    visibility: work.visibility,
+    review_status: work.review_status,
+    title: work.title,
+    scene: work.scene,
+    tags: work.tags,
+    image_url: work.image_url,
+    thumbnail_url: work.thumbnail_url,
+    disclose_prompt: work.disclose_prompt,
+    disclose_params: work.disclose_params,
+    disclose_reference_images: work.disclose_reference_images,
+    allow_same_generation: work.allow_same_generation,
+    allow_reference_reuse: work.allow_reference_reuse,
+    same_generation_available: work.allow_same_generation,
+    published_at: work.published_at,
+    created_at: work.created_at,
+    updated_at: work.updated_at,
+    ...(options?.detail && work.disclose_prompt
+      ? { prompt: work.prompt_snapshot }
+      : {}),
+    ...(options?.detail && work.disclose_params
+      ? { params: work.params_snapshot }
+      : {}),
+    ...(options?.detail && work.disclose_reference_images
+      ? { reference_images: [] }
+      : {})
+  };
+}
+
+function canViewCommunityWork(
+  work: CommunityWork,
+  viewerUserId: string | null
+) {
+  if (work.taken_down_at || work.review_status === "taken_down") {
+    return false;
+  }
+
+  if (work.visibility === "private") {
+    return work.user_id === viewerUserId;
+  }
+
+  return true;
+}
+
+function buildPrivatePromptFallback(work: CommunityWork) {
+  const tags = work.tags.length > 0 ? `，参考标签：${work.tags.join("、")}` : "";
+
+  return `按作品《${work.title}》的公开场景生成相似商业图片${tags}。保持高质量商业摄影风格，不复刻未公开 Prompt、品牌标识或私有参考图。`;
+}
+
+function buildPublicParamsFallback(params: ImageGenerationParams) {
+  return {
+    prompt: "",
+    model: params.model,
+    size: params.size,
+    quality: params.quality,
+    n: 1,
+    output_format: params.output_format,
+    output_compression: params.output_compression,
+    background: params.background,
+    moderation: params.moderation
+  };
+}
+
+function normalizeTags(tags: string[]) {
+  return Array.from(
+    new Set(
+      tags
+        .map((tag) => tag.trim().replace(/\s+/g, " ").slice(0, 24))
+        .filter((tag) => tag.length > 0)
+    )
+  ).slice(0, 12);
+}

@@ -30,6 +30,19 @@ enum ImageTaskStatus {
   canceled
 }
 
+enum CommunityWorkVisibility {
+  private
+  unlisted
+  public
+}
+
+enum CommunityWorkReviewStatus {
+  pending
+  approved
+  rejected
+  taken_down
+}
+
 model User {
   id            String       @id
   sub2apiUserId String?      @map("sub2api_user_id")
@@ -45,6 +58,7 @@ model User {
   imageAssets   ImageAsset[]
   imageAssetTags ImageAssetTag[]
   albums        Album[]
+  communityWorks CommunityWork[]
 
   @@map("users")
 }
@@ -124,6 +138,7 @@ model ImageTask {
   user              User             @relation(fields: [userId], references: [id])
   keyBinding        KeyBinding?      @relation(fields: [keyBindingId], references: [id])
   assets            ImageAsset[]
+  communityWorks    CommunityWork[]
 
   @@index([userId, createdAt])
   @@index([keyBindingId])
@@ -150,6 +165,7 @@ model ImageAsset {
   task        ImageTask?      @relation(fields: [taskId], references: [id])
   tags        ImageAssetTag[]
   albumItems  AlbumItem[]
+  communityWorks CommunityWork[]
 
   @@index([userId, createdAt])
   @@index([taskId])
@@ -199,4 +215,35 @@ model AlbumItem {
   @@unique([albumId, assetId])
   @@index([assetId])
   @@map("album_items")
+}
+
+model CommunityWork {
+  id                      String                    @id
+  userId                  String                    @map("user_id")
+  taskId                  String                    @map("task_id")
+  assetId                 String                    @map("asset_id")
+  visibility              CommunityWorkVisibility   @default(private)
+  reviewStatus            CommunityWorkReviewStatus @default(approved) @map("review_status")
+  title                   String
+  scene                   String?
+  tags                    String[]
+  promptSnapshot          String                    @map("prompt_snapshot")
+  paramsSnapshot          Json                      @map("params_snapshot")
+  disclosePrompt          Boolean                   @default(false) @map("disclose_prompt")
+  discloseParams          Boolean                   @default(false) @map("disclose_params")
+  discloseReferenceImages Boolean                   @default(false) @map("disclose_reference_images")
+  allowSameGeneration     Boolean                   @default(false) @map("allow_same_generation")
+  allowReferenceReuse     Boolean                   @default(false) @map("allow_reference_reuse")
+  publishedAt             DateTime?                 @map("published_at")
+  takenDownAt             DateTime?                 @map("taken_down_at")
+  createdAt               DateTime                  @default(now()) @map("created_at")
+  updatedAt               DateTime                  @updatedAt @map("updated_at")
+  user                    User                      @relation(fields: [userId], references: [id])
+  task                    ImageTask                 @relation(fields: [taskId], references: [id])
+  asset                   ImageAsset                @relation(fields: [assetId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([assetId])
+  @@index([visibility, reviewStatus, createdAt])
+  @@map("community_works")
 }

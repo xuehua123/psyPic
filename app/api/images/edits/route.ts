@@ -14,6 +14,7 @@ import {
   markImageTaskSucceeded
 } from "@/server/services/image-task-service";
 import { editImageWithSub2API, Sub2APIError } from "@/server/services/sub2api-client";
+import { getEffectiveImageLimits } from "@/server/services/runtime-settings-service";
 import { createTempAssetFromBase64 } from "@/server/services/temp-asset-service";
 import { readSessionIdFromRequest } from "@/server/services/session-service";
 
@@ -129,12 +130,24 @@ export async function POST(request: Request) {
     });
   }
 
-  if (parsed.data.n > binding.limits.max_n) {
+  const limits = getEffectiveImageLimits(binding.limits);
+
+  if (parsed.data.n > limits.max_n) {
     return jsonError({
       status: 400,
       code: "invalid_parameter",
-      message: `数量不能超过 ${binding.limits.max_n}`,
+      message: `数量不能超过 ${limits.max_n}`,
       field: "n",
+      requestId
+    });
+  }
+
+  if (parsed.data.moderation === "low" && !limits.allow_moderation_low) {
+    return jsonError({
+      status: 400,
+      code: "invalid_parameter",
+      message: "当前配置不允许 moderation=low",
+      field: "moderation",
       requestId
     });
   }
