@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { GET as listLibrary } from "@/app/api/library/route";
-import { PATCH as updateLibraryAsset } from "@/app/api/library/[assetId]/route";
+import {
+  GET as getLibraryAsset,
+  PATCH as updateLibraryAsset
+} from "@/app/api/library/[assetId]/route";
+import { POST as downloadLibraryZip } from "@/app/api/library/zip/route";
 import { POST as generateImage } from "@/app/api/images/generations/route";
 import { POST as exchangeImportCode } from "@/app/api/import/exchange/route";
 import { resetDevStore } from "@/server/services/dev-store";
@@ -186,5 +190,68 @@ describe("GET/PATCH /api/library", () => {
 
     expect(response.status).toBe(404);
     expect(body.error.code).toBe("not_found");
+  });
+
+  it("returns a library asset detail for the current user", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    resetImageLibraryStore();
+    await resetTempAssetStore();
+    const cookie = await bindSession();
+    mockImageGeneration();
+    const generationResponse = await generateImage(
+      generationRequest(cookie, "Create a product detail image.")
+    );
+    const generationBody = await generationResponse.json();
+    const assetId = generationBody.data.images[0].asset_id;
+
+    const response = await getLibraryAsset(
+      new Request(`http://localhost/api/library/${assetId}`, {
+        headers: { cookie }
+      }),
+      { params: Promise.resolve({ assetId }) }
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data).toMatchObject({
+      asset_id: assetId,
+      task_id: generationBody.data.task_id,
+      prompt: "Create a product detail image.",
+      url: `/api/assets/${assetId}`
+    });
+  });
+
+  it("downloads selected current-user assets as a zip archive", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    resetImageLibraryStore();
+    await resetTempAssetStore();
+    const cookie = await bindSession();
+    mockImageGeneration();
+    const generationResponse = await generateImage(
+      generationRequest(cookie, "Create a zip-ready product image.")
+    );
+    const generationBody = await generationResponse.json();
+    const assetId = generationBody.data.images[0].asset_id;
+
+    const response = await downloadLibraryZip(
+      new Request("http://localhost/api/library/zip", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie
+        },
+        body: JSON.stringify({ asset_ids: [assetId] })
+      })
+    );
+    const bytes = new Uint8Array(await response.arrayBuffer());
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/zip");
+    expect(response.headers.get("content-disposition")).toContain(
+      "psypic-assets.zip"
+    );
+    expect(String.fromCharCode(bytes[0], bytes[1])).toBe("PK");
   });
 });

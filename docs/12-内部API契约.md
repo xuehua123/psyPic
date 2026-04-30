@@ -470,6 +470,70 @@ Content-Type: application/json
 - `tags` 必须是字符串数组；服务端去重、裁剪空白，并限制单个标签长度。
 - 资产不存在或不属于当前用户时返回 404。
 
+```http
+GET /api/library/{asset_id}
+```
+
+行为：
+
+- 返回当前用户可访问图片资产详情。
+- 资产不存在或不属于当前用户时返回 404。
+
+```http
+POST /api/library/zip
+Content-Type: application/json
+
+{
+  "asset_ids": ["asset_xxx", "asset_yyy"]
+}
+```
+
+行为：
+
+- 只打包当前用户可访问资产。
+- 返回 `application/zip`，文件名 `psypic-assets.zip`。
+- 任一资产不存在或不可访问时返回 404/403，不打包部分结果。
+
+## Albums
+
+`v0.7` 起启用。相册用于把多个素材归入项目或批次。
+
+```http
+POST /api/albums
+Content-Type: application/json
+
+{
+  "title": "香水主图项目",
+  "asset_ids": ["asset_xxx"]
+}
+```
+
+响应：
+
+```json
+{
+  "data": {
+    "id": "album_xxx",
+    "title": "香水主图项目",
+    "asset_ids": ["asset_xxx"],
+    "asset_count": 1,
+    "cover_asset_id": "asset_xxx",
+    "created_at": "2026-05-01T12:00:00.000Z",
+    "updated_at": "2026-05-01T12:00:00.000Z"
+  },
+  "request_id": "psypic_req_xxx"
+}
+```
+
+```http
+GET /api/albums
+```
+
+行为：
+
+- 只列出当前用户相册。
+- 相册内所有资产必须属于当前用户。
+
 ## Templates
 
 ```http

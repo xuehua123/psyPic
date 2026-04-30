@@ -50,6 +50,15 @@ export type ImageLibraryMetadataPatch = {
   tags?: string[];
 };
 
+type ImageAlbum = {
+  id: string;
+  user_id: string;
+  title: string;
+  asset_ids: string[];
+  created_at: string;
+  updated_at: string;
+};
+
 const activeTaskStatuses: ReadonlySet<ImageTaskStatus> = new Set([
   "queued",
   "running"
@@ -61,6 +70,7 @@ declare global {
   var __psypicImageLibraryMetadata:
     | Map<string, ImageLibraryMetadata>
     | undefined;
+  var __psypicImageAlbums: Map<string, ImageAlbum> | undefined;
 }
 
 const imageTasks = globalThis.__psypicImageTasks ?? new Map<string, ImageTask>();
@@ -69,6 +79,8 @@ const imageLibraryMetadata =
   globalThis.__psypicImageLibraryMetadata ??
   new Map<string, ImageLibraryMetadata>();
 globalThis.__psypicImageLibraryMetadata = imageLibraryMetadata;
+const imageAlbums = globalThis.__psypicImageAlbums ?? new Map<string, ImageAlbum>();
+globalThis.__psypicImageAlbums = imageAlbums;
 
 export function resetImageTaskStore() {
   imageTasks.clear();
@@ -76,6 +88,10 @@ export function resetImageTaskStore() {
 
 export function resetImageLibraryStore() {
   imageLibraryMetadata.clear();
+}
+
+export function resetImageAlbumStore() {
+  imageAlbums.clear();
 }
 
 export function createImageTask(input: {
@@ -312,6 +328,51 @@ export function updateImageLibraryAssetForUser(
   return serializeImageLibraryAsset(match.task, match.image);
 }
 
+export function getImageLibraryAssetForUser(userId: string, assetId: string) {
+  const match = findSucceededTaskImageForUser(userId, assetId);
+
+  if (!match) {
+    return null;
+  }
+
+  return serializeImageLibraryAsset(match.task, match.image);
+}
+
+export function createImageAlbumForUser(
+  userId: string,
+  input: {
+    title: string;
+    assetIds: string[];
+  }
+) {
+  const title = input.title.trim();
+  const assetIds = Array.from(new Set(input.assetIds.map((assetId) => assetId.trim())));
+
+  if (!title || assetIds.some((assetId) => !getImageLibraryAssetForUser(userId, assetId))) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const album: ImageAlbum = {
+    id: createId("album"),
+    user_id: userId,
+    title,
+    asset_ids: assetIds,
+    created_at: now,
+    updated_at: now
+  };
+  imageAlbums.set(album.id, album);
+
+  return serializeImageAlbum(album);
+}
+
+export function listImageAlbumsForUser(userId: string) {
+  return Array.from(imageAlbums.values())
+    .filter((album) => album.user_id === userId)
+    .sort((left, right) => right.created_at.localeCompare(left.created_at))
+    .map(serializeImageAlbum);
+}
+
 export function serializeImageTask(task: ImageTask) {
   return {
     id: task.id,
@@ -390,6 +451,18 @@ function serializeImageLibraryAsset(task: ImageTask, image: ImageTaskImage) {
     created_at: task.created_at,
     favorite: metadata.favorite,
     tags: metadata.tags
+  };
+}
+
+function serializeImageAlbum(album: ImageAlbum) {
+  return {
+    id: album.id,
+    title: album.title,
+    asset_ids: album.asset_ids,
+    asset_count: album.asset_ids.length,
+    cover_asset_id: album.asset_ids[0] ?? null,
+    created_at: album.created_at,
+    updated_at: album.updated_at
   };
 }
 

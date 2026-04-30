@@ -1,10 +1,43 @@
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
 import { getSession } from "@/server/services/dev-store";
 import {
+  getImageLibraryAssetForUser,
   type ImageLibraryMetadataPatch,
   updateImageLibraryAssetForUser
 } from "@/server/services/image-task-service";
 import { readSessionIdFromRequest } from "@/server/services/session-service";
+
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ assetId: string }> }
+) {
+  const requestId = createRequestId();
+  const sessionId = readSessionIdFromRequest(request);
+  const session = sessionId ? getSession(sessionId) : null;
+
+  if (!session) {
+    return jsonError({
+      status: 401,
+      code: "unauthorized",
+      message: "请先导入或配置 Sub2API Key",
+      requestId
+    });
+  }
+
+  const { assetId } = await context.params;
+  const item = getImageLibraryAssetForUser(session.user_id, assetId);
+
+  if (!item) {
+    return jsonError({
+      status: 404,
+      code: "not_found",
+      message: "素材不存在",
+      requestId
+    });
+  }
+
+  return jsonOk(item, requestId);
+}
 
 export async function PATCH(
   request: Request,
