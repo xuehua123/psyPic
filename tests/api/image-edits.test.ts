@@ -1,10 +1,26 @@
 import { describe, expect, it, vi } from "vitest";
 import { POST as exchangeImportCode } from "@/app/api/import/exchange/route";
 import { POST as editImage } from "@/app/api/images/edits/route";
-import { resetDevStore } from "@/server/services/dev-store";
+import { getKeyBinding, getSession, resetDevStore } from "@/server/services/dev-store";
+import {
+  createImageTask,
+  markImageTaskRunning,
+  resetImageTaskStore
+} from "@/server/services/image-task-service";
 import { resetTempAssetStore } from "@/server/services/temp-asset-service";
 
 const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const validTaskParams = {
+  prompt: "Keep the product unchanged and replace the background.",
+  model: "gpt-image-2",
+  size: "1024x1024",
+  quality: "medium",
+  n: 1,
+  output_format: "png",
+  output_compression: null,
+  background: "auto",
+  moderation: "auto"
+} as const;
 
 async function bindSession() {
   const response = await exchangeImportCode(
@@ -34,22 +50,47 @@ function editRequest(cookie: string, formData: FormData) {
 
 function validEditFormData() {
   const formData = new FormData();
-  formData.set("prompt", "Keep the product unchanged and replace the background.");
-  formData.set("model", "gpt-image-2");
-  formData.set("size", "1024x1024");
-  formData.set("quality", "medium");
-  formData.set("n", "1");
-  formData.set("output_format", "png");
-  formData.set("background", "auto");
-  formData.set("moderation", "auto");
+  formData.set("prompt", validTaskParams.prompt);
+  formData.set("model", validTaskParams.model);
+  formData.set("size", validTaskParams.size);
+  formData.set("quality", validTaskParams.quality);
+  formData.set("n", String(validTaskParams.n));
+  formData.set("output_format", validTaskParams.output_format);
+  formData.set("background", validTaskParams.background);
+  formData.set("moderation", validTaskParams.moderation);
   formData.set("image", new File([pngBytes], "product.png", { type: "image/png" }));
 
   return formData;
 }
 
+function createRunningTaskForCookie(cookie: string) {
+  const sessionId = cookie.replace("psypic_session=", "");
+  const session = getSession(sessionId);
+
+  if (!session) {
+    throw new Error("Expected test session");
+  }
+
+  const binding = getKeyBinding(session.key_binding_id);
+
+  if (!binding) {
+    throw new Error("Expected test key binding");
+  }
+
+  const task = createImageTask({
+    userId: session.user_id,
+    keyBindingId: binding.id,
+    type: "generation",
+    prompt: validTaskParams.prompt,
+    params: validTaskParams
+  });
+  markImageTaskRunning(task.id);
+}
+
 describe("POST /api/images/edits", () => {
   it("edits a single reference image through Sub2API and returns TempAsset URLs", async () => {
     resetDevStore();
+    resetImageTaskStore();
     await resetTempAssetStore();
     const cookie = await bindSession();
     vi.stubGlobal(
@@ -94,6 +135,7 @@ describe("POST /api/images/edits", () => {
 
   it("rejects missing or invalid reference images before calling Sub2API", async () => {
     resetDevStore();
+    resetImageTaskStore();
     const cookie = await bindSession();
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
@@ -108,6 +150,23 @@ describe("POST /api/images/edits", () => {
     expect(response.status).toBe(415);
     expect(body.error.code).toBe("unsupported_media_type");
     expect(body.error.details.field).toBe("image");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("rejects a new edit when the user already has an active image task", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    const cookie = await bindSession();
+    createRunningTaskForCookie(cookie);
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await editImage(editRequest(cookie, validEditFormData()));
+    const body = await response.json();
+
+    expect(response.status).toBe(429);
+    expect(body.error.code).toBe("rate_limited");
+    expect(body.error.message).toContain("任务正在运行");
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

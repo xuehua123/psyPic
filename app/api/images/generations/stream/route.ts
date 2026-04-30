@@ -4,6 +4,7 @@ import { createRequestId, jsonError } from "@/server/services/api-response";
 import { getKeyBinding, getSession } from "@/server/services/dev-store";
 import {
   createImageTask,
+  getImageTaskConcurrencyState,
   markImageTaskFailed,
   markImageTaskRunning,
   markImageTaskSucceeded
@@ -86,6 +87,17 @@ export async function POST(request: Request) {
       code: "invalid_parameter",
       message: `数量不能超过 ${binding.limits.max_n}`,
       field: "n",
+      requestId
+    });
+  }
+
+  const concurrency = getImageTaskConcurrencyState(session.user_id);
+
+  if (concurrency.limited) {
+    return jsonError({
+      status: 429,
+      code: "rate_limited",
+      message: "当前有图片任务正在运行，请等待完成或取消后重试。",
       requestId
     });
   }

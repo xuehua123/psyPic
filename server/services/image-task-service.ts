@@ -36,6 +36,12 @@ export type ImageTask = {
   updated_at: string;
 };
 
+const activeTaskStatuses: ReadonlySet<ImageTaskStatus> = new Set([
+  "queued",
+  "running"
+]);
+const defaultMaxActiveImageTasksPerUser = 1;
+
 declare global {
   var __psypicImageTasks: Map<string, ImageTask> | undefined;
 }
@@ -134,6 +140,33 @@ export function cancelImageTaskForUser(taskId: string, userId: string) {
   }
 
   return task;
+}
+
+export function countActiveImageTasksForUser(userId: string) {
+  return Array.from(imageTasks.values()).filter(
+    (task) => task.user_id === userId && activeTaskStatuses.has(task.status)
+  ).length;
+}
+
+export function getMaxActiveImageTasksPerUser() {
+  const configured = Number(process.env.PSYPIC_MAX_ACTIVE_IMAGE_TASKS_PER_USER);
+
+  if (Number.isInteger(configured) && configured > 0) {
+    return configured;
+  }
+
+  return defaultMaxActiveImageTasksPerUser;
+}
+
+export function getImageTaskConcurrencyState(userId: string) {
+  const active = countActiveImageTasksForUser(userId);
+  const limit = getMaxActiveImageTasksPerUser();
+
+  return {
+    active,
+    limit,
+    limited: active >= limit
+  };
 }
 
 export function serializeImageTask(task: ImageTask) {

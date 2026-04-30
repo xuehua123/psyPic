@@ -2,8 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import { POST as streamGenerateImage } from "@/app/api/images/generations/stream/route";
 import { POST as exchangeImportCode } from "@/app/api/import/exchange/route";
 import { GET as getTask } from "@/app/api/tasks/[taskId]/route";
-import { resetDevStore } from "@/server/services/dev-store";
-import { resetImageTaskStore } from "@/server/services/image-task-service";
+import { getKeyBinding, getSession, resetDevStore } from "@/server/services/dev-store";
+import {
+  createImageTask,
+  markImageTaskRunning,
+  resetImageTaskStore
+} from "@/server/services/image-task-service";
 import { resetTempAssetStore } from "@/server/services/temp-asset-service";
 
 async function bindSession() {
@@ -38,6 +42,42 @@ function streamRequest(cookie: string) {
       partial_images: 2
     })
   });
+}
+
+const validTaskParams = {
+  prompt: "Create a premium product photo.",
+  model: "gpt-image-2",
+  size: "1024x1024",
+  quality: "medium",
+  n: 1,
+  output_format: "png",
+  output_compression: null,
+  background: "auto",
+  moderation: "auto"
+} as const;
+
+function createRunningTaskForCookie(cookie: string) {
+  const sessionId = cookie.replace("psypic_session=", "");
+  const session = getSession(sessionId);
+
+  if (!session) {
+    throw new Error("Expected test session");
+  }
+
+  const binding = getKeyBinding(session.key_binding_id);
+
+  if (!binding) {
+    throw new Error("Expected test key binding");
+  }
+
+  const task = createImageTask({
+    userId: session.user_id,
+    keyBindingId: binding.id,
+    type: "generation",
+    prompt: validTaskParams.prompt,
+    params: validTaskParams
+  });
+  markImageTaskRunning(task.id);
 }
 
 describe("POST /api/images/generations/stream", () => {
@@ -123,6 +163,23 @@ describe("POST /api/images/generations/stream", () => {
       upstream_request_id: "upstream_stream_req_123"
     });
     expect(taskBody.data.images[0].url).toMatch(/^\/api\/assets\/asset_/);
+  });
+
+  it("rejects a new stream when the user already has an active image task", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    const cookie = await bindSession();
+    createRunningTaskForCookie(cookie);
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await streamGenerateImage(streamRequest(cookie));
+    const body = await response.json();
+
+    expect(response.status).toBe(429);
+    expect(body.error.code).toBe("rate_limited");
+    expect(body.error.message).toContain("任务正在运行");
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
 

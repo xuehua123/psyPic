@@ -310,6 +310,16 @@ POST /api/tasks/{task_id}
 - 对已完成或失败任务返回当前状态，不删除结果。
 - 只能操作当前 session 所属用户的任务。
 
+### 图片任务并发限制
+
+`v0.5` 起，文生图、图生图和流式文生图在通过 session/key binding 与请求参数校验后、创建新任务前，会检查当前用户 active 图片任务数量。
+
+- active 状态：`queued`、`running`。
+- 默认限制：每用户 1 个 active 图片任务。
+- 环境变量：`PSYPIC_MAX_ACTIVE_IMAGE_TASKS_PER_USER` 可调整限制，非法或未设置时使用默认值。
+- 超限响应：HTTP 429，错误码 `rate_limited`。
+- 超限时不得调用 Sub2API。
+
 ## Streaming Generation
 
 `v0.5` 后启用。

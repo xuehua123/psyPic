@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { POST as exchangeImportCode } from "@/app/api/import/exchange/route";
 import { POST as generateImage } from "@/app/api/images/generations/route";
-import { resetDevStore } from "@/server/services/dev-store";
+import { getKeyBinding, getSession, resetDevStore } from "@/server/services/dev-store";
+import {
+  createImageTask,
+  markImageTaskRunning,
+  resetImageTaskStore
+} from "@/server/services/image-task-service";
 import { resetTempAssetStore } from "@/server/services/temp-asset-service";
 
 async function bindSession() {
@@ -27,9 +32,59 @@ function generationRequest(cookie: string, body: unknown) {
   });
 }
 
+function deferredGenerationRequest(
+  cookie: string,
+  body: unknown,
+  parseReady: Promise<void>
+) {
+  const request = generationRequest(cookie, body);
+  Object.defineProperty(request, "json", {
+    value: () => parseReady.then(() => body)
+  });
+
+  return request;
+}
+
+const validGenerationBody = {
+  prompt: "Create a premium product photo.",
+  model: "gpt-image-2",
+  size: "1024x1024",
+  quality: "medium",
+  n: 1,
+  output_format: "png",
+  output_compression: null,
+  background: "auto",
+  moderation: "auto"
+} as const;
+
+function createRunningTaskForCookie(cookie: string) {
+  const sessionId = cookie.replace("psypic_session=", "");
+  const session = getSession(sessionId);
+
+  if (!session) {
+    throw new Error("Expected test session");
+  }
+
+  const binding = getKeyBinding(session.key_binding_id);
+
+  if (!binding) {
+    throw new Error("Expected test key binding");
+  }
+
+  const task = createImageTask({
+    userId: session.user_id,
+    keyBindingId: binding.id,
+    type: "generation",
+    prompt: validGenerationBody.prompt,
+    params: validGenerationBody
+  });
+  markImageTaskRunning(task.id);
+}
+
 describe("POST /api/images/generations", () => {
   it("generates images through Sub2API and returns TempAsset URLs", async () => {
     resetDevStore();
+    resetImageTaskStore();
     await resetTempAssetStore();
     const cookie = await bindSession();
     vi.stubGlobal(
@@ -52,16 +107,7 @@ describe("POST /api/images/generations", () => {
     );
 
     const response = await generateImage(
-      generationRequest(cookie, {
-        prompt: "Create a premium product photo.",
-        model: "gpt-image-2",
-        size: "1024x1024",
-        quality: "medium",
-        n: 1,
-        output_format: "png",
-        background: "auto",
-        moderation: "auto"
-      })
+      generationRequest(cookie, validGenerationBody)
     );
     const body = await response.json();
 
@@ -85,6 +131,7 @@ describe("POST /api/images/generations", () => {
 
   it("rejects invalid parameters before calling Sub2API", async () => {
     resetDevStore();
+    resetImageTaskStore();
     const cookie = await bindSession();
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
@@ -105,6 +152,7 @@ describe("POST /api/images/generations", () => {
 
   it("returns an actionable message when Sub2API rejects the configured key", async () => {
     resetDevStore();
+    resetImageTaskStore();
     await resetTempAssetStore();
     const cookie = await bindSession();
     vi.stubGlobal(
@@ -121,16 +169,7 @@ describe("POST /api/images/generations", () => {
     );
 
     const response = await generateImage(
-      generationRequest(cookie, {
-        prompt: "Create a premium product photo.",
-        model: "gpt-image-2",
-        size: "1024x1024",
-        quality: "medium",
-        n: 1,
-        output_format: "png",
-        background: "auto",
-        moderation: "auto"
-      })
+      generationRequest(cookie, validGenerationBody)
     );
     const body = await response.json();
 
@@ -144,6 +183,7 @@ describe("POST /api/images/generations", () => {
 
   it("requires an authenticated session with a key binding", async () => {
     resetDevStore();
+    resetImageTaskStore();
 
     const response = await generateImage(
       generationRequest("", {
@@ -154,5 +194,68 @@ describe("POST /api/images/generations", () => {
 
     expect(response.status).toBe(401);
     expect(body.error.code).toBe("unauthorized");
+  });
+
+  it("rejects a new generation when the user already has an active image task", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    const cookie = await bindSession();
+    createRunningTaskForCookie(cookie);
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await generateImage(
+      generationRequest(cookie, validGenerationBody)
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(429);
+    expect(body.error.code).toBe("rate_limited");
+    expect(body.error.message).toContain("任务正在运行");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not let concurrent generation requests both pass the active task check", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    await resetTempAssetStore();
+    const cookie = await bindSession();
+    let releaseParse: (() => void) | undefined;
+    const parseReady = new Promise<void>((resolve) => {
+      releaseParse = resolve;
+    });
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ b64_json: Buffer.from("image-bytes").toString("base64") }],
+          usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 }
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        }
+      )
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const first = generateImage(
+      deferredGenerationRequest(cookie, validGenerationBody, parseReady)
+    );
+    const second = generateImage(
+      deferredGenerationRequest(cookie, validGenerationBody, parseReady)
+    );
+    await Promise.resolve();
+    releaseParse?.();
+    const responses = await Promise.all([first, second]);
+    const bodies = await Promise.all(responses.map((response) => response.json()));
+
+    expect(responses.map((response) => response.status).sort()).toEqual([
+      200,
+      429
+    ]);
+    expect(bodies.some((body) => body.error?.code === "rate_limited")).toBe(
+      true
+    );
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });
