@@ -11,10 +11,13 @@ import {
   ImagePlus,
   PanelBottom,
   Play,
+  RefreshCw,
   RotateCcw,
   Settings,
   SlidersHorizontal,
   Sparkles,
+  Star,
+  Tags,
   X
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -121,6 +124,43 @@ type ApiTaskResponse = {
   };
 };
 
+type LibraryAssetItem = {
+  asset_id: string;
+  task_id: string;
+  type: "generation" | "edit";
+  prompt: string;
+  params: ImageGenerationParams;
+  url: string;
+  thumbnail_url: string;
+  format: string;
+  usage?: GenerationResult["usage"];
+  duration_ms?: number;
+  created_at: string;
+  favorite: boolean;
+  tags: string[];
+};
+
+type ApiLibraryResponse = {
+  data?: {
+    items: LibraryAssetItem[];
+    next_cursor: string | null;
+  };
+  request_id?: string;
+  error?: {
+    code: string;
+    message: string;
+  };
+};
+
+type ApiLibraryPatchResponse = {
+  data?: LibraryAssetItem;
+  request_id?: string;
+  error?: {
+    code: string;
+    message: string;
+  };
+};
+
 const taskStatusLabels: Record<CreatorTaskStatus, string> = {
   submitting: "提交中",
   queued: "排队中",
@@ -160,6 +200,12 @@ export default function CreatorWorkspace() {
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [partialImages, setPartialImages] = useState<GenerationImage[]>([]);
   const [historyItems, setHistoryItems] = useState<LocalHistoryItem[]>([]);
+  const [libraryItems, setLibraryItems] = useState<LibraryAssetItem[]>([]);
+  const [libraryStatus, setLibraryStatus] = useState<
+    "idle" | "loading" | "loaded" | "unavailable"
+  >("idle");
+  const [libraryFavoriteOnly, setLibraryFavoriteOnly] = useState(false);
+  const [libraryTagFilter, setLibraryTagFilter] = useState("");
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
   const [maskEnabled, setMaskEnabled] = useState(false);
   const [maskMode, setMaskMode] = useState<MaskMode>("paint");
@@ -451,6 +497,7 @@ export default function CreatorWorkspace() {
       return;
     }
 
+    const createdAt = new Date().toISOString();
     const historyItem: LocalHistoryItem = {
       taskId: nextResult.task_id,
       prompt: requestParams.prompt,
@@ -468,7 +515,7 @@ export default function CreatorWorkspace() {
       requestId: nextResult.request_id,
       durationMs: nextResult.duration_ms,
       totalTokens: nextResult.usage.total_tokens,
-      createdAt: new Date().toISOString()
+      createdAt
     };
 
     setHistoryItems((items) => [historyItem, ...items]);
@@ -884,6 +931,91 @@ export default function CreatorWorkspace() {
     }
   }
 
+  async function loadServerLibrary() {
+    setLibraryStatus("loading");
+
+    const params = new URLSearchParams({ limit: "30" });
+
+    if (libraryFavoriteOnly) {
+      params.set("favorite", "true");
+    }
+
+    if (libraryTagFilter.trim()) {
+      params.set("tag", libraryTagFilter.trim());
+    }
+
+    try {
+      const response = await fetch(`/api/library?${params.toString()}`, {
+        method: "GET"
+      });
+      const body = (await response.json()) as ApiLibraryResponse;
+
+      if (!response.ok || !body.data) {
+        setLibraryStatus("unavailable");
+        return;
+      }
+
+      setLibraryItems(body.data.items);
+      setLibraryStatus("loaded");
+    } catch {
+      setLibraryStatus("unavailable");
+    }
+  }
+
+  async function toggleLibraryFavorite(item: LibraryAssetItem) {
+    try {
+      const response = await fetch(`/api/library/${item.asset_id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          favorite: !item.favorite,
+          tags: item.tags
+        })
+      });
+      const body = (await response.json()) as ApiLibraryPatchResponse;
+
+      if (!response.ok || !body.data) {
+        setErrorMessage(body.error?.message ?? "素材收藏状态更新失败。");
+        return;
+      }
+
+      setLibraryItems((items) =>
+        items.map((current) =>
+          current.asset_id === body.data?.asset_id ? body.data : current
+        )
+      );
+    } catch {
+      setErrorMessage("素材收藏状态更新失败。");
+    }
+  }
+
+  async function handleLibraryContinueEdit(item: LibraryAssetItem) {
+    try {
+      const response = await fetch(item.thumbnail_url);
+      const blob = await response.blob();
+      const reference = new File([blob], libraryReferenceName(item), {
+        type: blob.type || mimeTypeForFormat(item.format)
+      });
+
+      setReferenceImage(reference);
+      setPrompt(item.prompt);
+      setSize(item.params.size);
+      setQuality(item.params.quality);
+      setOutputFormat(item.params.output_format);
+      setN(item.params.n);
+      setOutputCompression(
+        item.params.output_compression === null
+          ? ""
+          : String(item.params.output_compression)
+      );
+      setModeration(item.params.moderation);
+      setMode("image");
+      setErrorMessage("");
+    } catch {
+      setErrorMessage("无法读取素材作为参考图。");
+    }
+  }
+
   async function handleHistoryContinueEdit(item: LocalHistoryItem) {
     try {
       const response = await fetch(item.thumbnailUrl);
@@ -917,6 +1049,12 @@ export default function CreatorWorkspace() {
     const extension = item.params.output_format === "jpeg" ? "jpg" : item.params.output_format;
 
     return `${assetName}.${extension}`;
+  }
+
+  function libraryReferenceName(item: LibraryAssetItem) {
+    const extension = item.format === "jpeg" ? "jpg" : item.format;
+
+    return `${item.asset_id}.${extension}`;
   }
 
   function mimeTypeForFormat(format: string) {
@@ -1465,11 +1603,114 @@ export default function CreatorWorkspace() {
           <div className="panel-header">
             <div className="panel-title">
               <History size={16} aria-hidden="true" />
-              历史与详情
+              历史与素材
+            </div>
+            <div className="panel-actions">
+              <button
+                aria-label="同步素材库"
+                className="icon-button"
+                disabled={libraryStatus === "loading"}
+                onClick={() => void loadServerLibrary()}
+                title="同步素材库"
+                type="button"
+              >
+                <RefreshCw size={16} aria-hidden="true" />
+              </button>
             </div>
           </div>
           <div className="panel-body history-list">
-            {historyItems.length === 0 ? (
+            <div className="library-toolbar">
+              <label className="checkbox-row">
+                <input
+                  aria-label="仅收藏素材"
+                  checked={libraryFavoriteOnly}
+                  onChange={(event) =>
+                    setLibraryFavoriteOnly(event.currentTarget.checked)
+                  }
+                  type="checkbox"
+                />
+                仅收藏
+              </label>
+              <div className="library-tag-filter">
+                <Tags size={14} aria-hidden="true" />
+                <input
+                  aria-label="素材标签过滤"
+                  onChange={(event) => setLibraryTagFilter(event.target.value)}
+                  placeholder="标签"
+                  value={libraryTagFilter}
+                />
+              </div>
+            </div>
+
+            {libraryStatus === "loading" ? (
+              <div className="history-item">
+                <strong>同步中</strong>
+                <p>正在读取服务端素材库。</p>
+              </div>
+            ) : null}
+
+            {libraryStatus === "unavailable" ? (
+              <div className="history-item">
+                <strong>素材库暂不可用</strong>
+                <p>继续使用本地历史，不影响生成和继续编辑。</p>
+              </div>
+            ) : null}
+
+            {libraryItems.length > 0 ? (
+              <div className="library-section">
+                {libraryItems.map((item) => (
+                  <div className="history-item library-item" key={item.asset_id}>
+                    <img
+                      alt=""
+                      className="library-thumb"
+                      src={item.thumbnail_url}
+                    />
+                    <div className="library-item-body">
+                      <strong>{item.asset_id}</strong>
+                      <p>{item.prompt}</p>
+                      <p>
+                        {item.task_id}
+                        {item.usage?.total_tokens
+                          ? ` · ${item.usage.total_tokens} tokens`
+                          : ""}
+                        {item.duration_ms ? ` · ${item.duration_ms}ms` : ""}
+                      </p>
+                      {item.tags.length > 0 ? (
+                        <div className="tag-list">
+                          {item.tags.map((tag) => (
+                            <span key={tag}>{tag}</span>
+                          ))}
+                        </div>
+                      ) : null}
+                      <div className="history-actions">
+                        <button
+                          className="secondary-button"
+                          onClick={() => void handleLibraryContinueEdit(item)}
+                          type="button"
+                        >
+                          <ImagePlus size={16} aria-hidden="true" />
+                          继续编辑
+                        </button>
+                        <button
+                          className="secondary-button"
+                          onClick={() => void toggleLibraryFavorite(item)}
+                          type="button"
+                        >
+                          <Star
+                            fill={item.favorite ? "currentColor" : "none"}
+                            size={16}
+                            aria-hidden="true"
+                          />
+                          {item.favorite ? "取消收藏" : "收藏素材"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {historyItems.length === 0 && libraryItems.length === 0 ? (
               <div className="history-item">
                 <strong>尚未生成</strong>
                 <p>生成后会显示 prompt、参数、request id、耗时和 usage。</p>
@@ -1481,14 +1722,16 @@ export default function CreatorWorkspace() {
                   <p>{item.prompt}</p>
                   <p>{item.requestId}</p>
                   <p>{item.totalTokens} tokens · {item.durationMs}ms</p>
-                  <button
-                    className="secondary-button"
-                    onClick={() => void handleHistoryContinueEdit(item)}
-                    type="button"
-                  >
-                    <ImagePlus size={16} aria-hidden="true" />
-                    继续编辑
-                  </button>
+                  <div className="history-actions">
+                    <button
+                      className="secondary-button"
+                      onClick={() => void handleHistoryContinueEdit(item)}
+                      type="button"
+                    >
+                      <ImagePlus size={16} aria-hidden="true" />
+                      继续编辑
+                    </button>
+                  </div>
                 </div>
               ))
             )}

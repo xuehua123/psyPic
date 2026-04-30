@@ -38,6 +38,54 @@ describe("CreatorWorkspace", () => {
     ).toBeInTheDocument();
   });
 
+  it("loads server library assets and toggles favorite metadata", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(
+        libraryResponse({
+          assetId: "asset_library_123",
+          taskId: "task_library_123",
+          favorite: false,
+          tags: ["电商主图"]
+        })
+      )
+      .mockResolvedValueOnce(
+        libraryPatchResponse({
+          assetId: "asset_library_123",
+          taskId: "task_library_123",
+          favorite: true,
+          tags: ["电商主图"]
+        })
+      );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "同步素材库" }));
+
+    expect(await screen.findByText("asset_library_123")).toBeInTheDocument();
+    expect(screen.getAllByText("电商主图").length).toBeGreaterThanOrEqual(1);
+
+    await user.click(screen.getByRole("button", { name: "收藏素材" }));
+
+    expect(await screen.findByRole("button", { name: "取消收藏" })).toBeInTheDocument();
+    expect(fetchSpy).toHaveBeenNthCalledWith(1, "/api/library?limit=30", {
+      method: "GET"
+    });
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      2,
+      "/api/library/asset_library_123",
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({
+          favorite: true,
+          tags: ["电商主图"]
+        })
+      })
+    );
+  });
+
   it("submits text-to-image requests and renders result metadata", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
         new Response(
@@ -781,6 +829,99 @@ function taskResponse(input: {
         updated_at: "2026-05-01T00:00:01.000Z"
       },
       request_id: input.requestId
+    }),
+    { status: 200, headers: { "content-type": "application/json" } }
+  );
+}
+
+function libraryResponse(input: {
+  assetId: string;
+  taskId: string;
+  favorite: boolean;
+  tags: string[];
+}) {
+  return new Response(
+    JSON.stringify({
+      data: {
+        items: [
+          {
+            asset_id: input.assetId,
+            task_id: input.taskId,
+            type: "generation",
+            prompt: "Create a premium library product photo.",
+            params: {
+              prompt: "Create a premium library product photo.",
+              model: "gpt-image-2",
+              size: "1024x1024",
+              quality: "medium",
+              n: 1,
+              output_format: "png",
+              output_compression: null,
+              background: "auto",
+              moderation: "auto"
+            },
+            url: `/api/assets/${input.assetId}`,
+            thumbnail_url: `/api/assets/${input.assetId}`,
+            format: "png",
+            usage: {
+              input_tokens: 10,
+              output_tokens: 20,
+              total_tokens: 30,
+              estimated_cost: "0.0000"
+            },
+            duration_ms: 1200,
+            created_at: "2026-05-01T00:00:00.000Z",
+            favorite: input.favorite,
+            tags: input.tags
+          }
+        ],
+        next_cursor: null
+      },
+      request_id: "psypic_req_library_123"
+    }),
+    { status: 200, headers: { "content-type": "application/json" } }
+  );
+}
+
+function libraryPatchResponse(input: {
+  assetId: string;
+  taskId: string;
+  favorite: boolean;
+  tags: string[];
+}) {
+  return new Response(
+    JSON.stringify({
+      data: {
+        asset_id: input.assetId,
+        task_id: input.taskId,
+        type: "generation",
+        prompt: "Create a premium library product photo.",
+        params: {
+          prompt: "Create a premium library product photo.",
+          model: "gpt-image-2",
+          size: "1024x1024",
+          quality: "medium",
+          n: 1,
+          output_format: "png",
+          output_compression: null,
+          background: "auto",
+          moderation: "auto"
+        },
+        url: `/api/assets/${input.assetId}`,
+        thumbnail_url: `/api/assets/${input.assetId}`,
+        format: "png",
+        usage: {
+          input_tokens: 10,
+          output_tokens: 20,
+          total_tokens: 30,
+          estimated_cost: "0.0000"
+        },
+        duration_ms: 1200,
+        created_at: "2026-05-01T00:00:00.000Z",
+        favorite: input.favorite,
+        tags: input.tags
+      },
+      request_id: "psypic_req_library_patch_123"
     }),
     { status: 200, headers: { "content-type": "application/json" } }
   );
