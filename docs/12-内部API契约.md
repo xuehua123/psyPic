@@ -256,6 +256,60 @@ commercial_preset=product_background
 
 响应同 `/api/images/generations`。
 
+## Tasks
+
+`v0.5` 起启用。同步生成接口仍直接返回结果，但服务端会同步创建任务状态，便于后续任务队列、取消、重试和流式 partial preview 复用。
+
+```http
+GET /api/tasks/{task_id}
+```
+
+响应：
+
+```json
+{
+  "data": {
+    "id": "task_xxx",
+    "type": "generation",
+    "status": "succeeded",
+    "prompt": "一张高端电商产品主图...",
+    "params": {
+      "size": "1024x1024",
+      "quality": "medium",
+      "n": 1
+    },
+    "images": [
+      {
+        "asset_id": "asset_xxx",
+        "url": "/api/assets/asset_xxx",
+        "format": "png"
+      }
+    ],
+    "usage": {
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "total_tokens": 0,
+      "estimated_cost": "0.0000"
+    },
+    "upstream_request_id": "req_xxx",
+    "duration_ms": 12000,
+    "created_at": "2026-05-01T00:00:00.000Z",
+    "updated_at": "2026-05-01T00:00:12.000Z"
+  },
+  "request_id": "psypic_req_xxx"
+}
+```
+
+```http
+POST /api/tasks/{task_id}
+```
+
+行为：
+
+- 对 `queued` / `running` 任务标记为 `canceled`。
+- 对已完成或失败任务返回当前状态，不删除结果。
+- 只能操作当前 session 所属用户的任务。
+
 ## Streaming Generation
 
 `v0.5` 后启用。
@@ -479,8 +533,8 @@ POST /api/admin/community/works/{work_id}/feature
 
 ## 超时与重试
 
-- 前端生成请求默认超时：120 秒。
-- BFF 调 Sub2API 默认超时：110 秒。
+- 前端生成请求默认超时：5 分钟。
+- BFF 调 Sub2API 默认超时：5 分钟。
 - 超时任务写入失败状态。
 - 用户点击重试必须创建新任务，不覆盖原任务。
 - 对上游 429 不做无限重试，提示用户稍后再试。

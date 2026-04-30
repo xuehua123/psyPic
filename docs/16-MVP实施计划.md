@@ -46,7 +46,7 @@
 - 本轮已完成：`v0.4` 图生图核心切片（edits API、单参考图上传、结果转参考图、商业尺寸预设、历史继续编辑、MVP 商业模板入口）。
 - 已完成 CI：GitHub Actions 执行 lint、typecheck、test、Prisma validate、build。
 - 当前主线：`main`。
-- 当前焦点：完成 `v0.4` 最终手工验收、更新验收清单，并准备进入 `v0.5` 任务系统。
+- 当前焦点：进入 `v0.5` 任务系统；已建立任务状态查询/取消接口骨架，后续接入流式 partial preview。
 
 ## 版本拆分
 
