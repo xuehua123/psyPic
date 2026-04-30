@@ -16,6 +16,7 @@ describe("GitHub Actions CI", () => {
     }
 
     expect(workflow).toContain("DATABASE_URL");
+    expect(workflow).toContain("package-manager-cache: false");
     expect(workflow).toContain("corepack prepare pnpm@10.30.2 --activate");
     expect(workflow).not.toContain("pnpm/action-setup");
   });
