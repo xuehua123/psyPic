@@ -139,6 +139,35 @@ export function getCommunityWorkForViewer(
   return serializeCommunityWork(work, { detail: true });
 }
 
+export function listPublicCommunityWorks(input?: {
+  cursor?: string | null;
+  limit?: number;
+  scene?: string | null;
+}) {
+  const limit = clampCommunityLimit(input?.limit);
+  const scene = input?.scene?.trim();
+  const works = Array.from(communityWorks.values())
+    .filter(
+      (work) =>
+        work.visibility === "public" &&
+        work.review_status === "approved" &&
+        !work.taken_down_at
+    )
+    .filter((work) => (scene ? work.scene === scene : true))
+    .sort((left, right) => right.created_at.localeCompare(left.created_at));
+  const startIndex = input?.cursor
+    ? works.findIndex((work) => work.id === input.cursor) + 1
+    : 0;
+  const safeStartIndex = Math.max(startIndex, 0);
+  const page = works.slice(safeStartIndex, safeStartIndex + limit);
+  const hasNextPage = works.length > safeStartIndex + page.length;
+
+  return {
+    items: page.map((work) => serializeCommunityWork(work)),
+    nextCursor: hasNextPage ? page.at(-1)?.id ?? null : null
+  };
+}
+
 export function createCommunitySameGenerationDraft(
   workId: string,
   viewerUserId: string | null
@@ -333,4 +362,12 @@ function normalizeTags(tags: string[]) {
         .filter((tag) => tag.length > 0)
     )
   ).slice(0, 12);
+}
+
+function clampCommunityLimit(limit: number | undefined) {
+  if (typeof limit !== "number" || !Number.isInteger(limit)) {
+    return 30;
+  }
+
+  return Math.min(Math.max(limit, 1), 50);
 }

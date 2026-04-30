@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { POST as createCommunityWork } from "@/app/api/community/works/route";
+import {
+  GET as listCommunityWorks,
+  POST as createCommunityWork
+} from "@/app/api/community/works/route";
 import { GET as getCommunityWork } from "@/app/api/community/works/[workId]/route";
 import { POST as createSameGenerationDraft } from "@/app/api/community/works/[workId]/same/route";
 import { POST as generateImage } from "@/app/api/images/generations/route";
@@ -280,5 +283,47 @@ describe("Community works API", () => {
     );
     expect(sameResponse.status).toBe(403);
     expect(sameBody.error.code).toBe("same_generation_disabled");
+  });
+
+  it("lists public community works without exposing private works", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    resetImageLibraryStore();
+    resetCommunityWorkStore();
+    await resetTempAssetStore();
+    const { cookie, taskId, assetId } = await seedGeneratedAsset();
+    await createCommunityWork(
+      createWorkRequest(cookie, {
+        taskId,
+        assetId,
+        visibility: "private"
+      })
+    );
+    const publicResponse = await createCommunityWork(
+      createWorkRequest(cookie, {
+        taskId,
+        assetId,
+        visibility: "public",
+        publicConfirmed: true,
+        disclosePrompt: true
+      })
+    );
+    const publicBody = await publicResponse.json();
+
+    const response = await listCommunityWorks(
+      new Request("http://localhost/api/community/works?scene=ecommerce&limit=20")
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data.items).toHaveLength(1);
+    expect(body.data.items[0]).toMatchObject({
+      work_id: publicBody.data.work_id,
+      visibility: "public",
+      scene: "ecommerce",
+      title: "高级灰香水主图"
+    });
+    expect(body.data.next_cursor).toBeNull();
+    expect(JSON.stringify(body)).not.toContain("secret-token");
   });
 });

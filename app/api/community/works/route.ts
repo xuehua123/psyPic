@@ -2,6 +2,7 @@ import { createRequestId, jsonError, jsonOk } from "@/server/services/api-respon
 import { getSession } from "@/server/services/dev-store";
 import {
   createCommunityWorkForUser,
+  listPublicCommunityWorks,
   type CommunityWorkVisibility
 } from "@/server/services/community-service";
 import { getRuntimeFeatureFlags } from "@/server/services/runtime-settings-service";
@@ -27,6 +28,25 @@ type ParsedCreateWork =
   | { success: false; message: string; field: string };
 
 const communityWorkVisibilities = new Set(["private", "unlisted", "public"]);
+
+export async function GET(request: Request) {
+  const requestId = createRequestId();
+  const url = new URL(request.url);
+  const limit = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
+  const works = listPublicCommunityWorks({
+    cursor: url.searchParams.get("cursor"),
+    limit,
+    scene: url.searchParams.get("scene")
+  });
+
+  return jsonOk(
+    {
+      items: works.items,
+      next_cursor: works.nextCursor
+    },
+    requestId
+  );
+}
 
 export async function POST(request: Request) {
   const requestId = createRequestId();
