@@ -21,7 +21,11 @@ import {
   type LocalHistoryItem
 } from "@/lib/history/local-history";
 import { commercialSizePresets } from "@/lib/templates/commercial-size-presets";
-import { commercialTemplates } from "@/lib/templates/commercial-templates";
+import {
+  commercialTemplates,
+  renderCommercialPrompt,
+  type CommercialTemplate
+} from "@/lib/templates/commercial-templates";
 import {
   GENERATION_SIZE_OPTIONS,
   imageGenerationDefaults,
@@ -248,9 +252,38 @@ export default function CreatorWorkspace() {
     setSelectedTemplateId(templateId);
 
     if (template) {
-      setSize(template.defaultParams.size);
+      const rendered = renderCommercialPrompt(
+        template.id,
+        buildTemplateFieldValues(template)
+      );
+
+      setPrompt(rendered.prompt);
+      setSize(rendered.params.size);
+      setQuality(rendered.params.quality);
+      setOutputFormat(rendered.params.output_format);
+      setN(rendered.params.n);
+      setOutputCompression(
+        rendered.params.output_compression === null
+          ? ""
+          : String(rendered.params.output_compression)
+      );
+      setModeration(rendered.params.moderation);
       setMode(template.requiresImage ? "image" : "text");
+      setErrorMessage("");
     }
+  }
+
+  function buildTemplateFieldValues(template: CommercialTemplate) {
+    const seedText = prompt.trim() || template.name;
+
+    return Object.fromEntries(
+      template.fields.map((field) => [
+        field.key,
+        field.required && field.defaultValue === undefined
+          ? seedText
+          : undefined
+      ])
+    );
   }
 
   function selectCommercialSize(presetId: string) {
@@ -275,6 +308,41 @@ export default function CreatorWorkspace() {
     } catch {
       setErrorMessage("无法读取生成结果作为参考图。");
     }
+  }
+
+  async function handleHistoryContinueEdit(item: LocalHistoryItem) {
+    try {
+      const response = await fetch(item.thumbnailUrl);
+      const blob = await response.blob();
+      const format = item.params.output_format;
+      const reference = new File([blob], historyReferenceName(item), {
+        type: blob.type || mimeTypeForFormat(format)
+      });
+
+      setReferenceImage(reference);
+      setPrompt(item.prompt);
+      setSize(item.params.size);
+      setQuality(item.params.quality);
+      setOutputFormat(format);
+      setN(item.params.n);
+      setOutputCompression(
+        item.params.output_compression === null
+          ? ""
+          : String(item.params.output_compression)
+      );
+      setModeration(item.params.moderation);
+      setMode("image");
+      setErrorMessage("");
+    } catch {
+      setErrorMessage("无法读取历史结果作为参考图。");
+    }
+  }
+
+  function historyReferenceName(item: LocalHistoryItem) {
+    const assetName = item.thumbnailUrl.split("/").filter(Boolean).at(-1) ?? item.taskId;
+    const extension = item.params.output_format === "jpeg" ? "jpg" : item.params.output_format;
+
+    return `${assetName}.${extension}`;
   }
 
   function mimeTypeForFormat(format: string) {
@@ -651,6 +719,14 @@ export default function CreatorWorkspace() {
                   <p>{item.prompt}</p>
                   <p>{item.requestId}</p>
                   <p>{item.totalTokens} tokens · {item.durationMs}ms</p>
+                  <button
+                    className="secondary-button"
+                    onClick={() => void handleHistoryContinueEdit(item)}
+                    type="button"
+                  >
+                    <ImagePlus size={16} aria-hidden="true" />
+                    继续编辑
+                  </button>
                 </div>
               ))
             )}

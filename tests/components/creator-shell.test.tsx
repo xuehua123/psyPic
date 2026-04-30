@@ -94,6 +94,50 @@ describe("CreatorWorkspace", () => {
     );
   });
 
+  it("renders commercial template prompts into the workspace", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            task_id: "task_social_123",
+            images: [
+              {
+                asset_id: "asset_social_123",
+                url: "/api/assets/asset_social_123",
+                format: "png"
+              }
+            ],
+            usage: {
+              input_tokens: 10,
+              output_tokens: 20,
+              total_tokens: 30,
+              estimated_cost: "0.0000"
+            },
+            duration_ms: 1200
+          },
+          request_id: "psypic_req_social_123"
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByRole("textbox", { name: "Prompt" }),
+      "AI 生图社区"
+    );
+    await user.click(screen.getByRole("button", { name: /社媒封面/ }));
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+
+    const requestBody = JSON.parse(fetchSpy.mock.calls[0][1].body as string);
+    expect(requestBody.size).toBe("1024x1536");
+    expect(requestBody.prompt).toContain("Create a social media cover image");
+    expect(requestBody.prompt).toContain("AI 生图社区");
+  });
+
   it("submits image-to-image requests with one selected reference image", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(
@@ -228,5 +272,60 @@ describe("CreatorWorkspace", () => {
 
     expect(screen.getByText("asset_123.png")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "图生图" })).toHaveClass("active");
+  });
+
+  it("continues editing from a local history result", async () => {
+    const imageBytes = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a
+    ]);
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              data: {
+                task_id: "task_history_123",
+                images: [
+                  {
+                    asset_id: "asset_history_123",
+                    url: "/api/assets/asset_history_123",
+                    format: "png"
+                  }
+                ],
+                usage: {
+                  input_tokens: 10,
+                  output_tokens: 20,
+                  total_tokens: 30,
+                  estimated_cost: "0.0000"
+                },
+                duration_ms: 1200
+              },
+              request_id: "psypic_req_history_123"
+            }),
+            { status: 200, headers: { "content-type": "application/json" } }
+          )
+        )
+        .mockResolvedValueOnce(
+          new Response(imageBytes, {
+            status: 200,
+            headers: { "content-type": "image/png" }
+          })
+        )
+    );
+
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByRole("textbox", { name: "Prompt" }),
+      "Create a premium product photo."
+    );
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+    await user.click(await screen.findByRole("button", { name: "继续编辑" }));
+
+    expect(screen.getByRole("button", { name: "图生图" })).toHaveClass("active");
+    expect(screen.getByText("asset_history_123.png")).toBeInTheDocument();
   });
 });
