@@ -134,6 +134,12 @@ a {
   background: var(--accent-strong);
 }
 
+.primary-button:disabled,
+.secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 .ghost-button {
   background: transparent;
 }
@@ -336,6 +342,58 @@ a {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.55;
+}
+
+.error-message {
+  margin: 0;
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.result-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.result-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.result-card img {
+  width: 100%;
+  aspect-ratio: 1;
+  display: block;
+  object-fit: cover;
+  background: #edf1f5;
+}
+
+.result-card-body {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+}
+
+.result-card-body strong,
+.result-card-body p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.result-card-body p {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.result-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .history-list {

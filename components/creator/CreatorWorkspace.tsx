@@ -2,35 +2,181 @@
 
 import Link from "next/link";
 import {
+  Copy,
   Download,
   History,
   ImagePlus,
   PanelBottom,
   Play,
+  RotateCcw,
   Settings,
   SlidersHorizontal,
   Sparkles
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  listLocalHistoryItems,
+  saveLocalHistoryItem,
+  type LocalHistoryItem
+} from "@/lib/history/local-history";
 import { commercialTemplates } from "@/lib/templates/commercial-templates";
-import { GENERATION_SIZE_OPTIONS } from "@/lib/validation/image-params";
+import {
+  GENERATION_SIZE_OPTIONS,
+  imageGenerationDefaults,
+  type ImageGenerationParams
+} from "@/lib/validation/image-params";
 
 const qualityOptions = [
   { label: "自动", value: "auto" },
   { label: "标准", value: "medium" },
   { label: "高质", value: "high" }
-];
+] as const;
+
+type GenerationImage = {
+  asset_id: string;
+  url: string;
+  format: string;
+};
+
+type GenerationResult = {
+  task_id: string;
+  images: GenerationImage[];
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+    total_tokens: number;
+    estimated_cost: string;
+  };
+  duration_ms: number;
+  request_id: string;
+  upstream_request_id?: string;
+};
+
+type ApiGenerationResponse = {
+  data?: Omit<GenerationResult, "request_id" | "upstream_request_id">;
+  request_id?: string;
+  upstream_request_id?: string;
+  error?: {
+    code: string;
+    message: string;
+    details?: { field?: string };
+  };
+};
 
 export default function CreatorWorkspace() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState(
     "tpl_ecommerce_main"
   );
+  const [prompt, setPrompt] = useState("");
+  const [size, setSize] =
+    useState<ImageGenerationParams["size"]>("1024x1024");
+  const [quality, setQuality] =
+    useState<ImageGenerationParams["quality"]>("medium");
+  const [outputFormat, setOutputFormat] =
+    useState<ImageGenerationParams["output_format"]>("png");
+  const [n, setN] = useState(1);
+  const [outputCompression, setOutputCompression] = useState("");
+  const [moderation, setModeration] =
+    useState<ImageGenerationParams["moderation"]>("auto");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [result, setResult] = useState<GenerationResult | null>(null);
+  const [historyItems, setHistoryItems] = useState<LocalHistoryItem[]>([]);
 
   const mvpTemplates = useMemo(
     () => commercialTemplates.filter((template) => template.enabledForMvp),
     []
   );
+
+  useEffect(() => {
+    void listLocalHistoryItems()
+      .then(setHistoryItems)
+      .catch(() => setHistoryItems([]));
+  }, []);
+
+  async function submitGeneration() {
+    if (!prompt.trim() || isGenerating) {
+      setErrorMessage("Prompt 不能为空。");
+      return;
+    }
+
+    setIsGenerating(true);
+    setErrorMessage("");
+
+    const requestParams = buildGenerationRequest();
+
+    try {
+      const response = await fetch("/api/images/generations", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(requestParams)
+      });
+      const body = (await response.json()) as ApiGenerationResponse;
+
+      if (!response.ok || !body.data) {
+        setErrorMessage(body.error?.message ?? "生成失败，请稍后重试。");
+        return;
+      }
+
+      const nextResult: GenerationResult = {
+        ...body.data,
+        request_id: body.request_id ?? "",
+        upstream_request_id: body.upstream_request_id
+      };
+      setResult(nextResult);
+
+      const firstImage = nextResult.images[0];
+      if (firstImage) {
+        const historyItem: LocalHistoryItem = {
+          taskId: nextResult.task_id,
+          prompt: requestParams.prompt,
+          params: {
+            model: requestParams.model,
+            size: requestParams.size,
+            quality: requestParams.quality,
+            n: requestParams.n,
+            output_format: requestParams.output_format,
+            output_compression: requestParams.output_compression,
+            background: requestParams.background,
+            moderation: requestParams.moderation
+          },
+          thumbnailUrl: firstImage.url,
+          requestId: nextResult.request_id,
+          durationMs: nextResult.duration_ms,
+          totalTokens: nextResult.usage.total_tokens,
+          createdAt: new Date().toISOString()
+        };
+
+        setHistoryItems((items) => [historyItem, ...items]);
+        void saveLocalHistoryItem(historyItem).catch(() => undefined);
+      }
+    } catch {
+      setErrorMessage("网络错误，请检查服务和 session。");
+    } finally {
+      setIsGenerating(false);
+    }
+  }
+
+  function buildGenerationRequest(): ImageGenerationParams {
+    return {
+      ...imageGenerationDefaults,
+      prompt,
+      size,
+      quality,
+      n,
+      output_format: outputFormat,
+      output_compression:
+        outputFormat === "png" || outputCompression.trim() === ""
+          ? null
+          : Number(outputCompression),
+      moderation
+    };
+  }
+
+  async function copyPrompt() {
+    await navigator.clipboard?.writeText(prompt);
+  }
 
   return (
     <main className="app-shell">
@@ -85,7 +231,14 @@ export default function CreatorWorkspace() {
 
             <div className="field">
               <label htmlFor="size">尺寸</label>
-              <select className="select" id="size" defaultValue="1024x1024">
+              <select
+                className="select"
+                id="size"
+                onChange={(event) =>
+                  setSize(event.target.value as ImageGenerationParams["size"])
+                }
+                value={size}
+              >
                 {GENERATION_SIZE_OPTIONS.map((size) => (
                   <option key={size} value={size}>
                     {size === "auto" ? "自动" : size}
@@ -99,10 +252,9 @@ export default function CreatorWorkspace() {
               <div className="segmented three">
                 {qualityOptions.map((option) => (
                   <button
-                    className={`segment ${
-                      option.value === "medium" ? "active" : ""
-                    }`}
+                    className={`segment ${option.value === quality ? "active" : ""}`}
                     key={option.value}
+                    onClick={() => setQuality(option.value)}
                     type="button"
                   >
                     {option.label}
@@ -113,7 +265,16 @@ export default function CreatorWorkspace() {
 
             <div className="field">
               <label htmlFor="output-format">输出格式</label>
-              <select className="select" id="output-format" defaultValue="png">
+              <select
+                className="select"
+                id="output-format"
+                onChange={(event) =>
+                  setOutputFormat(
+                    event.target.value as ImageGenerationParams["output_format"]
+                  )
+                }
+                value={outputFormat}
+              >
                 <option value="png">PNG</option>
                 <option value="jpeg">JPEG</option>
                 <option value="webp">WebP</option>
@@ -127,8 +288,9 @@ export default function CreatorWorkspace() {
                 id="count"
                 min={1}
                 max={4}
+                onChange={(event) => setN(Number(event.target.value))}
                 type="number"
-                defaultValue={1}
+                value={n}
               />
             </div>
 
@@ -151,13 +313,25 @@ export default function CreatorWorkspace() {
                     id="compression"
                     max={100}
                     min={1}
+                    onChange={(event) => setOutputCompression(event.target.value)}
                     type="number"
                     placeholder="仅 JPEG/WebP"
+                    value={outputCompression}
                   />
                 </div>
                 <div className="field">
                   <label htmlFor="moderation">Moderation</label>
-                  <select className="select" id="moderation" defaultValue="auto">
+                  <select
+                    className="select"
+                    id="moderation"
+                    onChange={(event) =>
+                      setModeration(
+                        event.target
+                          .value as ImageGenerationParams["moderation"]
+                      )
+                    }
+                    value={moderation}
+                  >
                     <option value="auto">auto</option>
                     <option value="low">low</option>
                   </select>
@@ -187,17 +361,29 @@ export default function CreatorWorkspace() {
               <textarea
                 className="textarea"
                 id="prompt"
+                onChange={(event) => setPrompt(event.target.value)}
                 placeholder="描述你要生成的商业图片"
+                value={prompt}
               />
               <div className="prompt-actions">
                 <span className="inline-hint">
                   默认不生成文字，不改变参考图主体。
                 </span>
-                <button className="primary-button" type="button">
+                <button
+                  className="primary-button"
+                  disabled={isGenerating}
+                  onClick={submitGeneration}
+                  type="button"
+                >
                   <Play size={16} aria-hidden="true" />
-                  生成图片
+                  {isGenerating ? "生成中" : "生成图片"}
                 </button>
               </div>
+              {errorMessage ? (
+                <p className="error-message" role="alert">
+                  {errorMessage}
+                </p>
+              ) : null}
             </div>
 
             <div className="field" data-testid="commercial-template-list">
@@ -223,15 +409,56 @@ export default function CreatorWorkspace() {
             </div>
 
             <div className="result-stage" aria-label="结果区">
-              <div className="empty-result">
-                <h2>选择模板或输入 Prompt 后生成</h2>
-                <p>
-                  当前模板：
-                  {commercialTemplates.find(
-                    (template) => template.id === selectedTemplateId
-                  )?.name ?? "未选择"}
-                </p>
-              </div>
+              {result ? (
+                <div className="result-grid">
+                  {result.images.map((image) => (
+                    <article className="result-card" key={image.asset_id}>
+                      <img alt="生成结果" src={image.url} />
+                      <div className="result-card-body">
+                        <strong>{image.asset_id}</strong>
+                        <p>{result.request_id}</p>
+                        <p>{result.usage.total_tokens} tokens</p>
+                        <div className="result-actions">
+                          <a
+                            className="secondary-button"
+                            download
+                            href={image.url}
+                          >
+                            <Download size={16} aria-hidden="true" />
+                            下载
+                          </a>
+                          <button
+                            className="secondary-button"
+                            onClick={copyPrompt}
+                            type="button"
+                          >
+                            <Copy size={16} aria-hidden="true" />
+                            复制 Prompt
+                          </button>
+                          <button
+                            className="secondary-button"
+                            onClick={submitGeneration}
+                            type="button"
+                          >
+                            <RotateCcw size={16} aria-hidden="true" />
+                            重试
+                          </button>
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-result">
+                  <h2>选择模板或输入 Prompt 后生成</h2>
+                  <p>
+                    当前模板：
+                    {commercialTemplates.find(
+                      (template) => template.id === selectedTemplateId
+                    )?.name ?? "未选择"}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -247,14 +474,21 @@ export default function CreatorWorkspace() {
             </div>
           </div>
           <div className="panel-body history-list">
-            <div className="history-item">
-              <strong>尚未生成</strong>
-              <p>生成后会显示 prompt、参数、request id、耗时和 usage。</p>
-            </div>
-            <button className="secondary-button" type="button">
-              <Download size={16} aria-hidden="true" />
-              下载结果
-            </button>
+            {historyItems.length === 0 ? (
+              <div className="history-item">
+                <strong>尚未生成</strong>
+                <p>生成后会显示 prompt、参数、request id、耗时和 usage。</p>
+              </div>
+            ) : (
+              historyItems.map((item) => (
+                <div className="history-item" key={item.taskId}>
+                  <strong>{item.taskId}</strong>
+                  <p>{item.prompt}</p>
+                  <p>{item.requestId}</p>
+                  <p>{item.totalTokens} tokens · {item.durationMs}ms</p>
+                </div>
+              ))
+            )}
           </div>
         </aside>
       </div>
@@ -264,9 +498,14 @@ export default function CreatorWorkspace() {
           <PanelBottom size={16} aria-hidden="true" />
           打开参数面板
         </button>
-        <button className="primary-button" type="button">
+        <button
+          className="primary-button"
+          disabled={isGenerating}
+          onClick={submitGeneration}
+          type="button"
+        >
           <Play size={16} aria-hidden="true" />
-          生成
+          {isGenerating ? "生成中" : "生成"}
         </button>
       </div>
     </main>
