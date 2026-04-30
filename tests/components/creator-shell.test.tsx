@@ -443,6 +443,95 @@ describe("CreatorWorkspace", () => {
     expect(screen.getByText("product.png")).toBeInTheDocument();
   });
 
+  it("submits image-to-image requests with a generated PNG mask", async () => {
+    const originalGetContext = HTMLCanvasElement.prototype.getContext;
+    const originalToBlob = HTMLCanvasElement.prototype.toBlob;
+    const canvasContext = {
+      beginPath: vi.fn(),
+      arc: vi.fn(),
+      clearRect: vi.fn(),
+      fill: vi.fn(),
+      fillRect: vi.fn(),
+      getImageData: vi.fn(() => ({ data: new Uint8ClampedArray(16) })),
+      putImageData: vi.fn(),
+      fillStyle: "",
+      globalCompositeOperation: "source-over"
+    };
+    Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+      configurable: true,
+      value: () => canvasContext
+    });
+    Object.defineProperty(HTMLCanvasElement.prototype, "toBlob", {
+      configurable: true,
+      value(callback: BlobCallback) {
+        callback(new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], {
+          type: "image/png"
+        }));
+      }
+    });
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            task_id: "task_mask_123",
+            images: [
+              {
+                asset_id: "asset_mask_123",
+                url: "/api/assets/asset_mask_123",
+                format: "png"
+              }
+            ],
+            usage: {
+              input_tokens: 15,
+              output_tokens: 25,
+              total_tokens: 40,
+              estimated_cost: "0.0000"
+            },
+            duration_ms: 1500
+          },
+          request_id: "psypic_req_mask_123"
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    try {
+      render(<CreatorWorkspace />);
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "图生图" }));
+      const reference = new File(
+        [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+        "product.png",
+        { type: "image/png" }
+      );
+      await user.upload(screen.getByLabelText("参考图"), reference);
+      await user.click(screen.getByRole("checkbox", { name: "遮罩编辑" }));
+      expect(screen.getByLabelText("遮罩画布")).toBeInTheDocument();
+      await user.type(
+        screen.getByRole("textbox", { name: "Prompt" }),
+        "Replace only the brushed area."
+      );
+      await user.click(screen.getByRole("button", { name: /生成图片/ }));
+
+      expect(await screen.findByText("asset_mask_123")).toBeInTheDocument();
+      const body = fetchSpy.mock.calls[0][1].body as FormData;
+      expect(body.get("image")).toBe(reference);
+      expect(body.get("mask")).toBeInstanceOf(File);
+      expect((body.get("mask") as File).type).toBe("image/png");
+    } finally {
+      Object.defineProperty(HTMLCanvasElement.prototype, "getContext", {
+        configurable: true,
+        value: originalGetContext
+      });
+      Object.defineProperty(HTMLCanvasElement.prototype, "toBlob", {
+        configurable: true,
+        value: originalToBlob
+      });
+    }
+  });
+
   it("accepts a pasted reference image in image-to-image mode", async () => {
     render(<CreatorWorkspace />);
 

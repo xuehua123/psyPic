@@ -153,6 +153,57 @@ describe("POST /api/images/edits", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("passes an optional PNG mask through to Sub2API image edits", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    await resetTempAssetStore();
+    const cookie = await bindSession();
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ b64_json: Buffer.from("masked-edit").toString("base64") }],
+          usage: { input_tokens: 15, output_tokens: 25, total_tokens: 40 }
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        }
+      )
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+    const formData = validEditFormData();
+    const mask = new File([pngBytes], "mask.png", { type: "image/png" });
+    formData.set("mask", mask);
+
+    const response = await editImage(editRequest(cookie, formData));
+    const body = await response.json();
+    const upstreamFormData = fetchSpy.mock.calls[0][1].body as FormData;
+
+    expect(response.status).toBe(200);
+    expect(body.data.task_id).toMatch(/^task_/);
+    expect(upstreamFormData.get("mask")).toBe(mask);
+  });
+
+  it("rejects invalid masks before calling Sub2API", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    const cookie = await bindSession();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const formData = validEditFormData();
+    formData.set("mask", new File([new Uint8Array([0x48, 0x69])], "mask.txt", {
+      type: "text/plain"
+    }));
+
+    const response = await editImage(editRequest(cookie, formData));
+    const body = await response.json();
+
+    expect(response.status).toBe(415);
+    expect(body.error.code).toBe("unsupported_media_type");
+    expect(body.error.details.field).toBe("mask");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("rejects a new edit when the user already has an active image task", async () => {
     resetDevStore();
     resetImageTaskStore();

@@ -208,6 +208,7 @@ export async function editImageWithSub2API(input: {
   apiKey: string;
   params: ImageGenerationParams;
   image: File;
+  mask?: File;
   timeoutMs?: number;
 }): Promise<Sub2APIGenerationResponse> {
   const controller = new AbortController();
@@ -223,7 +224,7 @@ export async function editImageWithSub2API(input: {
       headers: {
         authorization: `Bearer ${input.apiKey}`
       },
-      body: buildEditPayload(input.params, input.image),
+      body: buildEditPayload(input.params, input.image, input.mask),
       signal: controller.signal
     });
     const upstreamRequestId =
@@ -331,9 +332,17 @@ function buildGenerationPayload(params: ImageGenerationParams) {
   );
 }
 
-function buildEditPayload(params: ImageGenerationParams, image: File) {
+function buildEditPayload(
+  params: ImageGenerationParams,
+  image: File,
+  mask?: File
+) {
   const formData = new FormData();
   formData.set("image", image);
+
+  if (mask) {
+    formData.set("mask", mask);
+  }
 
   for (const [key, value] of Object.entries(params)) {
     if (key === "output_compression" && value === null) {

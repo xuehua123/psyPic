@@ -371,6 +371,65 @@ a {
   overflow-wrap: anywhere;
 }
 
+.mask-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.mask-editor-body {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 10px;
+}
+
+.mask-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mask-toolbar .segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.mask-size-control {
+  min-width: 190px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.mask-size-control input {
+  min-width: 110px;
+}
+
+.mask-canvas {
+  width: min(100%, 420px);
+  aspect-ratio: 1 / 1;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  touch-action: none;
+  cursor: crosshair;
+  background:
+    linear-gradient(rgba(15, 118, 110, 0.24), rgba(15, 118, 110, 0.24)),
+    repeating-linear-gradient(
+      45deg,
+      #e8edf3 0,
+      #e8edf3 8px,
+      #ffffff 8px,
+      #ffffff 16px
+    );
+}
+
 .result-stage {
   min-height: 340px;
   border: 1px dashed var(--line-strong);

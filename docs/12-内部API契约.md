@@ -250,9 +250,9 @@ commercial_preset=product_background
 - `image` 至少一张。
 - `v0.4` 只要求单参考图。
 - 多参考图进入 V1。
-- `mask` 进入 `v0.6`，MVP 可以先隐藏入口。
+- `mask` 自 `v0.6` 起可选启用，必须是 PNG；前端遮罩画布导出 alpha PNG 后通过 multipart 的 `mask` 字段提交。
 - 文件大小受 `MAX_IMAGE_UPLOAD_MB` 限制。
-- 后端校验 MIME、扩展名、尺寸和实际文件头。
+- 后端校验 MIME、扩展名和实际文件头；mask 尺寸一致性校验后续接入。
 
 响应同 `/api/images/generations`。
 

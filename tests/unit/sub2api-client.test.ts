@@ -296,4 +296,42 @@ describe("Sub2API image client", () => {
     expect(response.upstreamRequestId).toBe("upstream_edit_req_123");
     expect(response.images[0].b64_json).toBe(Buffer.from("edited-image").toString("base64"));
   });
+
+  it("includes an optional mask in image edit multipart requests", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: [] }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      })
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+    const image = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "product.png", {
+      type: "image/png"
+    });
+    const mask = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "mask.png", {
+      type: "image/png"
+    });
+
+    await editImageWithSub2API({
+      baseUrl: "https://sub2api.example.com/v1",
+      apiKey: "secret-token-value",
+      image,
+      mask,
+      params: {
+        prompt: "Replace only the unmasked background.",
+        model: "gpt-image-2",
+        size: "1024x1024",
+        quality: "medium",
+        n: 1,
+        output_format: "png",
+        output_compression: null,
+        background: "auto",
+        moderation: "auto"
+      }
+    });
+
+    const body = fetchSpy.mock.calls[0][1].body as FormData;
+    expect(body.get("image")).toBe(image);
+    expect(body.get("mask")).toBe(mask);
+  });
 });

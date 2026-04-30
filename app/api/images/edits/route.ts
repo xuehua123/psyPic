@@ -1,5 +1,8 @@
 import { parseGenerationParams } from "@/lib/validation/image-params";
-import { validateReferenceImageUpload } from "@/lib/validation/upload";
+import {
+  validateMaskImageUpload,
+  validateReferenceImageUpload
+} from "@/lib/validation/upload";
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
 import { getKeyBinding, getSession } from "@/server/services/dev-store";
 import { decryptKeyBindingSecret } from "@/server/services/key-binding-service";
@@ -75,6 +78,35 @@ export async function POST(request: Request) {
     });
   }
 
+  const mask = formData.get("mask");
+  let maskFile: File | undefined;
+
+  if (mask !== null) {
+    if (!(mask instanceof File)) {
+      return jsonError({
+        status: 400,
+        code: "invalid_parameter",
+        message: "遮罩必须是 PNG 图片文件",
+        field: "mask",
+        requestId
+      });
+    }
+
+    const maskValidation = await validateMaskImageUpload(mask);
+
+    if (!maskValidation.success) {
+      return jsonError({
+        status: maskValidation.error.code === "payload_too_large" ? 413 : 415,
+        code: maskValidation.error.code,
+        message: maskValidation.error.message,
+        field: maskValidation.error.field,
+        requestId
+      });
+    }
+
+    maskFile = maskValidation.data.file;
+  }
+
   const parsed = parseGenerationParams(formDataToParams(formData));
 
   if (!parsed.success) {
@@ -123,7 +155,8 @@ export async function POST(request: Request) {
       baseUrl: binding.sub2api_base_url,
       apiKey: decryptKeyBindingSecret(binding),
       params: parsed.data,
-      image: imageValidation.data.file
+      image: imageValidation.data.file,
+      mask: maskFile
     });
     const images = await Promise.all(
       upstream.images.map(async (upstreamImage) => {

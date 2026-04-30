@@ -3,13 +3,14 @@ const allowedExtensions = ["png", "jpg", "jpeg", "webp"] as const;
 const defaultMaxImageUploadMb = 10;
 
 type ReferenceImageFormat = "png" | "jpeg" | "webp";
+type ImageUploadField = "image" | "mask";
 
 type UploadErrorCode = "unsupported_media_type" | "payload_too_large";
 
 type UploadError = {
   code: UploadErrorCode;
   message: string;
-  field: "image";
+  field: ImageUploadField;
 };
 
 export type ReferenceImageUploadResult =
@@ -28,12 +29,38 @@ export type ReferenceImageUploadResult =
 export async function validateReferenceImageUpload(
   file: File
 ): Promise<ReferenceImageUploadResult> {
+  return validateImageUpload(file, {
+    field: "image",
+    formats: ["png", "jpeg", "webp"],
+    unsupportedMessage: "仅支持 PNG、JPEG 或 WebP 图片"
+  });
+}
+
+export async function validateMaskImageUpload(
+  file: File
+): Promise<ReferenceImageUploadResult> {
+  return validateImageUpload(file, {
+    field: "mask",
+    formats: ["png"],
+    unsupportedMessage: "遮罩仅支持 PNG 图片"
+  });
+}
+
+async function validateImageUpload(
+  file: File,
+  options: {
+    field: ImageUploadField;
+    formats: ReferenceImageFormat[];
+    unsupportedMessage: string;
+  }
+): Promise<ReferenceImageUploadResult> {
   const maxBytes = Number(process.env.MAX_IMAGE_UPLOAD_MB ?? defaultMaxImageUploadMb) *
     1024 *
     1024;
 
   if (file.size > maxBytes) {
     return uploadError(
+      options.field,
       "payload_too_large",
       `图片不能超过 ${Math.round(maxBytes / 1024 / 1024)}MB`
     );
@@ -46,12 +73,17 @@ export async function validateReferenceImageUpload(
 
   if (
     !mimeType ||
-    !isAllowedExtension(extension) ||
+    !isAllowedExtension(extension, options.formats) ||
     detectedFormat === null ||
+    !options.formats.includes(detectedFormat) ||
     !mimeMatchesFormat(mimeType, detectedFormat) ||
     !extensionMatchesFormat(extension, detectedFormat)
   ) {
-    return uploadError("unsupported_media_type", "仅支持 PNG、JPEG 或 WebP 图片");
+    return uploadError(
+      options.field,
+      "unsupported_media_type",
+      options.unsupportedMessage
+    );
   }
 
   return {
@@ -63,13 +95,17 @@ export async function validateReferenceImageUpload(
   };
 }
 
-function uploadError(code: UploadErrorCode, message: string) {
+function uploadError(
+  field: ImageUploadField,
+  code: UploadErrorCode,
+  message: string
+) {
   return {
     success: false,
     error: {
       code,
       message,
-      field: "image"
+      field
     }
   } as const;
 }
@@ -89,11 +125,13 @@ function getExtension(filename: string) {
 }
 
 function isAllowedExtension(
-  extension: string | null
+  extension: string | null,
+  formats: ReferenceImageFormat[]
 ): extension is (typeof allowedExtensions)[number] {
   return (
     extension !== null &&
-    allowedExtensions.includes(extension as (typeof allowedExtensions)[number])
+    allowedExtensions.includes(extension as (typeof allowedExtensions)[number]) &&
+    formats.some((format) => extensionMatchesFormat(extension, format))
   );
 }
 

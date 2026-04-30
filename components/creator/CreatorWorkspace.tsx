@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import {
+  Brush,
   Copy,
   Download,
+  Eraser,
+  FlipHorizontal,
   History,
   ImagePlus,
   PanelBottom,
@@ -14,8 +17,13 @@ import {
   Sparkles,
   X
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import type { ChangeEvent, ClipboardEvent, DragEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type {
+  ChangeEvent,
+  ClipboardEvent,
+  DragEvent,
+  PointerEvent as ReactPointerEvent
+} from "react";
 import {
   listLocalHistoryItems,
   saveLocalHistoryItem,
@@ -71,6 +79,7 @@ type ApiGenerationResponse = {
 };
 
 type CreatorMode = "text" | "image";
+type MaskMode = "paint" | "restore";
 type ImageTaskStatus =
   | "queued"
   | "running"
@@ -125,6 +134,7 @@ const taskTypeLabels: Record<NonNullable<CurrentTask["type"]>, string> = {
   generation: "文生图",
   edit: "图生图"
 };
+const maskCanvasSize = 512;
 
 export default function CreatorWorkspace() {
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -151,7 +161,12 @@ export default function CreatorWorkspace() {
   const [partialImages, setPartialImages] = useState<GenerationImage[]>([]);
   const [historyItems, setHistoryItems] = useState<LocalHistoryItem[]>([]);
   const [referenceImage, setReferenceImage] = useState<File | null>(null);
+  const [maskEnabled, setMaskEnabled] = useState(false);
+  const [maskMode, setMaskMode] = useState<MaskMode>("paint");
+  const [maskBrushSize, setMaskBrushSize] = useState(48);
   const [currentTask, setCurrentTask] = useState<CurrentTask | null>(null);
+  const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const maskDrawingRef = useRef(false);
 
   const mvpTemplates = useMemo(
     () => commercialTemplates.filter((template) => template.enabledForMvp),
@@ -165,6 +180,26 @@ export default function CreatorWorkspace() {
       .then(setHistoryItems)
       .catch(() => setHistoryItems([]));
   }, []);
+
+  useEffect(() => {
+    if (!maskEnabled || !referenceImage) {
+      return;
+    }
+
+    const canvas = maskCanvasRef.current;
+    const context = canvas?.getContext("2d");
+
+    if (!canvas || !context) {
+      return;
+    }
+
+    canvas.width = maskCanvasSize;
+    canvas.height = maskCanvasSize;
+    context.globalCompositeOperation = "source-over";
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "rgba(255,255,255,1)";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  }, [maskEnabled, referenceImage]);
 
   async function submitGeneration() {
     if (!prompt.trim() || isGenerating) {
@@ -188,6 +223,18 @@ export default function CreatorWorkspace() {
       return;
     }
 
+    let maskFile: File | undefined;
+
+    if (mode === "image" && maskEnabled) {
+      try {
+        maskFile = await exportMaskFile();
+      } catch {
+        setIsGenerating(false);
+        setErrorMessage("遮罩导出失败，请清空遮罩后重试。");
+        return;
+      }
+    }
+
     try {
       const taskType = mode === "image" ? "edit" : "generation";
       setCurrentTask({
@@ -201,7 +248,7 @@ export default function CreatorWorkspace() {
         mode === "image" && referenceImage
           ? {
               method: "POST",
-              body: buildEditFormData(requestParams, referenceImage)
+              body: buildEditFormData(requestParams, referenceImage, maskFile)
             }
           : {
               method: "POST",
@@ -613,9 +660,39 @@ export default function CreatorWorkspace() {
     await navigator.clipboard?.writeText(prompt);
   }
 
-  function buildEditFormData(params: ImageGenerationParams, image: File) {
+  async function exportMaskFile() {
+    if (!maskEnabled) {
+      return undefined;
+    }
+
+    const canvas = maskCanvasRef.current;
+
+    if (!canvas) {
+      throw new Error("mask canvas missing");
+    }
+
+    const blob = await new Promise<Blob | null>((resolve) => {
+      canvas.toBlob(resolve, "image/png");
+    });
+
+    if (!blob) {
+      throw new Error("mask export failed");
+    }
+
+    return new File([blob], "mask.png", { type: "image/png" });
+  }
+
+  function buildEditFormData(
+    params: ImageGenerationParams,
+    image: File,
+    mask?: File
+  ) {
     const formData = new FormData();
     formData.set("image", image);
+
+    if (mask) {
+      formData.set("mask", mask);
+    }
 
     Object.entries(params).forEach(([key, value]) => {
       if (key === "output_compression" && value === null) {
@@ -653,7 +730,88 @@ export default function CreatorWorkspace() {
     }
 
     setReferenceImage(file);
+    setMaskEnabled(false);
     setErrorMessage("");
+  }
+
+  function resetMaskCanvas() {
+    const canvas = maskCanvasRef.current;
+    const context = canvas?.getContext("2d");
+
+    if (!canvas || !context) {
+      return;
+    }
+
+    canvas.width = maskCanvasSize;
+    canvas.height = maskCanvasSize;
+    context.globalCompositeOperation = "source-over";
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "rgba(255,255,255,1)";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function invertMaskCanvas() {
+    const canvas = maskCanvasRef.current;
+    const context = canvas?.getContext("2d");
+
+    if (!canvas || !context) {
+      return;
+    }
+
+    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+
+    for (let index = 0; index < imageData.data.length; index += 4) {
+      imageData.data[index] = 255;
+      imageData.data[index + 1] = 255;
+      imageData.data[index + 2] = 255;
+      imageData.data[index + 3] = 255 - imageData.data[index + 3];
+    }
+
+    context.putImageData(imageData, 0, 0);
+  }
+
+  function startMaskStroke(event: ReactPointerEvent<HTMLCanvasElement>) {
+    maskDrawingRef.current = true;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    drawMaskStroke(event);
+  }
+
+  function continueMaskStroke(event: ReactPointerEvent<HTMLCanvasElement>) {
+    if (maskDrawingRef.current) {
+      drawMaskStroke(event);
+    }
+  }
+
+  function stopMaskStroke(event: ReactPointerEvent<HTMLCanvasElement>) {
+    maskDrawingRef.current = false;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  }
+
+  function drawMaskStroke(event: ReactPointerEvent<HTMLCanvasElement>) {
+    const canvas = maskCanvasRef.current;
+    const context = canvas?.getContext("2d");
+
+    if (!canvas || !context) {
+      return;
+    }
+
+    const rect = canvas.getBoundingClientRect();
+
+    if (rect.width === 0 || rect.height === 0) {
+      return;
+    }
+
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const x = (event.clientX - rect.left) * scaleX;
+    const y = (event.clientY - rect.top) * scaleY;
+
+    context.globalCompositeOperation =
+      maskMode === "paint" ? "destination-out" : "source-over";
+    context.fillStyle = "rgba(255,255,255,1)";
+    context.beginPath();
+    context.arc(x, y, maskBrushSize / 2, 0, Math.PI * 2);
+    context.fill();
   }
 
   function selectCommercialTemplate(templateId: string) {
@@ -1018,6 +1176,85 @@ export default function CreatorWorkspace() {
                   </span>
                 </label>
               </div>
+            ) : null}
+
+            {mode === "image" && referenceImage ? (
+              <section className="mask-editor" aria-label="遮罩编辑器">
+                <label className="toggle-row">
+                  <input
+                    aria-label="遮罩编辑"
+                    checked={maskEnabled}
+                    onChange={(event) => setMaskEnabled(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>遮罩编辑</span>
+                </label>
+                {maskEnabled ? (
+                  <div className="mask-editor-body">
+                    <div className="mask-toolbar">
+                      <div className="segmented" aria-label="遮罩模式">
+                        <button
+                          className={`segment ${maskMode === "paint" ? "active" : ""}`}
+                          onClick={() => setMaskMode("paint")}
+                          type="button"
+                        >
+                          <Brush size={15} aria-hidden="true" />
+                          涂抹
+                        </button>
+                        <button
+                          className={`segment ${maskMode === "restore" ? "active" : ""}`}
+                          onClick={() => setMaskMode("restore")}
+                          type="button"
+                        >
+                          <Eraser size={15} aria-hidden="true" />
+                          还原
+                        </button>
+                      </div>
+                      <label className="mask-size-control">
+                        <span>画笔大小</span>
+                        <input
+                          aria-label="画笔大小"
+                          max={120}
+                          min={8}
+                          onChange={(event) =>
+                            setMaskBrushSize(Number(event.target.value))
+                          }
+                          type="range"
+                          value={maskBrushSize}
+                        />
+                      </label>
+                      <button
+                        className="secondary-button"
+                        onClick={resetMaskCanvas}
+                        type="button"
+                      >
+                        <RotateCcw size={16} aria-hidden="true" />
+                        清空遮罩
+                      </button>
+                      <button
+                        className="secondary-button"
+                        onClick={invertMaskCanvas}
+                        type="button"
+                      >
+                        <FlipHorizontal size={16} aria-hidden="true" />
+                        反选遮罩
+                      </button>
+                    </div>
+                    <canvas
+                      aria-label="遮罩画布"
+                      className="mask-canvas"
+                      height={maskCanvasSize}
+                      onPointerCancel={stopMaskStroke}
+                      onPointerDown={startMaskStroke}
+                      onPointerLeave={stopMaskStroke}
+                      onPointerMove={continueMaskStroke}
+                      onPointerUp={stopMaskStroke}
+                      ref={maskCanvasRef}
+                      width={maskCanvasSize}
+                    />
+                  </div>
+                ) : null}
+              </section>
             ) : null}
 
             <div className="field">
