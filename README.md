@@ -80,6 +80,7 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm e2e
+pnpm load:smoke
 pnpm build
 ```
 
@@ -99,6 +100,7 @@ pnpm test
 DATABASE_URL="postgresql://psypic:psypic@localhost:5432/psypic" pnpm prisma validate
 pnpm build
 pnpm e2e
+APP_URL="http://127.0.0.1:3000" pnpm load:smoke
 ```
 
 Prisma schema 校验示例：
@@ -135,6 +137,6 @@ tests/        单元测试、组件测试、API 契约测试和 E2E
 
 ## 当前开发状态
 
-项目当前处于 V1.0 封板回归期。核心功能、管理端、社区互动、批量工作流、任务队列基础、运行时配置持久化、图片参数边界、Playwright E2E 和移动端 smoke 已经实现；最终发布前仍需在目标生产环境完成真实 Sub2API、对象存储、staging migration、压测和回滚演练。
+项目当前处于 V1.0 代码封板期。核心功能、管理端、社区互动、批量工作流、任务队列基础、运行时配置持久化、图片参数边界、Playwright E2E、移动端 smoke 和生产 smoke/load 脚本已经实现；正式发布前仍需在目标 staging/production 环境完成真实 Sub2API launch ticket、对象存储、migration、压测和回滚演练。
 
 生产部署和回滚步骤见 [docs/部署与回滚.md](docs/部署与回滚.md)。

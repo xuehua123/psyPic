@@ -43,4 +43,26 @@ describe("POST /api/import/exchange", () => {
     expect(body.error.code).toBe("invalid_import_code");
     expect(response.headers.get("set-cookie")).toBeNull();
   });
+
+  it.each([
+    ["expired_import_code", 400, "import_code_expired"],
+    ["inactive_key_code", 403, "key_inactive"],
+    ["quota_exhausted_code", 403, "key_quota_exhausted"],
+    ["foreign_user_code", 403, "key_owner_mismatch"],
+    ["non_openai_group_code", 403, "invalid_key_group"]
+  ])(
+    "rejects invalid Sub2API import state for %s",
+    async (importCode, expectedStatus, expectedCode) => {
+      resetDevStore();
+
+      const response = await exchangeImportCode(importRequest(importCode));
+      const body = await response.json();
+
+      expect(response.status).toBe(expectedStatus);
+      expect(body.error.code).toBe(expectedCode);
+      expect(response.headers.get("set-cookie")).toBeNull();
+      expect(JSON.stringify(body)).not.toContain("api_key");
+      expect(JSON.stringify(body)).not.toContain("Authorization");
+    }
+  );
 });
