@@ -23,12 +23,46 @@ export type RuntimeSettings = {
 
 type RuntimeSettingsRecord = {
   settings: RuntimeSettings;
-  updated_by_user_id: string;
+  updated_by_user_id: string | null;
   updated_at: string;
+  source?: "database" | "persisted";
+};
+
+type PrismaRuntimeSettingRecord = {
+  key: string;
+  value: unknown;
+  updatedByUserId: string | null;
+  updatedAt: Date;
+};
+
+type PrismaRuntimeSettingsClient = {
+  runtimeSetting: {
+    findUnique(input: {
+      where: { key: string };
+    }): Promise<PrismaRuntimeSettingRecord | null>;
+    upsert(input: {
+      where: { key: string };
+      create: {
+        key: string;
+        value: unknown;
+        updatedByUserId: string | null;
+        updatedAt: Date;
+      };
+      update: {
+        value: unknown;
+        updatedByUserId: string | null;
+        updatedAt: Date;
+      };
+    }): Promise<PrismaRuntimeSettingRecord>;
+  };
 };
 
 declare global {
   var __psypicRuntimeSettingsRecord: RuntimeSettingsRecord | undefined;
+  var __psypicRuntimeSettingsPrismaClient:
+    | PrismaRuntimeSettingsClient
+    | null
+    | undefined;
 }
 
 const defaultRuntimeSettings: RuntimeSettings = {
@@ -41,22 +75,24 @@ const defaultRuntimeSettings: RuntimeSettings = {
   stream_enabled: true
 };
 
-export function getRuntimeSettings(): RuntimeSettings {
-  return getRuntimeSettingsRecord()?.settings ?? readEnvSettings();
+const runtimeSettingsKey = "global";
+
+export async function getRuntimeSettings(): Promise<RuntimeSettings> {
+  return (await getRuntimeSettingsRecord())?.settings ?? readEnvSettings();
 }
 
-export function getRuntimeSettingsSnapshot() {
-  const record = getRuntimeSettingsRecord();
+export async function getRuntimeSettingsSnapshot() {
+  const record = await getRuntimeSettingsRecord();
 
   return {
-    settings: getRuntimeSettings(),
-    source: record ? ("persisted" as const) : ("environment" as const),
+    settings: (await getRuntimeSettingsRecord())?.settings ?? readEnvSettings(),
+    source: record?.source ?? (record ? "persisted" : ("environment" as const)),
     updated_by_user_id: record?.updated_by_user_id ?? null,
     updated_at: record?.updated_at ?? null
   };
 }
 
-export function updateRuntimeSettings(
+export async function updateRuntimeSettings(
   patch: RuntimeSettings,
   input: { updatedByUserId: string }
 ) {
@@ -68,6 +104,11 @@ export function updateRuntimeSettings(
   };
   globalThis.__psypicRuntimeSettingsRecord = record;
   writePersistedRuntimeSettings(record);
+  const databaseRecord = await writeDatabaseRuntimeSettings(record);
+
+  if (databaseRecord) {
+    globalThis.__psypicRuntimeSettingsRecord = databaseRecord;
+  }
 
   return getRuntimeSettingsSnapshot();
 }
@@ -115,8 +156,8 @@ function readEnvSettings(): RuntimeSettings {
   };
 }
 
-export function getEffectiveImageLimits(bindingLimits?: KeyBindingLimits) {
-  const settings = getRuntimeSettings();
+export async function getEffectiveImageLimits(bindingLimits?: KeyBindingLimits) {
+  const settings = await getRuntimeSettings();
 
   if (!bindingLimits) {
     return {
@@ -137,8 +178,8 @@ export function getEffectiveImageLimits(bindingLimits?: KeyBindingLimits) {
   };
 }
 
-export function getRuntimeFeatureFlags() {
-  const settings = getRuntimeSettings();
+export async function getRuntimeFeatureFlags() {
+  const settings = await getRuntimeSettings();
 
   return {
     community: settings.community_enabled,
@@ -186,17 +227,66 @@ function readBooleanEnv(name: string, fallback: boolean) {
   return fallback;
 }
 
-function getRuntimeSettingsRecord() {
+async function getRuntimeSettingsRecord() {
   if (globalThis.__psypicRuntimeSettingsRecord) {
     return globalThis.__psypicRuntimeSettingsRecord;
   }
 
-  const record = readPersistedRuntimeSettings();
+  const record =
+    (await readDatabaseRuntimeSettings()) ?? readPersistedRuntimeSettings();
   if (record) {
     globalThis.__psypicRuntimeSettingsRecord = record;
   }
 
   return record;
+}
+
+async function readDatabaseRuntimeSettings() {
+  const client = await getPrismaRuntimeSettingsClient();
+
+  if (!client) {
+    return undefined;
+  }
+
+  try {
+    const row = await client.runtimeSetting.findUnique({
+      where: { key: runtimeSettingsKey }
+    });
+
+    return row ? fromPrismaRuntimeSettingRecord(row) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function writeDatabaseRuntimeSettings(record: RuntimeSettingsRecord) {
+  const client = await getPrismaRuntimeSettingsClient();
+
+  if (!client) {
+    return null;
+  }
+
+  try {
+    const updatedAt = new Date(record.updated_at);
+    const row = await client.runtimeSetting.upsert({
+      where: { key: runtimeSettingsKey },
+      create: {
+        key: runtimeSettingsKey,
+        value: record.settings,
+        updatedByUserId: record.updated_by_user_id,
+        updatedAt
+      },
+      update: {
+        value: record.settings,
+        updatedByUserId: record.updated_by_user_id,
+        updatedAt
+      }
+    });
+
+    return fromPrismaRuntimeSettingRecord(row);
+  } catch {
+    return null;
+  }
 }
 
 function readPersistedRuntimeSettings() {
@@ -229,6 +319,62 @@ function getRuntimeSettingsStorePath() {
   return join(/* turbopackIgnore: true */ process.cwd(), ".data", fileName);
 }
 
+async function getPrismaRuntimeSettingsClient() {
+  if (!shouldUseDatabaseRuntimeSettings()) {
+    return null;
+  }
+
+  if (globalThis.__psypicRuntimeSettingsPrismaClient !== undefined) {
+    return globalThis.__psypicRuntimeSettingsPrismaClient;
+  }
+
+  try {
+    const prismaClientPackage = "@prisma/client";
+    const prismaModule = (await import(
+      /* turbopackIgnore: true */ prismaClientPackage
+    )) as {
+      PrismaClient?: new () => PrismaRuntimeSettingsClient;
+    };
+
+    globalThis.__psypicRuntimeSettingsPrismaClient = prismaModule.PrismaClient
+      ? new prismaModule.PrismaClient()
+      : null;
+  } catch {
+    globalThis.__psypicRuntimeSettingsPrismaClient = null;
+  }
+
+  return globalThis.__psypicRuntimeSettingsPrismaClient;
+}
+
+function shouldUseDatabaseRuntimeSettings() {
+  const mode = process.env.PSYPIC_RUNTIME_SETTINGS_STORE?.trim().toLowerCase();
+
+  if (mode === "file") {
+    return false;
+  }
+
+  return (
+    mode === "database" ||
+    mode === "db" ||
+    (process.env.NODE_ENV === "production" && Boolean(process.env.DATABASE_URL))
+  );
+}
+
+function fromPrismaRuntimeSettingRecord(
+  row: PrismaRuntimeSettingRecord
+): RuntimeSettingsRecord | undefined {
+  if (!isRuntimeSettings(row.value)) {
+    return undefined;
+  }
+
+  return {
+    settings: row.value,
+    updated_by_user_id: row.updatedByUserId,
+    updated_at: row.updatedAt.toISOString(),
+    source: "database"
+  };
+}
+
 function parsePersistedRuntimeSettingsRecord(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return null;
@@ -247,7 +393,8 @@ function parsePersistedRuntimeSettingsRecord(value: unknown) {
   return {
     settings: record.settings,
     updated_by_user_id: record.updated_by_user_id,
-    updated_at: record.updated_at
+    updated_at: record.updated_at,
+    source: "persisted"
   } satisfies RuntimeSettingsRecord;
 }
 

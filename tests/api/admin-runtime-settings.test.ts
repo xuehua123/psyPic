@@ -23,6 +23,13 @@ function adminCookie() {
   return `psypic_session=${admin.session.id}`;
 }
 
+type RuntimeSettingRow = {
+  key: string;
+  value: unknown;
+  updatedByUserId: string | null;
+  updatedAt: Date;
+};
+
 describe("Admin runtime settings API", () => {
   it("requires admin role to read runtime settings", async () => {
     resetDevStore();
@@ -164,6 +171,108 @@ describe("Admin runtime settings API", () => {
         process.env.PSYPIC_RUNTIME_SETTINGS_FILE = previousStorePath;
       } else {
         delete process.env.PSYPIC_RUNTIME_SETTINGS_FILE;
+      }
+    }
+  });
+
+  it("persists runtime settings to database store when enabled", async () => {
+    resetDevStore();
+    resetRuntimeSettingsStore();
+    resetAuditLogStore();
+
+    const previousStoreMode = process.env.PSYPIC_RUNTIME_SETTINGS_STORE;
+    const rows = new Map<string, RuntimeSettingRow>();
+    const prismaClient = {
+      runtimeSetting: {
+        upsert: async ({
+          where,
+          create,
+          update
+        }: {
+          where: { key: string };
+          create: RuntimeSettingRow;
+          update: Omit<RuntimeSettingRow, "key">;
+        }) => {
+          const current = rows.get(where.key);
+          const row = current
+            ? {
+                ...current,
+                ...update
+              }
+            : {
+                ...create,
+                key: where.key
+              };
+          rows.set(where.key, row);
+
+          return row;
+        },
+        findUnique: async ({ where }: { where: { key: string } }) =>
+          rows.get(where.key) ?? null
+      }
+    };
+    (
+      globalThis as typeof globalThis & {
+        __psypicRuntimeSettingsPrismaClient?: typeof prismaClient;
+      }
+    ).__psypicRuntimeSettingsPrismaClient = prismaClient;
+    process.env.PSYPIC_RUNTIME_SETTINGS_STORE = "database";
+
+    try {
+      const cookie = adminCookie();
+      const updateResponse = await updateRuntimeSettings(
+        new Request("http://localhost/api/admin/runtime-settings", {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            cookie
+          },
+          body: JSON.stringify({
+            max_n: 5,
+            max_upload_mb: 16,
+            max_size_tier: "4K",
+            allow_moderation_low: true,
+            community_enabled: true,
+            public_publish_enabled: false,
+            stream_enabled: false
+          })
+        })
+      );
+      expect(updateResponse.status).toBe(200);
+      expect(rows.get("global")?.value).toMatchObject({
+        max_n: 5,
+        max_size_tier: "4K",
+        public_publish_enabled: false
+      });
+
+      resetRuntimeSettingsStore({ deletePersisted: false });
+
+      const readResponse = await getRuntimeSettings(
+        new Request("http://localhost/api/admin/runtime-settings", {
+          headers: { cookie }
+        })
+      );
+      const readBody = await readResponse.json();
+
+      expect(readResponse.status).toBe(200);
+      expect(readBody.data.source).toBe("database");
+      expect(readBody.data.settings).toMatchObject({
+        max_n: 5,
+        max_upload_mb: 16,
+        stream_enabled: false
+      });
+    } finally {
+      resetRuntimeSettingsStore();
+      delete (
+        globalThis as typeof globalThis & {
+          __psypicRuntimeSettingsPrismaClient?: unknown;
+        }
+      ).__psypicRuntimeSettingsPrismaClient;
+
+      if (previousStoreMode) {
+        process.env.PSYPIC_RUNTIME_SETTINGS_STORE = previousStoreMode;
+      } else {
+        delete process.env.PSYPIC_RUNTIME_SETTINGS_STORE;
       }
     }
   });

@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     return adminError(admin.status, requestId);
   }
 
-  return jsonOk(getRuntimeSettingsSnapshot(), requestId);
+  return jsonOk(await getRuntimeSettingsSnapshot(), requestId);
 }
 
 export async function PATCH(request: Request) {
@@ -40,7 +40,7 @@ export async function PATCH(request: Request) {
     });
   }
 
-  const snapshot = updateRuntimeSettings(parsed.data, {
+  const snapshot = await updateRuntimeSettings(parsed.data, {
     updatedByUserId: admin.user.id
   });
   await recordAuditLog({

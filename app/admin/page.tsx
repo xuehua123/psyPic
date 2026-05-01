@@ -31,7 +31,7 @@ export default async function AdminPage() {
     <AdminDashboardPage
       auditLogs={auditLogs.items}
       reports={reports.items}
-      runtimeSettings={getRuntimeSettings()}
+      runtimeSettings={await getRuntimeSettings()}
       usage={summarizeImageUsageForUser(user.id)}
     />
   );

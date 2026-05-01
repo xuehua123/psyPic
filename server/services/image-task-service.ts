@@ -33,6 +33,7 @@ export type ImageTask = {
   error_message?: string;
   duration_ms?: number;
   created_at: string;
+  created_sequence: number;
   updated_at: string;
 };
 
@@ -67,6 +68,7 @@ const defaultMaxActiveImageTasksPerUser = 1;
 
 declare global {
   var __psypicImageTasks: Map<string, ImageTask> | undefined;
+  var __psypicImageTaskSequence: number | undefined;
   var __psypicImageLibraryMetadata:
     | Map<string, ImageLibraryMetadata>
     | undefined;
@@ -84,6 +86,7 @@ globalThis.__psypicImageAlbums = imageAlbums;
 
 export function resetImageTaskStore() {
   imageTasks.clear();
+  globalThis.__psypicImageTaskSequence = 0;
 }
 
 export function resetImageLibraryStore() {
@@ -112,6 +115,7 @@ export function createImageTask(input: {
     params: input.params,
     images: [],
     created_at: now,
+    created_sequence: nextImageTaskSequence(),
     updated_at: now
   };
 
@@ -225,7 +229,7 @@ export function listImageTaskHistoryForUser(
         task.status === "succeeded" &&
         task.images.length > 0
     )
-    .sort((left, right) => right.created_at.localeCompare(left.created_at));
+    .sort(compareImageTasksNewestFirst);
   const startIndex = input?.cursor
     ? tasks.findIndex((task) => task.id === input.cursor) + 1
     : 0;
@@ -444,6 +448,23 @@ function updateTask(taskId: string, patch: Partial<ImageTask>) {
   return updated;
 }
 
+function nextImageTaskSequence() {
+  const next = (globalThis.__psypicImageTaskSequence ?? 0) + 1;
+  globalThis.__psypicImageTaskSequence = next;
+
+  return next;
+}
+
+function compareImageTasksNewestFirst(left: ImageTask, right: ImageTask) {
+  const createdAtOrder = right.created_at.localeCompare(left.created_at);
+
+  if (createdAtOrder !== 0) {
+    return createdAtOrder;
+  }
+
+  return right.created_sequence - left.created_sequence;
+}
+
 function listSucceededImageTasks(userId: string) {
   return Array.from(imageTasks.values())
     .filter(
@@ -452,7 +473,7 @@ function listSucceededImageTasks(userId: string) {
         task.status === "succeeded" &&
         task.images.length > 0
     )
-    .sort((left, right) => right.created_at.localeCompare(left.created_at));
+    .sort(compareImageTasksNewestFirst);
 }
 
 function clampHistoryLimit(limit: number | undefined) {

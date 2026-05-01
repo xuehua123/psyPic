@@ -6,13 +6,13 @@ import {
 } from "@/server/services/runtime-settings-service";
 import { readSessionIdFromRequest } from "@/server/services/session-service";
 
-function anonymousSessionData() {
+async function anonymousSessionData() {
   return {
     authenticated: false,
     user: null,
     binding: null,
-    limits: getEffectiveImageLimits(),
-    features: getRuntimeFeatureFlags()
+    limits: await getEffectiveImageLimits(),
+    features: await getRuntimeFeatureFlags()
   };
 }
 
@@ -22,14 +22,14 @@ export async function GET(request: Request) {
   const session = sessionId ? getSession(sessionId) : null;
 
   if (!session) {
-    return jsonOk(anonymousSessionData(), requestId);
+    return jsonOk(await anonymousSessionData(), requestId);
   }
 
   const user = getUser(session.user_id);
   const binding = getKeyBinding(session.key_binding_id);
 
   if (!user || !binding) {
-    return jsonOk(anonymousSessionData(), requestId);
+    return jsonOk(await anonymousSessionData(), requestId);
   }
 
   return jsonOk(
@@ -45,8 +45,8 @@ export async function GET(request: Request) {
         default_model: binding.default_model,
         enabled_models: binding.enabled_models
       },
-      limits: getEffectiveImageLimits(binding.limits),
-      features: getRuntimeFeatureFlags()
+      limits: await getEffectiveImageLimits(binding.limits),
+      features: await getRuntimeFeatureFlags()
     },
     requestId
   );

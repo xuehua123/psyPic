@@ -59,7 +59,7 @@ pnpm install
 cp .env.example .env
 ```
 
-审计日志默认写入 `.data/audit-logs.json`；生产环境可使用 `DATABASE_URL` 加 `PSYPIC_AUDIT_LOG_STORE=database` 让 `AuditLog` 走 Prisma/DB 持久化。
+运行时配置默认写入 `.data/runtime-settings.json`，审计日志默认写入 `.data/audit-logs.json`。生产环境可使用 `DATABASE_URL`，并设置 `PSYPIC_RUNTIME_SETTINGS_STORE=database`、`PSYPIC_AUDIT_LOG_STORE=database`，让 `runtime_settings` 和 `AuditLog` 走 Prisma/DB 持久化。
 
 启动开发服务：
 

@@ -151,7 +151,7 @@ export async function POST(request: Request) {
     });
   }
 
-  const limits = getEffectiveImageLimits(binding.limits);
+  const limits = await getEffectiveImageLimits(binding.limits);
 
   if (parsed.data.n > limits.max_n) {
     return jsonError({
