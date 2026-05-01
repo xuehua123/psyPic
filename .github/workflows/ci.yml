@@ -45,3 +45,9 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      - name: 安装 Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: E2E
+        run: pnpm e2e

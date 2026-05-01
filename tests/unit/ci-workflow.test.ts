@@ -10,11 +10,13 @@ describe("GitHub Actions CI", () => {
       "pnpm typecheck",
       "pnpm test",
       "pnpm build",
-      "pnpm prisma validate"
+      "pnpm prisma validate",
+      "pnpm e2e"
     ]) {
       expect(workflow).toContain(command);
     }
 
+    expect(workflow).toContain("playwright install --with-deps chromium");
     expect(workflow).toContain("DATABASE_URL");
     expect(workflow).toContain("package-manager-cache: false");
     expect(workflow).toContain("corepack prepare pnpm@10.30.2 --activate");
