@@ -1,4 +1,7 @@
-import { parseGenerationParams } from "@/lib/validation/image-params";
+import {
+  parseGenerationParams,
+  validateSizeTier
+} from "@/lib/validation/image-params";
 import {
   validateMaskImageUpload,
   validateReferenceImageUpload
@@ -55,29 +58,47 @@ export async function POST(request: Request) {
     });
   }
 
-  const image = formData.get("image");
+  const images = formData.getAll("image");
 
-  if (!(image instanceof File)) {
+  if (images.length === 0 || images.some((image) => !(image instanceof File))) {
     return jsonError({
       status: 400,
       code: "invalid_parameter",
-      message: "请上传一张参考图",
+      message: "请至少上传一张参考图",
       field: "image",
       requestId
     });
   }
 
-  const imageValidation = await validateReferenceImageUpload(image);
-
-  if (!imageValidation.success) {
+  if (images.length > 4) {
     return jsonError({
-      status: imageValidation.error.code === "payload_too_large" ? 413 : 415,
-      code: imageValidation.error.code,
-      message: imageValidation.error.message,
-      field: imageValidation.error.field,
+      status: 400,
+      code: "invalid_parameter",
+      message: "最多支持 4 张参考图",
+      field: "image",
       requestId
     });
   }
+
+  const imageValidations = await Promise.all(
+    (images as File[]).map((image) => validateReferenceImageUpload(image))
+  );
+  const failedImageValidation = imageValidations.find(
+    (validation) => !validation.success
+  );
+
+  if (failedImageValidation && !failedImageValidation.success) {
+    return jsonError({
+      status: failedImageValidation.error.code === "payload_too_large" ? 413 : 415,
+      code: failedImageValidation.error.code,
+      message: failedImageValidation.error.message,
+      field: failedImageValidation.error.field,
+      requestId
+    });
+  }
+  const validatedImages = imageValidations
+    .filter((validation) => validation.success)
+    .map((validation) => validation.data);
 
   const mask = formData.get("mask");
   let maskFile: File | undefined;
@@ -105,7 +126,7 @@ export async function POST(request: Request) {
       });
     }
 
-    if (!sameImageDimensions(imageValidation.data, maskValidation.data)) {
+    if (!sameImageDimensions(validatedImages[0], maskValidation.data)) {
       return jsonError({
         status: 400,
         code: "invalid_parameter",
@@ -152,6 +173,18 @@ export async function POST(request: Request) {
     });
   }
 
+  const sizeTier = validateSizeTier(parsed.data.size, limits.max_size_tier);
+
+  if (!sizeTier.success) {
+    return jsonError({
+      status: 400,
+      code: "invalid_parameter",
+      message: sizeTier.message,
+      field: sizeTier.field,
+      requestId
+    });
+  }
+
   const concurrency = getImageTaskConcurrencyState(session.user_id);
 
   if (concurrency.limited) {
@@ -178,7 +211,7 @@ export async function POST(request: Request) {
       baseUrl: binding.sub2api_base_url,
       apiKey: decryptKeyBindingSecret(binding),
       params: parsed.data,
-      image: imageValidation.data.file,
+      images: validatedImages.map((image) => image.file),
       mask: maskFile
     });
     const images = await Promise.all(

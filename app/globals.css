@@ -429,6 +429,37 @@ a {
   overflow-wrap: anywhere;
 }
 
+.reference-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 12px 12px;
+}
+
+.reference-list span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #ffffff;
+  color: var(--muted);
+  font-size: 12px;
+  padding: 4px 6px 4px 8px;
+  max-width: 100%;
+}
+
+.reference-list button {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+}
+
 .mask-editor {
   display: grid;
   gap: 10px;

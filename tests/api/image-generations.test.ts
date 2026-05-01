@@ -244,6 +244,91 @@ describe("POST /api/images/generations", () => {
     }
   });
 
+  it("passes JPEG output compression through to Sub2API", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    await resetTempAssetStore();
+    const cookie = await bindSession();
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ b64_json: Buffer.from("jpeg-image").toString("base64") }],
+          usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 }
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        }
+      )
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await generateImage(
+      generationRequest(cookie, {
+        ...validGenerationBody,
+        output_format: "jpeg",
+        output_compression: 80
+      })
+    );
+    const payload = JSON.parse(fetchSpy.mock.calls[0][1].body as string);
+
+    expect(response.status).toBe(200);
+    expect(payload.output_format).toBe("jpeg");
+    expect(payload.output_compression).toBe(80);
+  });
+
+  it("normalizes custom dimensions to multiples of 16 before Sub2API", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    await resetTempAssetStore();
+    const cookie = await bindSession();
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ b64_json: Buffer.from("custom-size").toString("base64") }],
+          usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 }
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        }
+      )
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await generateImage(
+      generationRequest(cookie, {
+        ...validGenerationBody,
+        size: "1501x999"
+      })
+    );
+    const payload = JSON.parse(fetchSpy.mock.calls[0][1].body as string);
+
+    expect(response.status).toBe(200);
+    expect(payload.size).toBe("1504x992");
+  });
+
+  it("rejects custom dimensions beyond ratio and size limits", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    const cookie = await bindSession();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await generateImage(
+      generationRequest(cookie, {
+        ...validGenerationBody,
+        size: "4096x512"
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error.code).toBe("invalid_parameter");
+    expect(body.error.details.field).toBe("size");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it("does not let concurrent generation requests both pass the active task check", async () => {
     resetDevStore();
     resetImageTaskStore();

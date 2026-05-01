@@ -1,4 +1,7 @@
-import { parseGenerationParams } from "@/lib/validation/image-params";
+import {
+  parseGenerationParams,
+  validateSizeTier
+} from "@/lib/validation/image-params";
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
 import { getKeyBinding, getSession } from "@/server/services/dev-store";
 import { recordAuditLog } from "@/server/services/audit-log-service";
@@ -73,6 +76,18 @@ export async function POST(request: Request) {
       code: "invalid_parameter",
       message: "当前配置不允许 moderation=low",
       field: "moderation",
+      requestId
+    });
+  }
+
+  const sizeTier = validateSizeTier(parsed.data.size, limits.max_size_tier);
+
+  if (!sizeTier.success) {
+    return jsonError({
+      status: 400,
+      code: "invalid_parameter",
+      message: sizeTier.message,
+      field: sizeTier.field,
       requestId
     });
   }

@@ -275,7 +275,8 @@ export default function CreatorWorkspace() {
   const [publishMessages, setPublishMessages] = useState<Record<string, string>>(
     {}
   );
-  const [referenceImage, setReferenceImage] = useState<File | null>(null);
+  const [referenceImages, setReferenceImages] = useState<File[]>([]);
+  const referenceImage = referenceImages[0] ?? null;
   const [maskEnabled, setMaskEnabled] = useState(false);
   const [maskMode, setMaskMode] = useState<MaskMode>("paint");
   const [maskBrushSize, setMaskBrushSize] = useState(48);
@@ -342,7 +343,7 @@ export default function CreatorWorkspace() {
           return;
         }
 
-        setReferenceImage(reference);
+        setReferenceImages([reference]);
         setPrompt(asset.prompt);
         setSize(asset.params.size);
         setQuality(asset.params.quality);
@@ -502,10 +503,10 @@ export default function CreatorWorkspace() {
 
       const response = await fetch(
         mode === "image" ? "/api/images/edits" : "/api/images/generations",
-        mode === "image" && referenceImage
+        mode === "image" && referenceImages.length > 0
           ? {
               method: "POST",
-              body: buildEditFormData(requestParams, referenceImage, maskFile)
+              body: buildEditFormData(requestParams, referenceImages, maskFile)
             }
           : {
               method: "POST",
@@ -1004,11 +1005,11 @@ export default function CreatorWorkspace() {
 
   function buildEditFormData(
     params: ImageGenerationParams,
-    image: File,
+    images: File[],
     mask?: File
   ) {
     const formData = new FormData();
-    formData.set("image", image);
+    images.forEach((image) => formData.append("image", image));
 
     if (mask) {
       formData.set("mask", mask);
@@ -1028,28 +1029,32 @@ export default function CreatorWorkspace() {
   }
 
   function handleReferenceInput(event: ChangeEvent<HTMLInputElement>) {
-    selectReferenceImage(event.target.files?.[0]);
+    selectReferenceImages(Array.from(event.target.files ?? []));
   }
 
   function handleReferenceDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
-    selectReferenceImage(event.dataTransfer.files[0]);
+    selectReferenceImages(Array.from(event.dataTransfer.files));
   }
 
   function handleReferencePaste(event: ClipboardEvent<HTMLDivElement>) {
-    const image = Array.from(event.clipboardData.files).find((file) =>
+    const images = Array.from(event.clipboardData.files).filter((file) =>
       file.type.startsWith("image/")
     );
 
-    selectReferenceImage(image);
+    selectReferenceImages(images);
   }
 
-  function selectReferenceImage(file: File | undefined) {
-    if (!file) {
+  function selectReferenceImages(files: File[]) {
+    const images = files
+      .filter((file) => file.type.startsWith("image/"))
+      .slice(0, 4);
+
+    if (images.length === 0) {
       return;
     }
 
-    setReferenceImage(file);
+    setReferenceImages(images);
     setMaskEnabled(
       Boolean(
         commercialTemplates.find((template) => template.id === selectedTemplateId)
@@ -1057,6 +1062,12 @@ export default function CreatorWorkspace() {
       )
     );
     setErrorMessage("");
+  }
+
+  function removeReferenceImage(index: number) {
+    setReferenceImages((current) =>
+      current.filter((_, itemIndex) => itemIndex !== index)
+    );
   }
 
   function resetMaskCanvas() {
@@ -1288,7 +1299,7 @@ export default function CreatorWorkspace() {
         type: blob.type || mimeTypeForFormat(image.format)
       });
 
-      setReferenceImage(reference);
+      setReferenceImages([reference]);
       setMode("image");
       setErrorMessage("");
     } catch {
@@ -1422,7 +1433,7 @@ export default function CreatorWorkspace() {
         type: blob.type || mimeTypeForFormat(item.format)
       });
 
-      setReferenceImage(reference);
+      setReferenceImages([reference]);
       setPrompt(item.prompt);
       setSize(item.params.size);
       setQuality(item.params.quality);
@@ -1450,7 +1461,7 @@ export default function CreatorWorkspace() {
         type: blob.type || mimeTypeForFormat(format)
       });
 
-      setReferenceImage(reference);
+      setReferenceImages([reference]);
       setPrompt(item.prompt);
       setSize(item.params.size);
       setQuality(item.params.quality);
@@ -1745,15 +1756,36 @@ export default function CreatorWorkspace() {
                   <input
                     accept="image/png,image/jpeg,image/webp"
                     aria-label="参考图"
+                    multiple
                     onChange={handleReferenceInput}
                     type="file"
                   />
                   <ImagePlus size={18} aria-hidden="true" />
                   <span>
                     <strong>参考图</strong>
-                    <span>{referenceImage ? referenceImage.name : "点击、拖拽或粘贴一张图片"}</span>
+                    <span>
+                      {referenceImages.length > 0
+                        ? `${referenceImages.length} 张参考图`
+                        : "点击、拖拽或粘贴图片"}
+                    </span>
                   </span>
                 </label>
+                {referenceImages.length > 0 ? (
+                  <div className="reference-list">
+                    {referenceImages.map((image, index) => (
+                      <span key={`${image.name}-${index}`}>
+                        {image.name}
+                        <button
+                          aria-label={`移除参考图 ${image.name}`}
+                          onClick={() => removeReferenceImage(index)}
+                          type="button"
+                        >
+                          <X size={12} aria-hidden="true" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ) : null}
 

@@ -213,6 +213,40 @@ describe("POST /api/images/edits", () => {
     expect(upstreamFormData.get("mask")).toBe(mask);
   });
 
+  it("forwards multiple reference images to Sub2API image edits", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    await resetTempAssetStore();
+    const cookie = await bindSession();
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: [{ b64_json: Buffer.from("multi-edit").toString("base64") }],
+          usage: { input_tokens: 20, output_tokens: 25, total_tokens: 45 }
+        }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" }
+        }
+      )
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+    const formData = validEditFormData();
+    const first = new File([pngBytes], "product-1.png", { type: "image/png" });
+    const second = new File([pngBytes], "product-2.png", { type: "image/png" });
+    formData.delete("image");
+    formData.append("image", first);
+    formData.append("image", second);
+
+    const response = await editImage(editRequest(cookie, formData));
+    const body = await response.json();
+    const upstreamFormData = fetchSpy.mock.calls[0][1].body as FormData;
+
+    expect(response.status).toBe(200);
+    expect(body.data.task_id).toMatch(/^task_/);
+    expect(upstreamFormData.getAll("image")).toEqual([first, second]);
+  });
+
   it("rejects invalid masks before calling Sub2API", async () => {
     resetDevStore();
     resetImageTaskStore();
