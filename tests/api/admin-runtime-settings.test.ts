@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { randomUUID } from "node:crypto";
+import { existsSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import {
   GET as listAuditLogs,
   POST as writeAuditLog
@@ -78,6 +81,73 @@ describe("Admin runtime settings API", () => {
     expect(readBody.data.settings.public_publish_enabled).toBe(false);
     expect(readBody.data.source).toBe("persisted");
     expect(JSON.stringify(readBody)).not.toContain("secret-token");
+  });
+
+  it("reloads persisted runtime settings after in-memory state is cleared", async () => {
+    resetDevStore();
+    resetRuntimeSettingsStore();
+    resetAuditLogStore();
+
+    const previousStorePath = process.env.PSYPIC_RUNTIME_SETTINGS_FILE;
+    const storeFileName = `psypic-runtime-settings-${randomUUID()}.json`;
+    const storePath = join(process.cwd(), ".data", storeFileName);
+    process.env.PSYPIC_RUNTIME_SETTINGS_FILE = storeFileName;
+
+    try {
+      const cookie = adminCookie();
+
+      const updateResponse = await updateRuntimeSettings(
+        new Request("http://localhost/api/admin/runtime-settings", {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            cookie
+          },
+          body: JSON.stringify({
+            max_n: 3,
+            max_upload_mb: 12,
+            max_size_tier: "4K",
+            allow_moderation_low: true,
+            community_enabled: true,
+            public_publish_enabled: true,
+            stream_enabled: false
+          })
+        })
+      );
+      expect(updateResponse.status).toBe(200);
+
+      delete (
+        globalThis as typeof globalThis & {
+          __psypicRuntimeSettingsRecord?: unknown;
+        }
+      ).__psypicRuntimeSettingsRecord;
+
+      const readResponse = await getRuntimeSettings(
+        new Request("http://localhost/api/admin/runtime-settings", {
+          headers: { cookie }
+        })
+      );
+      const readBody = await readResponse.json();
+
+      expect(readResponse.status).toBe(200);
+      expect(readBody.data.source).toBe("persisted");
+      expect(readBody.data.settings).toMatchObject({
+        max_n: 3,
+        max_size_tier: "4K",
+        stream_enabled: false
+      });
+    } finally {
+      resetRuntimeSettingsStore();
+      if (existsSync(storePath)) {
+        rmSync(storePath, { force: true });
+      }
+
+      if (previousStorePath) {
+        process.env.PSYPIC_RUNTIME_SETTINGS_FILE = previousStorePath;
+      } else {
+        delete process.env.PSYPIC_RUNTIME_SETTINGS_FILE;
+      }
+    }
   });
 
   it("records and lists redacted audit logs for admin actions", async () => {

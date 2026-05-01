@@ -1,3 +1,12 @@
+import { basename, dirname, join } from "node:path";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync
+} from "node:fs";
 import type { KeyBindingLimits } from "@/server/services/key-binding-service";
 
 type RuntimeMaxSizeTier = "2K" | "4K";
@@ -33,11 +42,11 @@ const defaultRuntimeSettings: RuntimeSettings = {
 };
 
 export function getRuntimeSettings(): RuntimeSettings {
-  return globalThis.__psypicRuntimeSettingsRecord?.settings ?? readEnvSettings();
+  return getRuntimeSettingsRecord()?.settings ?? readEnvSettings();
 }
 
 export function getRuntimeSettingsSnapshot() {
-  const record = globalThis.__psypicRuntimeSettingsRecord;
+  const record = getRuntimeSettingsRecord();
 
   return {
     settings: getRuntimeSettings(),
@@ -58,12 +67,22 @@ export function updateRuntimeSettings(
     updated_at: now
   };
   globalThis.__psypicRuntimeSettingsRecord = record;
+  writePersistedRuntimeSettings(record);
 
   return getRuntimeSettingsSnapshot();
 }
 
-export function resetRuntimeSettingsStore() {
+export function resetRuntimeSettingsStore(options?: { deletePersisted?: boolean }) {
   globalThis.__psypicRuntimeSettingsRecord = undefined;
+
+  if (options?.deletePersisted === false) {
+    return;
+  }
+
+  const storePath = getRuntimeSettingsStorePath();
+  if (existsSync(storePath)) {
+    rmSync(storePath, { force: true });
+  }
 }
 
 function readEnvSettings(): RuntimeSettings {
@@ -165,4 +184,96 @@ function readBooleanEnv(name: string, fallback: boolean) {
   }
 
   return fallback;
+}
+
+function getRuntimeSettingsRecord() {
+  if (globalThis.__psypicRuntimeSettingsRecord) {
+    return globalThis.__psypicRuntimeSettingsRecord;
+  }
+
+  const record = readPersistedRuntimeSettings();
+  if (record) {
+    globalThis.__psypicRuntimeSettingsRecord = record;
+  }
+
+  return record;
+}
+
+function readPersistedRuntimeSettings() {
+  const storePath = getRuntimeSettingsStorePath();
+
+  if (!existsSync(storePath)) {
+    return undefined;
+  }
+
+  try {
+    const parsed = JSON.parse(readFileSync(storePath, "utf8")) as unknown;
+    return parsePersistedRuntimeSettingsRecord(parsed) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function writePersistedRuntimeSettings(record: RuntimeSettingsRecord) {
+  const storePath = getRuntimeSettingsStorePath();
+  mkdirSync(dirname(storePath), { recursive: true });
+  writeFileSync(`${storePath}.tmp`, JSON.stringify(record, null, 2), "utf8");
+  renameSync(`${storePath}.tmp`, storePath);
+}
+
+function getRuntimeSettingsStorePath() {
+  const fileName = basename(
+    process.env.PSYPIC_RUNTIME_SETTINGS_FILE?.trim() || "runtime-settings.json"
+  );
+
+  return join(/* turbopackIgnore: true */ process.cwd(), ".data", fileName);
+}
+
+function parsePersistedRuntimeSettingsRecord(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  if (
+    typeof record.updated_by_user_id !== "string" ||
+    typeof record.updated_at !== "string" ||
+    !isRuntimeSettings(record.settings)
+  ) {
+    return null;
+  }
+
+  return {
+    settings: record.settings,
+    updated_by_user_id: record.updated_by_user_id,
+    updated_at: record.updated_at
+  } satisfies RuntimeSettingsRecord;
+}
+
+function isRuntimeSettings(value: unknown): value is RuntimeSettings {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  const settings = value as Record<string, unknown>;
+
+  return (
+    isIntegerInRange(settings.max_n, 1, 8) &&
+    isIntegerInRange(settings.max_upload_mb, 1, 100) &&
+    (settings.max_size_tier === "2K" || settings.max_size_tier === "4K") &&
+    typeof settings.allow_moderation_low === "boolean" &&
+    typeof settings.community_enabled === "boolean" &&
+    typeof settings.public_publish_enabled === "boolean" &&
+    typeof settings.stream_enabled === "boolean"
+  );
+}
+
+function isIntegerInRange(value: unknown, min: number, max: number) {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= min &&
+    value <= max
+  );
 }
