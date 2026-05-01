@@ -95,4 +95,40 @@ describe("CommunityFeedPage", () => {
     );
     expect(await screen.findByRole("button", { name: "已点赞 4" })).toBeInTheDocument();
   });
+
+  it("renders sorting and scene/tag filter links", () => {
+    render(
+      <CommunityFeedPage
+        filters={{
+          sort: "popular",
+          scene: "ecommerce",
+          tag: "电商主图",
+          scenes: ["ecommerce", "social"],
+          tags: ["电商主图", "香水"]
+        }}
+        works={[]}
+      />
+    );
+
+    expect(screen.getByRole("link", { name: "最新" })).toHaveAttribute(
+      "href",
+      "/community?scene=ecommerce&tag=%E7%94%B5%E5%95%86%E4%B8%BB%E5%9B%BE"
+    );
+    expect(screen.getByRole("link", { name: "热门" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    expect(screen.getByRole("link", { name: "精选" })).toHaveAttribute(
+      "href",
+      "/community?sort=featured&scene=ecommerce&tag=%E7%94%B5%E5%95%86%E4%B8%BB%E5%9B%BE"
+    );
+    expect(screen.getByRole("link", { name: "social" })).toHaveAttribute(
+      "href",
+      "/community?sort=popular&scene=social&tag=%E7%94%B5%E5%95%86%E4%B8%BB%E5%9B%BE"
+    );
+    expect(screen.getByRole("link", { name: "香水" })).toHaveAttribute(
+      "href",
+      "/community?sort=popular&scene=ecommerce&tag=%E9%A6%99%E6%B0%B4"
+    );
+  });
 });

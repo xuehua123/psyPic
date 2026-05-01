@@ -155,14 +155,11 @@ function normalizeGenerationSize(value: string, context: z.RefinementCtx) {
     return z.NEVER;
   }
 
-  const width = roundToMultipleOf16(dimensions.width);
-  const height = roundToMultipleOf16(dimensions.height);
-
   if (
-    width < MIN_CUSTOM_DIMENSION ||
-    height < MIN_CUSTOM_DIMENSION ||
-    width > MAX_CUSTOM_DIMENSION ||
-    height > MAX_CUSTOM_DIMENSION
+    dimensions.width < MIN_CUSTOM_DIMENSION ||
+    dimensions.height < MIN_CUSTOM_DIMENSION ||
+    dimensions.width > MAX_CUSTOM_DIMENSION ||
+    dimensions.height > MAX_CUSTOM_DIMENSION
   ) {
     context.addIssue({
       code: "custom",
@@ -171,6 +168,9 @@ function normalizeGenerationSize(value: string, context: z.RefinementCtx) {
     });
     return z.NEVER;
   }
+
+  const width = roundToMultipleOf16(dimensions.width);
+  const height = roundToMultipleOf16(dimensions.height);
 
   const ratio = Math.max(width, height) / Math.min(width, height);
 

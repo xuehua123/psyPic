@@ -1,6 +1,10 @@
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
-import { getSession } from "@/server/services/dev-store";
-import { getImageBatchForUser } from "@/server/services/image-batch-service";
+import { getKeyBinding, getSession } from "@/server/services/dev-store";
+import {
+  getImageBatchForUser,
+  processImageBatchForUser
+} from "@/server/services/image-batch-service";
+import { decryptKeyBindingSecret } from "@/server/services/key-binding-service";
 import { readSessionIdFromRequest } from "@/server/services/session-service";
 
 export async function GET(
@@ -21,7 +25,7 @@ export async function GET(
   }
 
   const { batchId } = await context.params;
-  const batch = getImageBatchForUser(batchId, session.user_id);
+  let batch = getImageBatchForUser(batchId, session.user_id);
 
   if (!batch) {
     return jsonError({
@@ -30,6 +34,25 @@ export async function GET(
       message: "批量任务不存在",
       requestId
     });
+  }
+
+  const binding = getKeyBinding(session.key_binding_id);
+
+  if (!binding || binding.status !== "active") {
+    return jsonError({
+      status: 403,
+      code: "forbidden",
+      message: "当前 session 没有关联可用 key binding",
+      requestId
+    });
+  }
+
+  if (batch.status === "queued" || batch.status === "running") {
+    batch =
+      (await processImageBatchForUser(batchId, session.user_id, {
+        baseUrl: binding.sub2api_base_url,
+        apiKey: decryptKeyBindingSecret(binding)
+      })) ?? batch;
   }
 
   return jsonOk(batch, requestId);

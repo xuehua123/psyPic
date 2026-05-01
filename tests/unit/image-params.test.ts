@@ -98,7 +98,13 @@ describe("image generation parameter schema", () => {
   });
 
   it("rejects malformed, oversized and extreme custom sizes", () => {
-    const invalidSizes = ["999 by 999", "5000x1024", "4096x1024"];
+    const invalidSizes = [
+      "999 by 999",
+      "5000x1024",
+      "4097x2048",
+      "63x64",
+      "4096x1024"
+    ];
 
     for (const size of invalidSizes) {
       const result = parseGenerationParams({

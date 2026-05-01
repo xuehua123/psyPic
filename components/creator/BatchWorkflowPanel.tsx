@@ -1,7 +1,7 @@
 "use client";
 
 import { ListPlus, RotateCcw, Table } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type BatchMode = "prompts" | "csv";
 
@@ -37,6 +37,36 @@ export default function BatchWorkflowPanel({
   const [batch, setBatch] = useState<BatchResponse["data"] | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!batch || !["queued", "running"].includes(batch.status)) {
+      return;
+    }
+
+    let active = true;
+    async function refreshBatch() {
+      if (!batch) {
+        return;
+      }
+
+      const response = await fetch(`/api/batches/${batch.batch_id}`);
+      const responseBody = (await response.json().catch(() => ({}))) as BatchResponse;
+
+      if (active && response.ok && responseBody.data) {
+        setBatch(responseBody.data);
+      }
+    }
+
+    const timer = window.setInterval(() => {
+      void refreshBatch();
+    }, 2000);
+    void refreshBatch();
+
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [batch]);
 
   return (
     <section className="batch-panel">

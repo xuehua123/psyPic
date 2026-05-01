@@ -45,7 +45,7 @@ export async function POST(
     });
   }
 
-  recordAuditLog({
+  await recordAuditLog({
     actorUserId: admin.user.id,
     action: featured ? "community_work.feature" : "community_work.unfeature",
     targetType: "community_work",

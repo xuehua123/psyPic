@@ -12,7 +12,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const limit = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
-  const logs = listAuditLogs({
+  const logs = await listAuditLogs({
     cursor: url.searchParams.get("cursor"),
     limit,
     action: url.searchParams.get("action")
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     });
   }
 
-  const log = recordAuditLog({
+  const log = await recordAuditLog({
     actorUserId: admin.user.id,
     action: parsed.data.action,
     targetType: parsed.data.targetType,

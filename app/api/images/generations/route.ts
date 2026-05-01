@@ -144,7 +144,7 @@ export async function POST(request: Request) {
       durationMs,
       upstreamRequestId: upstream.upstreamRequestId
     });
-    recordAuditLog({
+    await recordAuditLog({
       actorUserId: session.user_id,
       action: "image_generation.succeeded",
       targetType: "image_task",
@@ -177,7 +177,7 @@ export async function POST(request: Request) {
         durationMs: Date.now() - startedAt,
         upstreamRequestId: error.upstreamRequestId
       });
-      recordAuditLog({
+      await recordAuditLog({
         actorUserId: session.user_id,
         action: "image_generation.failed",
         targetType: "image_task",
@@ -204,7 +204,7 @@ export async function POST(request: Request) {
       message: "图片生成失败",
       durationMs: Date.now() - startedAt
     });
-    recordAuditLog({
+    await recordAuditLog({
       actorUserId: session.user_id,
       action: "image_generation.failed",
       targetType: "image_task",

@@ -14,6 +14,7 @@ import {
   resetImageLibraryStore,
   resetImageTaskStore
 } from "@/server/services/image-task-service";
+import { resetRuntimeSettingsStore } from "@/server/services/runtime-settings-service";
 import { resetTempAssetStore } from "@/server/services/temp-asset-service";
 
 async function bindSession() {
@@ -134,13 +135,18 @@ async function seedGeneratedAsset() {
   };
 }
 
+async function resetCommunityTestStores() {
+  resetDevStore();
+  resetImageTaskStore();
+  resetImageLibraryStore();
+  resetCommunityWorkStore();
+  resetRuntimeSettingsStore();
+  await resetTempAssetStore();
+}
+
 describe("Community works API", () => {
   it("creates a private community work from a current-user generated asset", async () => {
-    resetDevStore();
-    resetImageTaskStore();
-    resetImageLibraryStore();
-    resetCommunityWorkStore();
-    await resetTempAssetStore();
+    await resetCommunityTestStores();
     const { cookie, taskId, assetId } = await seedGeneratedAsset();
 
     const response = await createCommunityWork(
@@ -171,11 +177,7 @@ describe("Community works API", () => {
   });
 
   it("rejects inaccessible task and asset pairs", async () => {
-    resetDevStore();
-    resetImageTaskStore();
-    resetImageLibraryStore();
-    resetCommunityWorkStore();
-    await resetTempAssetStore();
+    await resetCommunityTestStores();
     const { taskId, assetId } = await seedGeneratedAsset();
     const otherCookie = await bindManualSession();
 
@@ -189,11 +191,7 @@ describe("Community works API", () => {
   });
 
   it("requires explicit confirmation before publishing public works", async () => {
-    resetDevStore();
-    resetImageTaskStore();
-    resetImageLibraryStore();
-    resetCommunityWorkStore();
-    await resetTempAssetStore();
+    await resetCommunityTestStores();
     const { cookie, taskId, assetId } = await seedGeneratedAsset();
 
     const response = await createCommunityWork(
@@ -214,11 +212,7 @@ describe("Community works API", () => {
   });
 
   it("rejects public publishing when the runtime switch is disabled", async () => {
-    resetDevStore();
-    resetImageTaskStore();
-    resetImageLibraryStore();
-    resetCommunityWorkStore();
-    await resetTempAssetStore();
+    await resetCommunityTestStores();
     process.env.PSYPIC_PUBLIC_PUBLISH_ENABLED = "false";
     const { cookie, taskId, assetId } = await seedGeneratedAsset();
 
@@ -241,11 +235,7 @@ describe("Community works API", () => {
   });
 
   it("does not expose prompt or same-generation draft when privacy switches are off", async () => {
-    resetDevStore();
-    resetImageTaskStore();
-    resetImageLibraryStore();
-    resetCommunityWorkStore();
-    await resetTempAssetStore();
+    await resetCommunityTestStores();
     const { cookie, taskId, assetId } = await seedGeneratedAsset();
     const createResponse = await createCommunityWork(
       createWorkRequest(cookie, {
@@ -286,11 +276,7 @@ describe("Community works API", () => {
   });
 
   it("lists public community works without exposing private works", async () => {
-    resetDevStore();
-    resetImageTaskStore();
-    resetImageLibraryStore();
-    resetCommunityWorkStore();
-    await resetTempAssetStore();
+    await resetCommunityTestStores();
     const { cookie, taskId, assetId } = await seedGeneratedAsset();
     await createCommunityWork(
       createWorkRequest(cookie, {

@@ -34,7 +34,7 @@ export async function POST(
     });
   }
 
-  recordAuditLog({
+  await recordAuditLog({
     actorUserId: admin.user.id,
     action: "community_work.restore",
     targetType: "community_work",

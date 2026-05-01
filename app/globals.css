@@ -915,6 +915,42 @@ a {
   font-size: 13px;
 }
 
+.community-filter-bar {
+  max-width: 1180px;
+  margin: 0 auto 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.community-filter-bar .segmented {
+  max-width: 360px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.filter-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-chip-row a {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0 10px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.filter-chip-row a[aria-current="page"] {
+  border-color: #85c7be;
+  background: #e6f4f1;
+  color: #064e48;
+}
+
 .community-grid {
   max-width: 1180px;
   margin: 0 auto;

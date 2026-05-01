@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { POST as exchangeImportCode } from "@/app/api/import/exchange/route";
 import { GET as getSession } from "@/app/api/session/route";
 import { POST as logoutSession } from "@/app/api/session/logout/route";
 import { resetDevStore } from "@/server/services/dev-store";
+import { resetRuntimeSettingsStore } from "@/server/services/runtime-settings-service";
 
 async function bindSession() {
   const response = await exchangeImportCode(
@@ -17,6 +18,10 @@ async function bindSession() {
 }
 
 describe("session API", () => {
+  beforeEach(() => {
+    resetRuntimeSettingsStore();
+  });
+
   it("returns authenticated session metadata without API keys", async () => {
     resetDevStore();
     const cookie = await bindSession();
@@ -56,6 +61,7 @@ describe("session API", () => {
 
   it("applies runtime max_n limits to session metadata", async () => {
     resetDevStore();
+    resetRuntimeSettingsStore();
     process.env.PSYPIC_MAX_IMAGE_N = "1";
     const cookie = await bindSession();
 

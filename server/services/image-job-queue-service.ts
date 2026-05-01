@@ -94,6 +94,36 @@ export function cancelImageJobForTask(taskId: string, userId: string) {
   return serializeImageJob(updated);
 }
 
+export function startImageJobForTask(taskId: string, userId: string) {
+  const job = Array.from(imageJobs.values()).find(
+    (item) => item.task_id === taskId && item.user_id === userId
+  );
+
+  if (!job || job.status !== "queued") {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const updated: ImageJob = {
+    ...job,
+    status: "running",
+    started_at: now,
+    updated_at: now
+  };
+  imageJobs.set(job.id, updated);
+  markImageTaskRunning(taskId);
+
+  return serializeImageJob(updated);
+}
+
+export function markImageJobSucceeded(taskId: string, userId: string) {
+  return finishImageJob(taskId, userId, "succeeded");
+}
+
+export function markImageJobFailed(taskId: string, userId: string) {
+  return finishImageJob(taskId, userId, "failed");
+}
+
 export function expireStaleImageJobs(input: {
   now: string;
   timeoutMs: number;
@@ -132,6 +162,32 @@ function countRunningJobsForUser(userId: string) {
   return Array.from(imageJobs.values()).filter(
     (job) => job.user_id === userId && job.status === "running"
   ).length;
+}
+
+function finishImageJob(
+  taskId: string,
+  userId: string,
+  status: "succeeded" | "failed"
+) {
+  const job = Array.from(imageJobs.values()).find(
+    (item) => item.task_id === taskId && item.user_id === userId
+  );
+
+  if (!job || (job.status !== "queued" && job.status !== "running")) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const updated: ImageJob = {
+    ...job,
+    status,
+    started_at: job.started_at ?? now,
+    finished_at: now,
+    updated_at: now
+  };
+  imageJobs.set(job.id, updated);
+
+  return serializeImageJob(updated);
 }
 
 function serializeImageJob(job: ImageJob) {

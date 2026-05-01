@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { POST as exchangeImportCode } from "@/app/api/import/exchange/route";
 import { POST as generateImage } from "@/app/api/images/generations/route";
 import { getKeyBinding, getSession, resetDevStore } from "@/server/services/dev-store";
@@ -8,6 +8,7 @@ import {
   resetImageTaskStore
 } from "@/server/services/image-task-service";
 import { resetTempAssetStore } from "@/server/services/temp-asset-service";
+import { resetRuntimeSettingsStore } from "@/server/services/runtime-settings-service";
 
 async function bindSession() {
   const response = await exchangeImportCode(
@@ -82,6 +83,10 @@ function createRunningTaskForCookie(cookie: string) {
 }
 
 describe("POST /api/images/generations", () => {
+  beforeEach(() => {
+    resetRuntimeSettingsStore();
+  });
+
   it("generates images through Sub2API and returns TempAsset URLs", async () => {
     resetDevStore();
     resetImageTaskStore();
@@ -218,6 +223,7 @@ describe("POST /api/images/generations", () => {
   it("enforces the runtime max_n limit before calling Sub2API", async () => {
     resetDevStore();
     resetImageTaskStore();
+    resetRuntimeSettingsStore();
     process.env.PSYPIC_MAX_IMAGE_N = "1";
     const cookie = await bindSession();
     const fetchSpy = vi.fn();

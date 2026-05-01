@@ -21,8 +21,16 @@ export type CommunityFeedItem = {
 };
 
 export default function CommunityFeedPage({
+  filters,
   works
 }: {
+  filters?: {
+    sort: "latest" | "popular" | "featured";
+    scene: string | null;
+    tag: string | null;
+    scenes: string[];
+    tags: string[];
+  };
   works: CommunityFeedItem[];
 }) {
   const [items, setItems] = useState(works);
@@ -38,6 +46,67 @@ export default function CommunityFeedPage({
           <p>公开作品、商业场景标签和可复用创意。</p>
         </div>
       </header>
+
+      {filters ? (
+        <section className="community-filter-bar" aria-label="社区筛选">
+          <div className="segmented" aria-label="排序" role="group">
+            {[
+              { label: "最新", value: "latest" },
+              { label: "热门", value: "popular" },
+              { label: "精选", value: "featured" }
+            ].map((option) => (
+              <Link
+                aria-current={filters.sort === option.value ? "page" : undefined}
+                className={`segment ${
+                  filters.sort === option.value ? "active" : ""
+                }`}
+                href={communityHref(filters, { sort: option.value })}
+                key={option.value}
+              >
+                {option.label}
+              </Link>
+            ))}
+          </div>
+          {filters.scenes.length > 0 ? (
+            <div className="filter-chip-row" aria-label="场景筛选">
+              <Link
+                aria-current={filters.scene ? undefined : "page"}
+                href={communityHref(filters, { scene: null })}
+              >
+                全部场景
+              </Link>
+              {filters.scenes.map((scene) => (
+                <Link
+                  aria-current={filters.scene === scene ? "page" : undefined}
+                  href={communityHref(filters, { scene })}
+                  key={scene}
+                >
+                  {scene}
+                </Link>
+              ))}
+            </div>
+          ) : null}
+          {filters.tags.length > 0 ? (
+            <div className="filter-chip-row" aria-label="标签筛选">
+              <Link
+                aria-current={filters.tag ? undefined : "page"}
+                href={communityHref(filters, { tag: null })}
+              >
+                全部标签
+              </Link>
+              {filters.tags.map((tag) => (
+                <Link
+                  aria-current={filters.tag === tag ? "page" : undefined}
+                  href={communityHref(filters, { tag })}
+                  key={tag}
+                >
+                  {tag}
+                </Link>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       {works.length === 0 ? (
         <section className="community-empty">
@@ -142,4 +211,38 @@ export default function CommunityFeedPage({
       )
     );
   }
+}
+
+function communityHref(
+  filters: {
+    sort: "latest" | "popular" | "featured";
+    scene: string | null;
+    tag: string | null;
+  },
+  patch: Partial<{
+    sort: string;
+    scene: string | null;
+    tag: string | null;
+  }>
+) {
+  const sort = patch.sort ?? filters.sort;
+  const scene = patch.scene === undefined ? filters.scene : patch.scene;
+  const tag = patch.tag === undefined ? filters.tag : patch.tag;
+  const params = new URLSearchParams();
+
+  if (sort && sort !== "latest") {
+    params.set("sort", sort);
+  }
+
+  if (scene) {
+    params.set("scene", scene);
+  }
+
+  if (tag) {
+    params.set("tag", tag);
+  }
+
+  const query = params.toString();
+
+  return query ? `/community?${query}` : "/community";
 }

@@ -43,7 +43,7 @@ export async function PATCH(request: Request) {
   const snapshot = updateRuntimeSettings(parsed.data, {
     updatedByUserId: admin.user.id
   });
-  recordAuditLog({
+  await recordAuditLog({
     actorUserId: admin.user.id,
     action: "runtime_settings.update",
     targetType: "runtime_settings",

@@ -25,7 +25,7 @@ export default async function AdminPage() {
   }
 
   const reports = listCommunityReportsForAdmin({ status: "open", limit: 30 });
-  const auditLogs = listAuditLogs({ limit: 30 });
+  const auditLogs = await listAuditLogs({ limit: 30 });
 
   return (
     <AdminDashboardPage
