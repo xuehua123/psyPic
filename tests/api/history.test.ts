@@ -3,7 +3,12 @@ import { POST as exchangeImportCode } from "@/app/api/import/exchange/route";
 import { POST as generateImage } from "@/app/api/images/generations/route";
 import { GET as listHistory } from "@/app/api/history/route";
 import { resetDevStore } from "@/server/services/dev-store";
-import { resetImageTaskStore } from "@/server/services/image-task-service";
+import {
+  createImageTask,
+  listImageTaskHistoryForUser,
+  markImageTaskSucceeded,
+  resetImageTaskStore
+} from "@/server/services/image-task-service";
 import { resetTempAssetStore } from "@/server/services/temp-asset-service";
 
 async function bindSession() {
@@ -32,6 +37,7 @@ function generationRequest(cookie: string, prompt: string) {
       quality: "medium",
       n: 1,
       output_format: "png",
+      output_compression: null,
       background: "auto",
       moderation: "auto"
     })
@@ -155,4 +161,66 @@ describe("GET /api/history", () => {
     ]);
     expect(secondBody.data.next_cursor).toBeNull();
   });
+
+  it("orders same-millisecond completed tasks by creation order descending", () => {
+    resetImageTaskStore();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
+
+    try {
+      const oldTask = createSucceededTask("Old same time.");
+      const middleTask = createSucceededTask("Middle same time.");
+      const newestTask = createSucceededTask("Newest same time.");
+      const history = listImageTaskHistoryForUser("user_history_sort", {
+        limit: 3
+      });
+
+      expect(history.items.map((item) => item.id)).toEqual([
+        newestTask.id,
+        middleTask.id,
+        oldTask.id
+      ]);
+    } finally {
+      vi.useRealTimers();
+      resetImageTaskStore();
+    }
+  });
 });
+
+function createSucceededTask(prompt: string) {
+  const task = createImageTask({
+    userId: "user_history_sort",
+    keyBindingId: "key_history_sort",
+    type: "generation",
+    prompt,
+    params: {
+      model: "gpt-image-2",
+      prompt,
+      size: "1024x1024",
+      quality: "medium",
+      n: 1,
+      output_format: "png",
+      output_compression: null,
+      background: "auto",
+      moderation: "auto"
+    }
+  });
+  markImageTaskSucceeded(task.id, {
+    images: [
+      {
+        asset_id: `asset_${task.id}`,
+        url: `/api/assets/asset_${task.id}`,
+        format: "png"
+      }
+    ],
+    usage: {
+      input_tokens: 1,
+      output_tokens: 1,
+      total_tokens: 2,
+      estimated_cost: "0.0000"
+    },
+    durationMs: 1
+  });
+
+  return task;
+}

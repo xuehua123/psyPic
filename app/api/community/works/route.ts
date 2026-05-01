@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     });
   }
 
-  const features = getRuntimeFeatureFlags();
+  const features = await getRuntimeFeatureFlags();
 
   if (!features.community) {
     return jsonError({
