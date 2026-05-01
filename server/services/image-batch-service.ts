@@ -222,6 +222,23 @@ export function retryImageBatchItemsForUser(
   return serializeImageBatch(updated);
 }
 
+export function scheduleImageBatchProcessing(
+  batchId: string,
+  userId: string,
+  input: {
+    baseUrl: string;
+    apiKey: string;
+  }
+) {
+  const timer = setTimeout(() => {
+    void processImageBatchForUser(batchId, userId, input).catch(() => undefined);
+  }, 0);
+
+  if (typeof timer === "object" && timer && "unref" in timer) {
+    (timer as { unref: () => void }).unref();
+  }
+}
+
 export async function processImageBatchForUser(
   batchId: string,
   userId: string,

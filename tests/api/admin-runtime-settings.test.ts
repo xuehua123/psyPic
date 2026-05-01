@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -392,6 +392,79 @@ describe("Admin runtime settings API", () => {
         rmSync(auditPath, { force: true });
       }
 
+      if (previousAuditPath) {
+        process.env.PSYPIC_AUDIT_LOG_FILE = previousAuditPath;
+      } else {
+        delete process.env.PSYPIC_AUDIT_LOG_FILE;
+      }
+    }
+  });
+
+  it("writes database audit logs without local file persistence in database mode", async () => {
+    resetDevStore();
+    const previousAuditStore = process.env.PSYPIC_AUDIT_LOG_STORE;
+    const previousAuditPath = process.env.PSYPIC_AUDIT_LOG_FILE;
+    const auditFileName = `psypic-audit-db-mode-${randomUUID()}.json`;
+    const auditPath = join(process.cwd(), ".data", auditFileName);
+    const create = vi.fn().mockResolvedValue({});
+    const findMany = vi.fn().mockResolvedValue([]);
+    const prismaClient = {
+      auditLog: {
+        create,
+        findMany
+      }
+    };
+    (
+      globalThis as typeof globalThis & {
+        __psypicAuditPrismaClient?: typeof prismaClient;
+      }
+    ).__psypicAuditPrismaClient = prismaClient;
+    process.env.PSYPIC_AUDIT_LOG_STORE = "database";
+    process.env.PSYPIC_AUDIT_LOG_FILE = auditFileName;
+    resetAuditLogStore();
+
+    try {
+      const cookie = adminCookie();
+      const response = await writeAuditLog(
+        new Request("http://localhost/api/admin/audit-logs", {
+          method: "POST",
+          headers: { "content-type": "application/json", cookie },
+          body: JSON.stringify({
+            action: "image_generation.succeeded",
+            target_type: "image_task",
+            target_id: "task_db_audit",
+            metadata: {
+              upstream_request_id: "upstream_db_audit"
+            }
+          })
+        })
+      );
+
+      expect(response.status).toBe(200);
+      expect(create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          targetId: "task_db_audit",
+          metadata: expect.objectContaining({
+            upstream_request_id: "upstream_db_audit"
+          })
+        })
+      });
+      expect(existsSync(auditPath)).toBe(false);
+    } finally {
+      resetAuditLogStore();
+      if (existsSync(auditPath)) {
+        rmSync(auditPath, { force: true });
+      }
+      delete (
+        globalThis as typeof globalThis & {
+          __psypicAuditPrismaClient?: unknown;
+        }
+      ).__psypicAuditPrismaClient;
+      if (previousAuditStore) {
+        process.env.PSYPIC_AUDIT_LOG_STORE = previousAuditStore;
+      } else {
+        delete process.env.PSYPIC_AUDIT_LOG_STORE;
+      }
       if (previousAuditPath) {
         process.env.PSYPIC_AUDIT_LOG_FILE = previousAuditPath;
       } else {

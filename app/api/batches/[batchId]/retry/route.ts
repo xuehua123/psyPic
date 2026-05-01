@@ -1,6 +1,10 @@
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
 import { getKeyBinding, getSession } from "@/server/services/dev-store";
-import { retryImageBatchItemsForUser } from "@/server/services/image-batch-service";
+import {
+  retryImageBatchItemsForUser,
+  scheduleImageBatchProcessing
+} from "@/server/services/image-batch-service";
+import { decryptKeyBindingSecret } from "@/server/services/key-binding-service";
 import { readSessionIdFromRequest } from "@/server/services/session-service";
 
 export async function POST(
@@ -57,6 +61,10 @@ export async function POST(
       requestId
     });
   }
+  scheduleImageBatchProcessing(batch.batch_id, session.user_id, {
+    baseUrl: binding.sub2api_base_url,
+    apiKey: decryptKeyBindingSecret(binding)
+  });
 
   return jsonOk(batch, requestId);
 }

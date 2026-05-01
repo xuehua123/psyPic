@@ -100,8 +100,12 @@ export async function recordAuditLog(input: {
   };
 
   auditLogs.set(log.id, log);
-  writePersistedAuditLogs();
-  await writeDatabaseAuditLog(log);
+  const persistedToDatabase = await writeDatabaseAuditLog(log);
+
+  if (!persistedToDatabase) {
+    writePersistedAuditLogs();
+  }
+
   return serializeAuditLog(log);
 }
 
@@ -139,7 +143,7 @@ async function writeDatabaseAuditLog(log: AuditLogRecord) {
   const client = await getPrismaAuditClient();
 
   if (!client) {
-    return;
+    return false;
   }
 
   try {
@@ -155,8 +159,9 @@ async function writeDatabaseAuditLog(log: AuditLogRecord) {
         createdAt: new Date(log.created_at)
       }
     });
+    return true;
   } catch {
-    // File persistence above is the fallback so audit logging does not break requests.
+    return false;
   }
 }
 

@@ -131,4 +131,53 @@ describe("CommunityFeedPage", () => {
       "/community?sort=popular&scene=ecommerce&tag=%E9%A6%99%E6%B0%B4"
     );
   });
+
+  it("syncs rendered cards when filtered works props change", () => {
+    const { rerender } = render(
+      <CommunityFeedPage
+        works={[
+          {
+            work_id: "work_feed_old",
+            title: "旧筛选作品",
+            scene: "ecommerce",
+            tags: ["旧"],
+            image_url: "/api/assets/asset_old",
+            thumbnail_url: "/api/assets/asset_old",
+            same_generation_available: false,
+            like_count: 0,
+            favorite_count: 0,
+            liked: false,
+            favorited: false,
+            featured: false,
+            created_at: "2026-05-01T00:00:00.000Z"
+          }
+        ]}
+      />
+    );
+
+    rerender(
+      <CommunityFeedPage
+        works={[
+          {
+            work_id: "work_feed_new",
+            title: "新筛选作品",
+            scene: "social",
+            tags: ["新"],
+            image_url: "/api/assets/asset_new",
+            thumbnail_url: "/api/assets/asset_new",
+            same_generation_available: false,
+            like_count: 0,
+            favorite_count: 0,
+            liked: false,
+            favorited: false,
+            featured: false,
+            created_at: "2026-05-01T00:00:00.000Z"
+          }
+        ]}
+      />
+    );
+
+    expect(screen.queryByText("旧筛选作品")).not.toBeInTheDocument();
+    expect(screen.getByText("新筛选作品")).toBeInTheDocument();
+  });
 });

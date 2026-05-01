@@ -4,7 +4,11 @@ import {
 } from "@/lib/validation/image-params";
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
 import { getKeyBinding, getSession } from "@/server/services/dev-store";
-import { createImageBatchForUser } from "@/server/services/image-batch-service";
+import {
+  createImageBatchForUser,
+  scheduleImageBatchProcessing
+} from "@/server/services/image-batch-service";
+import { decryptKeyBindingSecret } from "@/server/services/key-binding-service";
 import { readSessionIdFromRequest } from "@/server/services/session-service";
 
 export async function POST(request: Request) {
@@ -47,6 +51,10 @@ export async function POST(request: Request) {
   const batch = createImageBatchForUser(session.user_id, {
     keyBindingId: binding.id,
     items: parsed.data
+  });
+  scheduleImageBatchProcessing(batch.batch_id, session.user_id, {
+    baseUrl: binding.sub2api_base_url,
+    apiKey: decryptKeyBindingSecret(binding)
   });
 
   return jsonOk(batch, requestId);

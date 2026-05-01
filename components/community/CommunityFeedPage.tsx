@@ -20,10 +20,7 @@ export type CommunityFeedItem = {
   created_at: string;
 };
 
-export default function CommunityFeedPage({
-  filters,
-  works
-}: {
+type CommunityFeedPageProps = {
   filters?: {
     sort: "latest" | "popular" | "featured";
     scene: string | null;
@@ -32,7 +29,16 @@ export default function CommunityFeedPage({
     tags: string[];
   };
   works: CommunityFeedItem[];
-}) {
+};
+
+export default function CommunityFeedPage(props: CommunityFeedPageProps) {
+  return <CommunityFeedContent key={communityFeedKey(props.works)} {...props} />;
+}
+
+function CommunityFeedContent({
+  filters,
+  works
+}: CommunityFeedPageProps) {
   const [items, setItems] = useState(works);
 
   return (
@@ -211,6 +217,28 @@ export default function CommunityFeedPage({
       )
     );
   }
+}
+
+function communityFeedKey(works: CommunityFeedItem[]) {
+  return works
+    .map((work) =>
+      [
+        work.work_id,
+        work.title,
+        work.scene ?? "",
+        work.tags.join(","),
+        work.image_url,
+        work.thumbnail_url,
+        work.same_generation_available,
+        work.like_count,
+        work.favorite_count,
+        work.liked,
+        work.favorited,
+        work.featured,
+        work.created_at
+      ].join(":")
+    )
+    .join("|");
 }
 
 function communityHref(

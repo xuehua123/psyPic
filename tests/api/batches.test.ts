@@ -5,6 +5,7 @@ import { POST as createBatches } from "@/app/api/batches/route";
 import { POST as exchangeImportCode } from "@/app/api/import/exchange/route";
 import { getSession, resetDevStore } from "@/server/services/dev-store";
 import {
+  getImageBatchForUser,
   markBatchItemFailed,
   resetImageBatchStore
 } from "@/server/services/image-batch-service";
@@ -158,6 +159,65 @@ describe("image batches API", () => {
     });
   });
 
+  it("starts processing after batch creation without relying on GET polling", async () => {
+    await resetStores();
+    const cookie = await bindSession();
+    const sessionId = cookie.replace("psypic_session=", "");
+    const session = getSession(sessionId);
+    if (!session) {
+      throw new Error("expected session");
+    }
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            data: [{ b64_json: Buffer.from("batch-image").toString("base64") }],
+            usage: { input_tokens: 8, output_tokens: 16, total_tokens: 24 }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+              "x-request-id": "upstream_batch_req"
+            }
+          }
+        )
+      )
+    );
+
+    const response = await createBatches(
+      new Request("http://localhost/api/batches", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie
+        },
+        body: JSON.stringify({
+          prompts: ["香水主图"],
+          sizes: ["1024x1024"],
+          params: {
+            model: "gpt-image-2",
+            quality: "medium",
+            output_format: "png",
+            background: "auto",
+            moderation: "auto"
+          }
+        })
+      })
+    );
+    const createBody = await response.json();
+    const batchId = createBody.data.batch_id as string;
+    const settledBatch = await waitForStoredBatchStatus(
+      session.user_id,
+      batchId,
+      "succeeded"
+    );
+
+    expect(settledBatch.status).toBe("succeeded");
+    expect(settledBatch.items[0].status).toBe("succeeded");
+  });
+
   it("retries failed batch items with new queued tasks and original params", async () => {
     await resetStores();
     const cookie = await bindSession();
@@ -293,4 +353,22 @@ async function waitForBatchStatus(
   }
 
   throw new Error(`expected batch ${batchId} to reach ${status}`);
+}
+
+async function waitForStoredBatchStatus(
+  userId: string,
+  batchId: string,
+  status: string
+) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const batch = getImageBatchForUser(batchId, userId);
+
+    if (batch?.status === status) {
+      return batch;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+
+  throw new Error(`expected stored batch ${batchId} to reach ${status}`);
 }
