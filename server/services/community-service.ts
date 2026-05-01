@@ -34,6 +34,7 @@ type CommunityWork = {
   allow_reference_reuse: boolean;
   published_at: string | null;
   taken_down_at: string | null;
+  featured_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -49,6 +50,13 @@ type CommunityReport = {
   reviewed_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+type CommunityInteraction = {
+  id: string;
+  work_id: string;
+  user_id: string;
+  created_at: string;
 };
 
 export type CreateCommunityWorkInput = {
@@ -68,6 +76,8 @@ export type CreateCommunityWorkInput = {
 declare global {
   var __psypicCommunityWorks: Map<string, CommunityWork> | undefined;
   var __psypicCommunityReports: Map<string, CommunityReport> | undefined;
+  var __psypicCommunityLikes: Map<string, CommunityInteraction> | undefined;
+  var __psypicCommunityFavorites: Map<string, CommunityInteraction> | undefined;
 }
 
 const communityWorks =
@@ -76,13 +86,25 @@ globalThis.__psypicCommunityWorks = communityWorks;
 const communityReports =
   globalThis.__psypicCommunityReports ?? new Map<string, CommunityReport>();
 globalThis.__psypicCommunityReports = communityReports;
+const communityLikes =
+  globalThis.__psypicCommunityLikes ?? new Map<string, CommunityInteraction>();
+globalThis.__psypicCommunityLikes = communityLikes;
+const communityFavorites =
+  globalThis.__psypicCommunityFavorites ?? new Map<string, CommunityInteraction>();
+globalThis.__psypicCommunityFavorites = communityFavorites;
 
 export function resetCommunityWorkStore() {
   communityWorks.clear();
+  resetCommunityInteractionStore();
 }
 
 export function resetCommunityReportStore() {
   communityReports.clear();
+}
+
+export function resetCommunityInteractionStore() {
+  communityLikes.clear();
+  communityFavorites.clear();
 }
 
 export function createCommunityWorkForUser(
@@ -118,6 +140,7 @@ export function createCommunityWorkForUser(
     allow_reference_reuse: input.allowReferenceReuse,
     published_at: input.visibility === "private" ? null : now,
     taken_down_at: null,
+    featured_at: null,
     created_at: now,
     updated_at: now
   };
@@ -136,16 +159,21 @@ export function getCommunityWorkForViewer(
     return null;
   }
 
-  return serializeCommunityWork(work, { detail: true });
+  return serializeCommunityWork(work, { detail: true, viewerUserId });
 }
 
 export function listPublicCommunityWorks(input?: {
   cursor?: string | null;
   limit?: number;
   scene?: string | null;
+  tag?: string | null;
+  sort?: string | null;
+  viewerUserId?: string | null;
 }) {
   const limit = clampCommunityLimit(input?.limit);
   const scene = input?.scene?.trim();
+  const tag = input?.tag?.trim();
+  const sort = input?.sort?.trim();
   const works = Array.from(communityWorks.values())
     .filter(
       (work) =>
@@ -154,7 +182,8 @@ export function listPublicCommunityWorks(input?: {
         !work.taken_down_at
     )
     .filter((work) => (scene ? work.scene === scene : true))
-    .sort((left, right) => right.created_at.localeCompare(left.created_at));
+    .filter((work) => (tag ? work.tags.includes(tag) : true))
+    .sort((left, right) => compareCommunityWorks(left, right, sort));
   const startIndex = input?.cursor
     ? works.findIndex((work) => work.id === input.cursor) + 1
     : 0;
@@ -163,9 +192,47 @@ export function listPublicCommunityWorks(input?: {
   const hasNextPage = works.length > safeStartIndex + page.length;
 
   return {
-    items: page.map((work) => serializeCommunityWork(work)),
+    items: page.map((work) =>
+      serializeCommunityWork(work, { viewerUserId: input?.viewerUserId ?? null })
+    ),
     nextCursor: hasNextPage ? page.at(-1)?.id ?? null : null
   };
+}
+
+export function setCommunityWorkInteractionForUser(
+  userId: string,
+  workId: string,
+  input: {
+    type: "like" | "favorite";
+    enabled: boolean;
+  }
+) {
+  const work = communityWorks.get(workId);
+
+  if (!work || !canViewCommunityWork(work, userId)) {
+    return null;
+  }
+
+  const store = input.type === "like" ? communityLikes : communityFavorites;
+  const key = buildInteractionKey(workId, userId);
+
+  if (input.enabled && !store.has(key)) {
+    store.set(key, {
+      id: createId(input.type === "like" ? "like" : "fav"),
+      work_id: workId,
+      user_id: userId,
+      created_at: new Date().toISOString()
+    });
+  }
+
+  if (!input.enabled) {
+    store.delete(key);
+  }
+
+  return serializeCommunityWork(work, {
+    detail: true,
+    viewerUserId: userId
+  });
 }
 
 export function createCommunitySameGenerationDraft(
@@ -270,10 +337,97 @@ export function takeDownCommunityWork(
   return serializeCommunityWork(updated, { detail: true });
 }
 
+export function restoreCommunityWork(
+  workId: string,
+  input: {
+    reviewerUserId: string;
+    reason?: string | null;
+  }
+) {
+  const work = communityWorks.get(workId);
+
+  if (!work) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const updated: CommunityWork = {
+    ...work,
+    review_status: "approved",
+    taken_down_at: null,
+    updated_at: now
+  };
+
+  communityWorks.set(work.id, updated);
+  void input;
+
+  return serializeCommunityWork(updated, { detail: true });
+}
+
+export function setCommunityWorkFeatured(
+  workId: string,
+  input: {
+    reviewerUserId: string;
+    featured: boolean;
+  }
+) {
+  const work = communityWorks.get(workId);
+
+  if (!work) {
+    return null;
+  }
+
+  const now = new Date().toISOString();
+  const updated: CommunityWork = {
+    ...work,
+    featured_at: input.featured ? work.featured_at ?? now : null,
+    updated_at: now
+  };
+
+  communityWorks.set(work.id, updated);
+
+  return serializeCommunityWork(updated, { detail: true });
+}
+
+export function listCommunityReportsForAdmin(input?: {
+  status?: CommunityReportStatus | "all" | null;
+  cursor?: string | null;
+  limit?: number;
+}) {
+  const limit = clampCommunityLimit(input?.limit);
+  const status = input?.status ?? "open";
+  const reports = Array.from(communityReports.values())
+    .filter((report) => (status === "all" ? true : report.status === status))
+    .sort((left, right) => right.created_at.localeCompare(left.created_at));
+  const startIndex = input?.cursor
+    ? reports.findIndex((report) => report.id === input.cursor) + 1
+    : 0;
+  const safeStartIndex = Math.max(startIndex, 0);
+  const page = reports.slice(safeStartIndex, safeStartIndex + limit);
+  const hasNextPage = reports.length > safeStartIndex + page.length;
+
+  return {
+    items: page.map((report) => {
+      const work = communityWorks.get(report.work_id);
+
+      return {
+        ...serializeCommunityReport(report),
+        reporter_user_id: report.reporter_user_id,
+        reviewer_user_id: report.reviewer_user_id,
+        reviewed_at: report.reviewed_at,
+        work: work ? serializeCommunityWork(work) : null
+      };
+    }),
+    nextCursor: hasNextPage ? page.at(-1)?.id ?? null : null
+  };
+}
+
 function serializeCommunityWork(
   work: CommunityWork,
-  options?: { detail?: boolean }
+  options?: { detail?: boolean; viewerUserId?: string | null }
 ) {
+  const viewerUserId = options?.viewerUserId ?? null;
+
   return {
     work_id: work.id,
     task_id: work.task_id,
@@ -293,6 +447,16 @@ function serializeCommunityWork(
     same_generation_available: work.allow_same_generation,
     published_at: work.published_at,
     taken_down_at: work.taken_down_at,
+    featured_at: work.featured_at,
+    featured: Boolean(work.featured_at),
+    like_count: countInteractionsForWork(communityLikes, work.id),
+    favorite_count: countInteractionsForWork(communityFavorites, work.id),
+    liked: viewerUserId
+      ? communityLikes.has(buildInteractionKey(work.id, viewerUserId))
+      : false,
+    favorited: viewerUserId
+      ? communityFavorites.has(buildInteractionKey(work.id, viewerUserId))
+      : false,
     created_at: work.created_at,
     updated_at: work.updated_at,
     ...(options?.detail && work.disclose_prompt
@@ -305,6 +469,48 @@ function serializeCommunityWork(
       ? { reference_images: [] }
       : {})
   };
+}
+
+function compareCommunityWorks(
+  left: CommunityWork,
+  right: CommunityWork,
+  sort: string | null | undefined
+) {
+  if (sort === "featured") {
+    const featuredCompare =
+      (right.featured_at ?? "").localeCompare(left.featured_at ?? "");
+
+    if (featuredCompare !== 0) {
+      return featuredCompare;
+    }
+  }
+
+  if (sort === "popular") {
+    const rightScore =
+      countInteractionsForWork(communityLikes, right.id) * 2 +
+      countInteractionsForWork(communityFavorites, right.id);
+    const leftScore =
+      countInteractionsForWork(communityLikes, left.id) * 2 +
+      countInteractionsForWork(communityFavorites, left.id);
+
+    if (rightScore !== leftScore) {
+      return rightScore - leftScore;
+    }
+  }
+
+  return right.created_at.localeCompare(left.created_at);
+}
+
+function countInteractionsForWork(
+  store: Map<string, CommunityInteraction>,
+  workId: string
+) {
+  return Array.from(store.values()).filter((item) => item.work_id === workId)
+    .length;
+}
+
+function buildInteractionKey(workId: string, userId: string) {
+  return `${workId}:${userId}`;
 }
 
 function serializeCommunityReport(report: CommunityReport) {

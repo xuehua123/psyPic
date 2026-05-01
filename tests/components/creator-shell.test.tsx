@@ -635,6 +635,62 @@ describe("CreatorWorkspace", () => {
     expect(screen.getByText("product.png")).toBeInTheDocument();
   });
 
+  it("submits image-to-image requests with multiple selected reference images", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            task_id: "task_multi_ref_123",
+            images: [
+              {
+                asset_id: "asset_multi_ref_123",
+                url: "/api/assets/asset_multi_ref_123",
+                format: "png"
+              }
+            ],
+            usage: {
+              input_tokens: 15,
+              output_tokens: 25,
+              total_tokens: 40,
+              estimated_cost: "0.0000"
+            },
+            duration_ms: 1500
+          },
+          request_id: "psypic_req_multi_ref_123"
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "图生图" }));
+    const first = new File(
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+      "front.png",
+      { type: "image/png" }
+    );
+    const second = new File(
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+      "side.png",
+      { type: "image/png" }
+    );
+    await user.upload(screen.getByLabelText("参考图"), [first, second]);
+    await user.type(
+      screen.getByRole("textbox", { name: "Prompt" }),
+      "Keep all reference angles consistent."
+    );
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+
+    expect(await screen.findByText("asset_multi_ref_123")).toBeInTheDocument();
+    const body = fetchSpy.mock.calls[0][1].body as FormData;
+    expect(body.getAll("image")).toEqual([first, second]);
+    expect(screen.getByText("front.png")).toBeInTheDocument();
+    expect(screen.getByText("side.png")).toBeInTheDocument();
+  });
+
   it("submits image-to-image requests with a generated PNG mask", async () => {
     const originalGetContext = HTMLCanvasElement.prototype.getContext;
     const originalToBlob = HTMLCanvasElement.prototype.toBlob;

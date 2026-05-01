@@ -61,12 +61,16 @@ model User {
   keyBindings   KeyBinding[]
   auditLogs     AuditLog[]
   imageTasks    ImageTask[]
+  imageBatches  ImageBatch[]
   imageAssets   ImageAsset[]
   imageAssetTags ImageAssetTag[]
   albums        Album[]
   communityWorks CommunityWork[]
   communityReports CommunityReport[] @relation("CommunityReportsMade")
   reviewedCommunityReports CommunityReport[] @relation("CommunityReportsReviewed")
+  runtimeSettingsUpdated RuntimeSetting[] @relation("RuntimeSettingsUpdatedBy")
+  communityWorkLikes CommunityWorkLike[]
+  communityWorkFavorites CommunityWorkFavorite[]
 
   @@map("users")
 }
@@ -128,6 +132,17 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+model RuntimeSetting {
+  key             String   @id
+  value           Json
+  updatedByUserId String?  @map("updated_by_user_id")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  updatedBy       User?    @relation("RuntimeSettingsUpdatedBy", fields: [updatedByUserId], references: [id])
+
+  @@index([updatedByUserId])
+  @@map("runtime_settings")
+}
+
 model ImageTask {
   id                String           @id
   userId            String           @map("user_id")
@@ -147,11 +162,48 @@ model ImageTask {
   keyBinding        KeyBinding?      @relation(fields: [keyBindingId], references: [id])
   assets            ImageAsset[]
   communityWorks    CommunityWork[]
+  batchItems        ImageBatchItem[]
 
   @@index([userId, createdAt])
   @@index([keyBindingId])
   @@index([status])
   @@map("image_tasks")
+}
+
+model ImageBatch {
+  id        String           @id
+  userId    String           @map("user_id")
+  status    String
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+  user      User             @relation(fields: [userId], references: [id])
+  items     ImageBatchItem[]
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("image_batches")
+}
+
+model ImageBatchItem {
+  id          String          @id
+  batchId     String          @map("batch_id")
+  taskId      String          @map("task_id")
+  prompt      String
+  params      Json
+  size        String
+  status      ImageTaskStatus
+  queueStatus String          @map("queue_status")
+  retryCount  Int             @default(0) @map("retry_count")
+  errorCode   String?         @map("error_code")
+  errorMessage String?        @map("error_message")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  batch       ImageBatch      @relation(fields: [batchId], references: [id])
+  task        ImageTask       @relation(fields: [taskId], references: [id])
+
+  @@index([batchId, status])
+  @@index([taskId])
+  @@map("image_batch_items")
 }
 
 model ImageAsset {
@@ -244,16 +296,20 @@ model CommunityWork {
   allowReferenceReuse     Boolean                   @default(false) @map("allow_reference_reuse")
   publishedAt             DateTime?                 @map("published_at")
   takenDownAt             DateTime?                 @map("taken_down_at")
+  featuredAt              DateTime?                 @map("featured_at")
   createdAt               DateTime                  @default(now()) @map("created_at")
   updatedAt               DateTime                  @updatedAt @map("updated_at")
   user                    User                      @relation(fields: [userId], references: [id])
   task                    ImageTask                 @relation(fields: [taskId], references: [id])
   asset                   ImageAsset                @relation(fields: [assetId], references: [id])
   reports                 CommunityReport[]
+  likes                   CommunityWorkLike[]
+  favorites               CommunityWorkFavorite[]
 
   @@index([userId, createdAt])
   @@index([assetId])
   @@index([visibility, reviewStatus, createdAt])
+  @@index([visibility, reviewStatus, featuredAt])
   @@map("community_works")
 }
 
@@ -276,4 +332,30 @@ model CommunityReport {
   @@index([reporterUserId, createdAt])
   @@index([reviewerUserId])
   @@map("community_reports")
+}
+
+model CommunityWorkLike {
+  id        String        @id
+  workId    String        @map("work_id")
+  userId    String        @map("user_id")
+  createdAt DateTime      @default(now()) @map("created_at")
+  work      CommunityWork @relation(fields: [workId], references: [id])
+  user      User          @relation(fields: [userId], references: [id])
+
+  @@unique([workId, userId])
+  @@index([userId, createdAt])
+  @@map("community_work_likes")
+}
+
+model CommunityWorkFavorite {
+  id        String        @id
+  workId    String        @map("work_id")
+  userId    String        @map("user_id")
+  createdAt DateTime      @default(now()) @map("created_at")
+  work      CommunityWork @relation(fields: [workId], references: [id])
+  user      User          @relation(fields: [userId], references: [id])
+
+  @@unique([workId, userId])
+  @@index([userId, createdAt])
+  @@map("community_work_favorites")
 }

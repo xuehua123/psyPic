@@ -1,18 +1,16 @@
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
-import { getSession, getUser } from "@/server/services/dev-store";
+import { resolveAdminUser } from "@/server/services/admin-auth-service";
+import { recordAuditLog } from "@/server/services/audit-log-service";
 import { takeDownCommunityWork } from "@/server/services/community-service";
-import { readSessionIdFromRequest } from "@/server/services/session-service";
 
 export async function POST(
   request: Request,
   context: { params: Promise<{ workId: string }> }
 ) {
   const requestId = createRequestId();
-  const sessionId = readSessionIdFromRequest(request);
-  const session = sessionId ? getSession(sessionId) : null;
-  const user = session ? getUser(session.user_id) : null;
+  const admin = resolveAdminUser(request);
 
-  if (!session || !user) {
+  if (admin.status === "unauthorized") {
     return jsonError({
       status: 401,
       code: "unauthorized",
@@ -21,7 +19,7 @@ export async function POST(
     });
   }
 
-  if (user.role !== "admin") {
+  if (admin.status === "forbidden") {
     return jsonError({
       status: 403,
       code: "forbidden",
@@ -37,7 +35,7 @@ export async function POST(
       : "";
   const { workId } = await context.params;
   const work = takeDownCommunityWork(workId, {
-    reviewerUserId: user.id,
+    reviewerUserId: admin.user.id,
     reason
   });
 
@@ -49,6 +47,15 @@ export async function POST(
       requestId
     });
   }
+
+  await recordAuditLog({
+    actorUserId: admin.user.id,
+    action: "community_work.take_down",
+    targetType: "community_work",
+    targetId: workId,
+    requestId,
+    metadata: { reason }
+  });
 
   return jsonOk(work, requestId);
 }

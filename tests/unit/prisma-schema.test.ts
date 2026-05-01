@@ -57,4 +57,25 @@ describe("Prisma v0.2 data model", () => {
     expect(schema).toContain("reviewerUserId");
     expect(schema).toContain("@@index([workId, status])");
   });
+
+  it("defines V1 admin settings, audit and community interaction persistence", () => {
+    const schema = readFileSync("prisma/schema.prisma", "utf8");
+
+    expect(schema).toContain("model RuntimeSetting");
+    expect(schema).toContain("updatedByUserId");
+    expect(schema).toContain("featuredAt");
+    expect(schema).toContain("model CommunityWorkLike");
+    expect(schema).toContain("model CommunityWorkFavorite");
+    expect(schema).toContain("@@unique([workId, userId])");
+  });
+
+  it("defines V1 batch and queue persistence models", () => {
+    const schema = readFileSync("prisma/schema.prisma", "utf8");
+
+    expect(schema).toContain("model ImageBatch");
+    expect(schema).toContain("model ImageBatchItem");
+    expect(schema).toContain("batchItems");
+    expect(schema).toContain("retryCount");
+    expect(schema).toContain("queueStatus");
+  });
 });

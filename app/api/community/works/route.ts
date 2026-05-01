@@ -33,10 +33,15 @@ export async function GET(request: Request) {
   const requestId = createRequestId();
   const url = new URL(request.url);
   const limit = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
+  const sessionId = readSessionIdFromRequest(request);
+  const session = sessionId ? getSession(sessionId) : null;
   const works = listPublicCommunityWorks({
     cursor: url.searchParams.get("cursor"),
     limit,
-    scene: url.searchParams.get("scene")
+    scene: url.searchParams.get("scene"),
+    tag: url.searchParams.get("tag"),
+    sort: url.searchParams.get("sort"),
+    viewerUserId: session?.user_id ?? null
   });
 
   return jsonOk(
