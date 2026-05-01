@@ -17,16 +17,17 @@ export async function POST(request: Request) {
     });
   }
 
-  const bound = createSessionFromImportCode(parsed.data.import_code);
+  const result = createSessionFromImportCode(parsed.data.import_code);
 
-  if (!bound) {
+  if (!result.ok) {
     return jsonError({
-      status: 400,
-      code: "invalid_import_code",
-      message: "导入 code 无效或已被消费",
+      status: result.status,
+      code: result.code,
+      message: result.message,
       requestId
     });
   }
+  const { bound } = result;
 
   return jsonOk(
     {

@@ -186,6 +186,40 @@ describe("POST /api/images/generations", () => {
     expect(JSON.stringify(body)).not.toContain("secret-token");
   });
 
+  it("normalizes upstream 500 without leaking the upstream error body", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    await resetTempAssetStore();
+    const cookie = await bindSession();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: { message: "server failed with secret-token-value" }
+          }),
+          {
+            status: 500,
+            headers: {
+              "content-type": "application/json",
+              "x-request-id": "upstream_error_req_123"
+            }
+          }
+        )
+      )
+    );
+
+    const response = await generateImage(
+      generationRequest(cookie, validGenerationBody)
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body.error.code).toBe("upstream_error");
+    expect(body.upstream_request_id).toBe("upstream_error_req_123");
+    expect(JSON.stringify(body)).not.toContain("secret-token-value");
+  });
+
   it("requires an authenticated session with a key binding", async () => {
     resetDevStore();
     resetImageTaskStore();

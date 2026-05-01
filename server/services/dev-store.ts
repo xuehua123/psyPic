@@ -20,8 +20,25 @@ type ImportCodeRecord = {
   apiKeyId: string;
   sub2apiUserId: string;
   baseUrl: string;
+  expiresAt?: string;
+  keyStatus?: "active" | "inactive";
+  quotaRemaining?: number;
+  ownerMatches?: boolean;
+  group?: "OpenAI" | "Other";
   consumedAt?: string;
 };
+
+export type ImportExchangeResult =
+  | {
+      ok: true;
+      bound: ReturnType<typeof createBoundSession>;
+    }
+  | {
+      ok: false;
+      status: number;
+      code: string;
+      message: string;
+    };
 
 type DevStore = {
   users: Map<string, DevUser>;
@@ -56,20 +73,69 @@ export function consumeImportCode(importCode: string) {
   return record;
 }
 
-export function createSessionFromImportCode(importCode: string) {
-  const record = consumeImportCode(importCode);
+export function createSessionFromImportCode(
+  importCode: string
+): ImportExchangeResult {
+  const record = store.importCodes.get(importCode);
 
   if (!record) {
-    return null;
+    return importExchangeError(
+      400,
+      "invalid_import_code",
+      "导入 code 无效或已被消费"
+    );
   }
 
-  return createBoundSession({
+  if (record.consumedAt) {
+    return importExchangeError(
+      400,
+      "invalid_import_code",
+      "导入 code 无效或已被消费"
+    );
+  }
+
+  if (record.expiresAt && new Date(record.expiresAt).getTime() <= Date.now()) {
+    return importExchangeError(400, "import_code_expired", "导入 ticket 已过期");
+  }
+
+  if (record.keyStatus === "inactive") {
+    return importExchangeError(403, "key_inactive", "Sub2API Key 当前不可用");
+  }
+
+  if (record.quotaRemaining !== undefined && record.quotaRemaining <= 0) {
+    return importExchangeError(
+      403,
+      "key_quota_exhausted",
+      "Sub2API Key 额度不足"
+    );
+  }
+
+  if (record.ownerMatches === false) {
+    return importExchangeError(
+      403,
+      "key_owner_mismatch",
+      "Sub2API Key 不属于当前用户"
+    );
+  }
+
+  if (record.group && record.group !== "OpenAI") {
+    return importExchangeError(
+      403,
+      "invalid_key_group",
+      "Sub2API Key 分组不允许调用 OpenAI Images API"
+    );
+  }
+
+  record.consumedAt = new Date().toISOString();
+  const bound = createBoundSession({
     baseUrl: record.baseUrl,
     apiKey: record.apiKey,
     apiKeyId: record.apiKeyId,
     displayName: "Sub2API User",
     sub2apiUserId: record.sub2apiUserId
   });
+
+  return { ok: true, bound };
 }
 
 export function createManualKeySession(input: {
@@ -178,13 +244,55 @@ function createEmptyStore(): DevStore {
   };
 }
 
+function importExchangeError(status: number, code: string, message: string) {
+  return {
+    ok: false as const,
+    status,
+    code,
+    message
+  };
+}
+
 function seedImportCodes() {
-  store.importCodes.set("valid_one_time_code", {
-    code: "valid_one_time_code",
+  const baseRecord = {
     apiKey: createId("devkey"),
     apiKeyId: "sub2api_key_fixture",
     sub2apiUserId: "sub2api_user_fixture",
-    baseUrl: "https://sub2api.example.com/v1"
+    baseUrl: "https://sub2api.example.com/v1",
+    group: "OpenAI" as const,
+    keyStatus: "active" as const,
+    quotaRemaining: 10,
+    ownerMatches: true
+  };
+
+  store.importCodes.set("valid_one_time_code", {
+    ...baseRecord,
+    code: "valid_one_time_code"
+  });
+  store.importCodes.set("expired_import_code", {
+    ...baseRecord,
+    code: "expired_import_code",
+    expiresAt: "2000-01-01T00:00:00.000Z"
+  });
+  store.importCodes.set("inactive_key_code", {
+    ...baseRecord,
+    code: "inactive_key_code",
+    keyStatus: "inactive"
+  });
+  store.importCodes.set("quota_exhausted_code", {
+    ...baseRecord,
+    code: "quota_exhausted_code",
+    quotaRemaining: 0
+  });
+  store.importCodes.set("foreign_user_code", {
+    ...baseRecord,
+    code: "foreign_user_code",
+    ownerMatches: false
+  });
+  store.importCodes.set("non_openai_group_code", {
+    ...baseRecord,
+    code: "non_openai_group_code",
+    group: "Other"
   });
 }
 

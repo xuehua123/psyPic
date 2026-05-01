@@ -35,14 +35,14 @@
 - Test: `tests/api/community-moderation.test.ts`
 - Test: `tests/components/admin-dashboard.test.tsx`
 
-- [ ] Add Prisma models for persisted runtime settings and community moderation fields.
-- [ ] Add failing API tests for admin-only settings read/update.
-- [ ] Add failing API tests for report listing, take-down, restore and feature.
-- [ ] Implement runtime settings service with environment defaults plus persisted override.
-- [ ] Implement admin report listing and moderation actions.
-- [ ] Add admin dashboard page with usage summary, limits, publish toggle, report queue and moderation controls.
-- [ ] Add audit log writes for admin actions.
-- [ ] Run task-level verification and commit.
+- [x] Add Prisma models for persisted runtime settings and community moderation fields.
+- [x] Add failing API tests for admin-only settings read/update.
+- [x] Add failing API tests for report listing, take-down, restore and feature.
+- [x] Implement runtime settings service with environment defaults plus persisted override.
+- [x] Implement admin report listing and moderation actions.
+- [x] Add admin dashboard page with usage summary, limits, publish toggle, report queue and moderation controls.
+- [x] Add audit log writes for admin actions.
+- [x] Run task-level verification and commit.
 
 ## Task 2: V1 社区点赞、收藏、精选和举报体验
 
@@ -57,13 +57,13 @@
 - Test: `tests/components/community-feed.test.tsx`
 - Test: `tests/components/community-work-detail.test.tsx`
 
-- [ ] Add models and dev-store maps for likes/favorites.
-- [ ] Add failing API tests for like/favorite idempotency, ownership and private-work 404.
-- [ ] Expose `like_count`、`favorite_count`、`liked`、`favorited`、`featured_at` in list/detail responses.
-- [ ] Add sorting by latest/popular/featured and tag filtering.
-- [ ] Add feed and detail controls for like/favorite/report/same-generation.
-- [ ] Verify hidden prompt/params stay hidden in detail and same-generation draft.
-- [ ] Run task-level verification and commit.
+- [x] Add models and dev-store maps for likes/favorites.
+- [x] Add failing API tests for like/favorite idempotency, ownership and private-work 404.
+- [x] Expose `like_count`、`favorite_count`、`liked`、`favorited`、`featured_at` in list/detail responses.
+- [x] Add sorting by latest/popular/featured and tag filtering.
+- [x] Add feed and detail controls for like/favorite/report/same-generation.
+- [x] Verify hidden prompt/params stay hidden in detail and same-generation draft.
+- [x] Run task-level verification and commit.
 
 ## Task 3: 任务队列和批量工作流
 
@@ -80,12 +80,12 @@
 - Test: `tests/api/batches.test.ts`
 - Test: `tests/components/batch-workflow.test.tsx`
 
-- [ ] Add queue states and image batch models.
-- [ ] Add failing tests for enqueue, active limit, queued cancellation, timeout and retry.
-- [ ] Implement in-process queue service with clear Redis/DB-backed replacement boundary.
-- [ ] Add batch prompt, CSV import, multi-size expansion and retry endpoints.
-- [ ] Add creator batch workflow UI with progress, per-item failure and retry.
-- [ ] Run task-level verification and commit.
+- [x] Add queue states and image batch models.
+- [x] Add failing tests for enqueue, active limit, queued cancellation, timeout and retry.
+- [x] Implement in-process queue service with clear Redis/DB-backed replacement boundary.
+- [x] Add batch prompt, CSV import, multi-size expansion and retry endpoints.
+- [x] Add creator batch workflow UI with progress, per-item failure and retry.
+- [x] Run task-level verification and commit.
 
 ## Task 4: 多参考图和参数边界
 
@@ -98,11 +98,11 @@
 - Test: `tests/api/image-edits.test.ts`
 - Test: `tests/components/reference-uploader.test.tsx`
 
-- [ ] Add failing tests for multiple references and per-file validation.
-- [ ] Add failing tests for JPEG/WebP compression, custom size normalization and max dimension.
-- [ ] Implement multi-reference multipart forwarding.
-- [ ] Update uploader UI with ordered references and removal controls.
-- [ ] Run task-level verification and commit.
+- [x] Add failing tests for multiple references and per-file validation.
+- [x] Add failing tests for JPEG/WebP compression, custom size normalization and max dimension.
+- [x] Implement multi-reference multipart forwarding.
+- [x] Update uploader UI with ordered references and removal controls.
+- [x] Run task-level verification and commit.
 
 ## Task 5: E2E、移动端和封板文档
 
@@ -115,9 +115,9 @@
 - Modify: `docs/07-验收清单.md`
 - Modify: `docs/17-测试与验收用例.md`
 
-- [ ] Fix Playwright execution path on Windows/Codex environment.
-- [ ] Cover import, manual key, generation, edit, mask, stream, library, community publish, same-generation, report and admin flows.
-- [ ] Add mobile viewport coverage for creator, library, community and admin.
-- [ ] Add deployment, storage, rollback and production environment docs.
-- [ ] Run DB migration validation, security scan and build.
-- [ ] Run final full regression, tag `v1.0` after user approval.
+- [x] Fix Playwright execution path on Windows/Codex environment.
+- [x] Cover import, manual key, generation, edit, mask, stream, library, community publish, same-generation, report and admin flows.
+- [x] Add mobile viewport coverage for creator, library, community and admin.
+- [x] Add deployment, storage, rollback and production environment docs.
+- [x] Run DB migration validation, security scan and build.
+- [x] Run final full regression, tag `v1.0` after user approval.
