@@ -36,7 +36,9 @@ export async function GET(request: Request) {
   const works = listPublicCommunityWorks({
     cursor: url.searchParams.get("cursor"),
     limit,
-    scene: url.searchParams.get("scene")
+    scene: url.searchParams.get("scene"),
+    tag: url.searchParams.get("tag"),
+    sort: url.searchParams.get("sort")
   });
 
   return jsonOk(

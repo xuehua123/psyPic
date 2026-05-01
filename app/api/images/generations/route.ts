@@ -1,6 +1,7 @@
 import { parseGenerationParams } from "@/lib/validation/image-params";
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
 import { getKeyBinding, getSession } from "@/server/services/dev-store";
+import { recordAuditLog } from "@/server/services/audit-log-service";
 import { decryptKeyBindingSecret } from "@/server/services/key-binding-service";
 import {
   createImageTask,
@@ -128,6 +129,18 @@ export async function POST(request: Request) {
       durationMs,
       upstreamRequestId: upstream.upstreamRequestId
     });
+    recordAuditLog({
+      actorUserId: session.user_id,
+      action: "image_generation.succeeded",
+      targetType: "image_task",
+      targetId: task.id,
+      requestId,
+      metadata: {
+        upstream_request_id: upstream.upstreamRequestId,
+        image_count: images.length,
+        usage: upstream.usage
+      }
+    });
 
     return jsonOk(
       {
@@ -149,6 +162,18 @@ export async function POST(request: Request) {
         durationMs: Date.now() - startedAt,
         upstreamRequestId: error.upstreamRequestId
       });
+      recordAuditLog({
+        actorUserId: session.user_id,
+        action: "image_generation.failed",
+        targetType: "image_task",
+        targetId: task.id,
+        requestId,
+        metadata: {
+          upstream_request_id: error.upstreamRequestId,
+          code: error.code,
+          message: error.message
+        }
+      });
 
       return jsonError({
         status: error.status,
@@ -163,6 +188,17 @@ export async function POST(request: Request) {
       code: "upstream_error",
       message: "图片生成失败",
       durationMs: Date.now() - startedAt
+    });
+    recordAuditLog({
+      actorUserId: session.user_id,
+      action: "image_generation.failed",
+      targetType: "image_task",
+      targetId: task.id,
+      requestId,
+      metadata: {
+        code: "upstream_error",
+        message: "图片生成失败"
+      }
     });
 
     return jsonError({

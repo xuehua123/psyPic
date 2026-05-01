@@ -2,7 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import { POST as createCommunityWork } from "@/app/api/community/works/route";
 import { GET as getCommunityWork } from "@/app/api/community/works/[workId]/route";
 import { POST as createCommunityReport } from "@/app/api/community/reports/route";
+import { GET as listCommunityReports } from "@/app/api/admin/community/reports/route";
+import { POST as featureCommunityWork } from "@/app/api/admin/community/works/[workId]/feature/route";
+import { POST as restoreCommunityWork } from "@/app/api/admin/community/works/[workId]/restore/route";
 import { POST as takeDownCommunityWork } from "@/app/api/admin/community/works/[workId]/take-down/route";
+import { GET as listCommunityWorks } from "@/app/api/community/works/route";
 import { POST as generateImage } from "@/app/api/images/generations/route";
 import { POST as exchangeImportCode } from "@/app/api/import/exchange/route";
 import { POST as saveManualKey } from "@/app/api/settings/manual-key/route";
@@ -225,5 +229,115 @@ describe("Community moderation API", () => {
     expect(takeDownBody.data.review_status).toBe("taken_down");
     expect(detailResponse.status).toBe(404);
     expect(detailBody.error.code).toBe("not_found");
+  });
+
+  it("lists open reports for admins with community work context", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    resetImageLibraryStore();
+    resetCommunityWorkStore();
+    resetCommunityReportStore();
+    await resetTempAssetStore();
+    const { workId } = await seedPublicWork();
+    const reporterCookie = await bindManualSession();
+    await createCommunityReport(
+      new Request("http://localhost/api/community/reports", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: reporterCookie
+        },
+        body: JSON.stringify({
+          work_id: workId,
+          reason: "spam",
+          details: "疑似低质刷屏。"
+        })
+      })
+    );
+    const admin = createAdminSessionForDev();
+    const adminCookie = `psypic_session=${admin.session.id}`;
+
+    const response = await listCommunityReports(
+      new Request("http://localhost/api/admin/community/reports?status=open", {
+        headers: { cookie: adminCookie }
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.data.items).toHaveLength(1);
+    expect(body.data.items[0]).toMatchObject({
+      work_id: workId,
+      reason: "spam",
+      status: "open",
+      work: {
+        work_id: workId,
+        title: "可举报公开作品",
+        review_status: "approved"
+      }
+    });
+  });
+
+  it("lets admins restore taken-down works and mark works as featured", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    resetImageLibraryStore();
+    resetCommunityWorkStore();
+    resetCommunityReportStore();
+    await resetTempAssetStore();
+    const { workId } = await seedPublicWork();
+    const admin = createAdminSessionForDev();
+    const adminCookie = `psypic_session=${admin.session.id}`;
+
+    await takeDownCommunityWork(
+      new Request(
+        `http://localhost/api/admin/community/works/${workId}/take-down`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie: adminCookie
+          },
+          body: JSON.stringify({ reason: "review" })
+        }
+      ),
+      { params: Promise.resolve({ workId }) }
+    );
+    const restoreResponse = await restoreCommunityWork(
+      new Request(`http://localhost/api/admin/community/works/${workId}/restore`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: adminCookie
+        },
+        body: JSON.stringify({ reason: "appeal accepted" })
+      }),
+      { params: Promise.resolve({ workId }) }
+    );
+    const featureResponse = await featureCommunityWork(
+      new Request(`http://localhost/api/admin/community/works/${workId}/feature`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: adminCookie
+        },
+        body: JSON.stringify({ featured: true })
+      }),
+      { params: Promise.resolve({ workId }) }
+    );
+    const featureBody = await featureResponse.json();
+    const listResponse = await listCommunityWorks(
+      new Request("http://localhost/api/community/works?sort=featured")
+    );
+    const listBody = await listResponse.json();
+
+    expect(restoreResponse.status).toBe(200);
+    expect(featureResponse.status).toBe(200);
+    expect(featureBody.data.review_status).toBe("approved");
+    expect(featureBody.data.featured_at).toEqual(expect.any(String));
+    expect(listBody.data.items[0]).toMatchObject({
+      work_id: workId,
+      featured: true
+    });
   });
 });

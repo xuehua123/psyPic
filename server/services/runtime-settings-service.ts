@@ -12,6 +12,16 @@ export type RuntimeSettings = {
   stream_enabled: boolean;
 };
 
+type RuntimeSettingsRecord = {
+  settings: RuntimeSettings;
+  updated_by_user_id: string;
+  updated_at: string;
+};
+
+declare global {
+  var __psypicRuntimeSettingsRecord: RuntimeSettingsRecord | undefined;
+}
+
 const defaultRuntimeSettings: RuntimeSettings = {
   max_n: 4,
   max_upload_mb: 20,
@@ -23,6 +33,40 @@ const defaultRuntimeSettings: RuntimeSettings = {
 };
 
 export function getRuntimeSettings(): RuntimeSettings {
+  return globalThis.__psypicRuntimeSettingsRecord?.settings ?? readEnvSettings();
+}
+
+export function getRuntimeSettingsSnapshot() {
+  const record = globalThis.__psypicRuntimeSettingsRecord;
+
+  return {
+    settings: getRuntimeSettings(),
+    source: record ? ("persisted" as const) : ("environment" as const),
+    updated_by_user_id: record?.updated_by_user_id ?? null,
+    updated_at: record?.updated_at ?? null
+  };
+}
+
+export function updateRuntimeSettings(
+  patch: RuntimeSettings,
+  input: { updatedByUserId: string }
+) {
+  const now = new Date().toISOString();
+  const record: RuntimeSettingsRecord = {
+    settings: patch,
+    updated_by_user_id: input.updatedByUserId,
+    updated_at: now
+  };
+  globalThis.__psypicRuntimeSettingsRecord = record;
+
+  return getRuntimeSettingsSnapshot();
+}
+
+export function resetRuntimeSettingsStore() {
+  globalThis.__psypicRuntimeSettingsRecord = undefined;
+}
+
+function readEnvSettings(): RuntimeSettings {
   return {
     max_n: readPositiveIntEnv("PSYPIC_MAX_IMAGE_N", defaultRuntimeSettings.max_n),
     max_upload_mb: readPositiveIntEnv(

@@ -1,7 +1,7 @@
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
 import { resolveAdminUser } from "@/server/services/admin-auth-service";
 import { recordAuditLog } from "@/server/services/audit-log-service";
-import { takeDownCommunityWork } from "@/server/services/community-service";
+import { restoreCommunityWork } from "@/server/services/community-service";
 
 export async function POST(
   request: Request,
@@ -10,22 +10,8 @@ export async function POST(
   const requestId = createRequestId();
   const admin = resolveAdminUser(request);
 
-  if (admin.status === "unauthorized") {
-    return jsonError({
-      status: 401,
-      code: "unauthorized",
-      message: "请先登录管理员账号",
-      requestId
-    });
-  }
-
-  if (admin.status === "forbidden") {
-    return jsonError({
-      status: 403,
-      code: "forbidden",
-      message: "需要管理员权限",
-      requestId
-    });
+  if (admin.status !== "ok") {
+    return adminError(admin.status, requestId);
   }
 
   const body = await request.json().catch(() => ({}));
@@ -34,7 +20,7 @@ export async function POST(
       ? String((body as Record<string, unknown>).reason ?? "").trim()
       : "";
   const { workId } = await context.params;
-  const work = takeDownCommunityWork(workId, {
+  const work = restoreCommunityWork(workId, {
     reviewerUserId: admin.user.id,
     reason
   });
@@ -50,7 +36,7 @@ export async function POST(
 
   recordAuditLog({
     actorUserId: admin.user.id,
-    action: "community_work.take_down",
+    action: "community_work.restore",
     targetType: "community_work",
     targetId: workId,
     requestId,
@@ -58,4 +44,13 @@ export async function POST(
   });
 
   return jsonOk(work, requestId);
+}
+
+function adminError(status: "unauthorized" | "forbidden", requestId: string) {
+  return jsonError({
+    status: status === "unauthorized" ? 401 : 403,
+    code: status,
+    message: status === "unauthorized" ? "请先登录管理员账号" : "需要管理员权限",
+    requestId
+  });
 }

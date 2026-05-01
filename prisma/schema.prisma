@@ -67,6 +67,9 @@ model User {
   communityWorks CommunityWork[]
   communityReports CommunityReport[] @relation("CommunityReportsMade")
   reviewedCommunityReports CommunityReport[] @relation("CommunityReportsReviewed")
+  runtimeSettingsUpdated RuntimeSetting[] @relation("RuntimeSettingsUpdatedBy")
+  communityWorkLikes CommunityWorkLike[]
+  communityWorkFavorites CommunityWorkFavorite[]
 
   @@map("users")
 }
@@ -126,6 +129,17 @@ model AuditLog {
   @@index([requestId])
   @@index([targetType, targetId])
   @@map("audit_logs")
+}
+
+model RuntimeSetting {
+  key             String   @id
+  value           Json
+  updatedByUserId String?  @map("updated_by_user_id")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  updatedBy       User?    @relation("RuntimeSettingsUpdatedBy", fields: [updatedByUserId], references: [id])
+
+  @@index([updatedByUserId])
+  @@map("runtime_settings")
 }
 
 model ImageTask {
@@ -244,16 +258,20 @@ model CommunityWork {
   allowReferenceReuse     Boolean                   @default(false) @map("allow_reference_reuse")
   publishedAt             DateTime?                 @map("published_at")
   takenDownAt             DateTime?                 @map("taken_down_at")
+  featuredAt              DateTime?                 @map("featured_at")
   createdAt               DateTime                  @default(now()) @map("created_at")
   updatedAt               DateTime                  @updatedAt @map("updated_at")
   user                    User                      @relation(fields: [userId], references: [id])
   task                    ImageTask                 @relation(fields: [taskId], references: [id])
   asset                   ImageAsset                @relation(fields: [assetId], references: [id])
   reports                 CommunityReport[]
+  likes                   CommunityWorkLike[]
+  favorites               CommunityWorkFavorite[]
 
   @@index([userId, createdAt])
   @@index([assetId])
   @@index([visibility, reviewStatus, createdAt])
+  @@index([visibility, reviewStatus, featuredAt])
   @@map("community_works")
 }
 
@@ -276,4 +294,30 @@ model CommunityReport {
   @@index([reporterUserId, createdAt])
   @@index([reviewerUserId])
   @@map("community_reports")
+}
+
+model CommunityWorkLike {
+  id        String        @id
+  workId    String        @map("work_id")
+  userId    String        @map("user_id")
+  createdAt DateTime      @default(now()) @map("created_at")
+  work      CommunityWork @relation(fields: [workId], references: [id])
+  user      User          @relation(fields: [userId], references: [id])
+
+  @@unique([workId, userId])
+  @@index([userId, createdAt])
+  @@map("community_work_likes")
+}
+
+model CommunityWorkFavorite {
+  id        String        @id
+  workId    String        @map("work_id")
+  userId    String        @map("user_id")
+  createdAt DateTime      @default(now()) @map("created_at")
+  work      CommunityWork @relation(fields: [workId], references: [id])
+  user      User          @relation(fields: [userId], references: [id])
+
+  @@unique([workId, userId])
+  @@index([userId, createdAt])
+  @@map("community_work_favorites")
 }
