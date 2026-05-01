@@ -16,6 +16,14 @@ describe("CommunityWorkDetailPage", () => {
           image_url: "/api/assets/asset_detail_123",
           thumbnail_url: "/api/assets/asset_detail_123",
           same_generation_available: true,
+          like_count: 2,
+          favorite_count: 1,
+          liked: false,
+          favorited: false,
+          featured: false,
+          disclose_prompt: true,
+          disclose_params: false,
+          disclose_reference_images: false,
           prompt: "Create a premium product photo.",
           created_at: "2026-05-01T00:00:00.000Z"
         }}
@@ -31,6 +39,8 @@ describe("CommunityWorkDetailPage", () => {
       "href",
       "/community"
     );
+    expect(screen.getByRole("button", { name: "点赞 2" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "收藏 1" })).toBeInTheDocument();
   });
 
   it("renders an unavailable state when the work cannot be viewed", () => {
@@ -69,6 +79,14 @@ describe("CommunityWorkDetailPage", () => {
           image_url: "/api/assets/asset_detail_123",
           thumbnail_url: "/api/assets/asset_detail_123",
           same_generation_available: true,
+          like_count: 0,
+          favorite_count: 0,
+          liked: false,
+          favorited: false,
+          featured: false,
+          disclose_prompt: false,
+          disclose_params: false,
+          disclose_reference_images: false,
           created_at: "2026-05-01T00:00:00.000Z"
         }}
       />
@@ -86,5 +104,56 @@ describe("CommunityWorkDetailPage", () => {
       "/api/community/works/work_same_123/same",
       { method: "POST" }
     );
+  });
+
+  it("submits reports from the detail page", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            report_id: "report_detail_123",
+            status: "open"
+          }
+        }),
+        { status: 200, headers: { "content-type": "application/json" } }
+      )
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    render(
+      <CommunityWorkDetailPage
+        work={{
+          work_id: "work_report_123",
+          title: "可举报作品",
+          scene: "ecommerce",
+          tags: ["电商主图"],
+          image_url: "/api/assets/asset_report_123",
+          thumbnail_url: "/api/assets/asset_report_123",
+          same_generation_available: false,
+          like_count: 0,
+          favorite_count: 0,
+          liked: false,
+          favorited: false,
+          featured: false,
+          disclose_prompt: false,
+          disclose_params: false,
+          disclose_reference_images: false,
+          created_at: "2026-05-01T00:00:00.000Z"
+        }}
+      />
+    );
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "举报作品" }));
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/community/reports",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: expect.stringContaining('"work_id":"work_report_123"')
+      })
+    );
+    expect(await screen.findByText("已提交举报")).toBeInTheDocument();
   });
 });

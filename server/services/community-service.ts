@@ -52,6 +52,13 @@ type CommunityReport = {
   updated_at: string;
 };
 
+type CommunityInteraction = {
+  id: string;
+  work_id: string;
+  user_id: string;
+  created_at: string;
+};
+
 export type CreateCommunityWorkInput = {
   taskId: string;
   assetId: string;
@@ -69,6 +76,8 @@ export type CreateCommunityWorkInput = {
 declare global {
   var __psypicCommunityWorks: Map<string, CommunityWork> | undefined;
   var __psypicCommunityReports: Map<string, CommunityReport> | undefined;
+  var __psypicCommunityLikes: Map<string, CommunityInteraction> | undefined;
+  var __psypicCommunityFavorites: Map<string, CommunityInteraction> | undefined;
 }
 
 const communityWorks =
@@ -77,13 +86,25 @@ globalThis.__psypicCommunityWorks = communityWorks;
 const communityReports =
   globalThis.__psypicCommunityReports ?? new Map<string, CommunityReport>();
 globalThis.__psypicCommunityReports = communityReports;
+const communityLikes =
+  globalThis.__psypicCommunityLikes ?? new Map<string, CommunityInteraction>();
+globalThis.__psypicCommunityLikes = communityLikes;
+const communityFavorites =
+  globalThis.__psypicCommunityFavorites ?? new Map<string, CommunityInteraction>();
+globalThis.__psypicCommunityFavorites = communityFavorites;
 
 export function resetCommunityWorkStore() {
   communityWorks.clear();
+  resetCommunityInteractionStore();
 }
 
 export function resetCommunityReportStore() {
   communityReports.clear();
+}
+
+export function resetCommunityInteractionStore() {
+  communityLikes.clear();
+  communityFavorites.clear();
 }
 
 export function createCommunityWorkForUser(
@@ -138,7 +159,7 @@ export function getCommunityWorkForViewer(
     return null;
   }
 
-  return serializeCommunityWork(work, { detail: true });
+  return serializeCommunityWork(work, { detail: true, viewerUserId });
 }
 
 export function listPublicCommunityWorks(input?: {
@@ -147,6 +168,7 @@ export function listPublicCommunityWorks(input?: {
   scene?: string | null;
   tag?: string | null;
   sort?: string | null;
+  viewerUserId?: string | null;
 }) {
   const limit = clampCommunityLimit(input?.limit);
   const scene = input?.scene?.trim();
@@ -170,9 +192,47 @@ export function listPublicCommunityWorks(input?: {
   const hasNextPage = works.length > safeStartIndex + page.length;
 
   return {
-    items: page.map((work) => serializeCommunityWork(work)),
+    items: page.map((work) =>
+      serializeCommunityWork(work, { viewerUserId: input?.viewerUserId ?? null })
+    ),
     nextCursor: hasNextPage ? page.at(-1)?.id ?? null : null
   };
+}
+
+export function setCommunityWorkInteractionForUser(
+  userId: string,
+  workId: string,
+  input: {
+    type: "like" | "favorite";
+    enabled: boolean;
+  }
+) {
+  const work = communityWorks.get(workId);
+
+  if (!work || !canViewCommunityWork(work, userId)) {
+    return null;
+  }
+
+  const store = input.type === "like" ? communityLikes : communityFavorites;
+  const key = buildInteractionKey(workId, userId);
+
+  if (input.enabled && !store.has(key)) {
+    store.set(key, {
+      id: createId(input.type === "like" ? "like" : "fav"),
+      work_id: workId,
+      user_id: userId,
+      created_at: new Date().toISOString()
+    });
+  }
+
+  if (!input.enabled) {
+    store.delete(key);
+  }
+
+  return serializeCommunityWork(work, {
+    detail: true,
+    viewerUserId: userId
+  });
 }
 
 export function createCommunitySameGenerationDraft(
@@ -364,8 +424,10 @@ export function listCommunityReportsForAdmin(input?: {
 
 function serializeCommunityWork(
   work: CommunityWork,
-  options?: { detail?: boolean }
+  options?: { detail?: boolean; viewerUserId?: string | null }
 ) {
+  const viewerUserId = options?.viewerUserId ?? null;
+
   return {
     work_id: work.id,
     task_id: work.task_id,
@@ -387,6 +449,14 @@ function serializeCommunityWork(
     taken_down_at: work.taken_down_at,
     featured_at: work.featured_at,
     featured: Boolean(work.featured_at),
+    like_count: countInteractionsForWork(communityLikes, work.id),
+    favorite_count: countInteractionsForWork(communityFavorites, work.id),
+    liked: viewerUserId
+      ? communityLikes.has(buildInteractionKey(work.id, viewerUserId))
+      : false,
+    favorited: viewerUserId
+      ? communityFavorites.has(buildInteractionKey(work.id, viewerUserId))
+      : false,
     created_at: work.created_at,
     updated_at: work.updated_at,
     ...(options?.detail && work.disclose_prompt
@@ -415,7 +485,32 @@ function compareCommunityWorks(
     }
   }
 
+  if (sort === "popular") {
+    const rightScore =
+      countInteractionsForWork(communityLikes, right.id) * 2 +
+      countInteractionsForWork(communityFavorites, right.id);
+    const leftScore =
+      countInteractionsForWork(communityLikes, left.id) * 2 +
+      countInteractionsForWork(communityFavorites, left.id);
+
+    if (rightScore !== leftScore) {
+      return rightScore - leftScore;
+    }
+  }
+
   return right.created_at.localeCompare(left.created_at);
+}
+
+function countInteractionsForWork(
+  store: Map<string, CommunityInteraction>,
+  workId: string
+) {
+  return Array.from(store.values()).filter((item) => item.work_id === workId)
+    .length;
+}
+
+function buildInteractionKey(workId: string, userId: string) {
+  return `${workId}:${userId}`;
 }
 
 function serializeCommunityReport(report: CommunityReport) {

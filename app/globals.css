@@ -893,6 +893,21 @@ a {
   white-space: nowrap;
 }
 
+.community-card-badges {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.community-card-badges span,
+.template-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .community-empty {
   max-width: 1180px;
   margin: 0 auto;

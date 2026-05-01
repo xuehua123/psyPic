@@ -1,4 +1,8 @@
+"use client";
+
 import Link from "next/link";
+import { Bookmark, Heart, Star } from "lucide-react";
+import { useState } from "react";
 
 export type CommunityFeedItem = {
   work_id: string;
@@ -8,6 +12,11 @@ export type CommunityFeedItem = {
   image_url: string;
   thumbnail_url: string;
   same_generation_available: boolean;
+  like_count: number;
+  favorite_count: number;
+  liked: boolean;
+  favorited: boolean;
+  featured: boolean;
   created_at: string;
 };
 
@@ -16,6 +25,8 @@ export default function CommunityFeedPage({
 }: {
   works: CommunityFeedItem[];
 }) {
+  const [items, setItems] = useState(works);
+
   return (
     <main className="community-shell">
       <header className="community-header">
@@ -35,13 +46,21 @@ export default function CommunityFeedPage({
         </section>
       ) : (
         <section className="community-grid" aria-label="公开作品">
-          {works.map((work) => (
+          {items.map((work) => (
             <article className="community-work-card" key={work.work_id}>
               <img alt={work.title} src={work.thumbnail_url || work.image_url} />
               <div className="community-work-body">
                 <div className="community-work-title-row">
                   <h2>{work.title}</h2>
-                  {work.scene ? <span>{work.scene}</span> : null}
+                  <div className="community-card-badges">
+                    {work.featured ? (
+                      <span>
+                        <Star size={12} aria-hidden="true" />
+                        精选
+                      </span>
+                    ) : null}
+                    {work.scene ? <span>{work.scene}</span> : null}
+                  </div>
                 </div>
                 {work.tags.length > 0 ? (
                   <div className="tag-list">
@@ -57,6 +76,24 @@ export default function CommunityFeedPage({
                   >
                     查看作品
                   </Link>
+                  <button
+                    className="secondary-button"
+                    onClick={() => void toggleInteraction(work.work_id, "like")}
+                    type="button"
+                  >
+                    <Heart size={15} aria-hidden="true" />
+                    {work.liked ? "已点赞" : "点赞"} {work.like_count}
+                  </button>
+                  <button
+                    className="secondary-button"
+                    onClick={() =>
+                      void toggleInteraction(work.work_id, "favorite")
+                    }
+                    type="button"
+                  >
+                    <Bookmark size={15} aria-hidden="true" />
+                    {work.favorited ? "已收藏" : "收藏"} {work.favorite_count}
+                  </button>
                   {work.same_generation_available ? (
                     <span className="template-pill">可同款</span>
                   ) : null}
@@ -68,4 +105,41 @@ export default function CommunityFeedPage({
       )}
     </main>
   );
+
+  async function toggleInteraction(
+    workId: string,
+    type: "like" | "favorite"
+  ) {
+    const current = items.find((item) => item.work_id === workId);
+
+    if (!current) {
+      return;
+    }
+
+    const enabled = type === "like" ? current.liked : current.favorited;
+    const response = await fetch(`/api/community/works/${workId}/${type}`, {
+      method: enabled ? "DELETE" : "POST"
+    });
+    const body = (await response.json().catch(() => ({}))) as {
+      data?: Partial<CommunityFeedItem>;
+    };
+
+    if (!response.ok || !body.data) {
+      return;
+    }
+
+    setItems((previous) =>
+      previous.map((item) =>
+        item.work_id === workId
+          ? {
+              ...item,
+              like_count: body.data?.like_count ?? item.like_count,
+              favorite_count: body.data?.favorite_count ?? item.favorite_count,
+              liked: body.data?.liked ?? item.liked,
+              favorited: body.data?.favorited ?? item.favorited
+            }
+          : item
+      )
+    );
+  }
 }
