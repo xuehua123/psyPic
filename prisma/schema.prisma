@@ -61,6 +61,7 @@ model User {
   keyBindings   KeyBinding[]
   auditLogs     AuditLog[]
   imageTasks    ImageTask[]
+  imageBatches  ImageBatch[]
   imageAssets   ImageAsset[]
   imageAssetTags ImageAssetTag[]
   albums        Album[]
@@ -161,11 +162,48 @@ model ImageTask {
   keyBinding        KeyBinding?      @relation(fields: [keyBindingId], references: [id])
   assets            ImageAsset[]
   communityWorks    CommunityWork[]
+  batchItems        ImageBatchItem[]
 
   @@index([userId, createdAt])
   @@index([keyBindingId])
   @@index([status])
   @@map("image_tasks")
+}
+
+model ImageBatch {
+  id        String           @id
+  userId    String           @map("user_id")
+  status    String
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+  user      User             @relation(fields: [userId], references: [id])
+  items     ImageBatchItem[]
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("image_batches")
+}
+
+model ImageBatchItem {
+  id          String          @id
+  batchId     String          @map("batch_id")
+  taskId      String          @map("task_id")
+  prompt      String
+  params      Json
+  size        String
+  status      ImageTaskStatus
+  queueStatus String          @map("queue_status")
+  retryCount  Int             @default(0) @map("retry_count")
+  errorCode   String?         @map("error_code")
+  errorMessage String?        @map("error_message")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  batch       ImageBatch      @relation(fields: [batchId], references: [id])
+  task        ImageTask       @relation(fields: [taskId], references: [id])
+
+  @@index([batchId, status])
+  @@index([taskId])
+  @@map("image_batch_items")
 }
 
 model ImageAsset {

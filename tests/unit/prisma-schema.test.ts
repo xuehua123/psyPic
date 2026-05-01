@@ -68,4 +68,14 @@ describe("Prisma v0.2 data model", () => {
     expect(schema).toContain("model CommunityWorkFavorite");
     expect(schema).toContain("@@unique([workId, userId])");
   });
+
+  it("defines V1 batch and queue persistence models", () => {
+    const schema = readFileSync("prisma/schema.prisma", "utf8");
+
+    expect(schema).toContain("model ImageBatch");
+    expect(schema).toContain("model ImageBatchItem");
+    expect(schema).toContain("batchItems");
+    expect(schema).toContain("retryCount");
+    expect(schema).toContain("queueStatus");
+  });
 });

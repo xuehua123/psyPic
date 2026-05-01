@@ -809,6 +809,48 @@ a {
   width: 100%;
 }
 
+.batch-panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.batch-textarea {
+  min-height: 92px;
+}
+
+.batch-result {
+  display: grid;
+  gap: 9px;
+}
+
+.batch-item-list {
+  display: grid;
+  gap: 8px;
+}
+
+.batch-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-muted);
+  padding: 9px;
+}
+
+.batch-item strong,
+.batch-item span {
+  overflow-wrap: anywhere;
+}
+
+.batch-item span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .library-detail-shell {
   min-height: 100vh;
   background: var(--bg);

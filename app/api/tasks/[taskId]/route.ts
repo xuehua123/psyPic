@@ -5,6 +5,7 @@ import {
   getImageTaskForUser,
   serializeImageTask
 } from "@/server/services/image-task-service";
+import { cancelImageJobForTask } from "@/server/services/image-job-queue-service";
 import { readSessionIdFromRequest } from "@/server/services/session-service";
 
 export async function GET(
@@ -65,6 +66,8 @@ export async function POST(
       requestId
     });
   }
+
+  cancelImageJobForTask(task.id, session.user_id);
 
   return jsonOk(serializeImageTask(task), requestId);
 }

@@ -51,6 +51,7 @@ import {
   imageGenerationDefaults,
   type ImageGenerationParams
 } from "@/lib/validation/image-params";
+import BatchWorkflowPanel from "@/components/creator/BatchWorkflowPanel";
 
 const qualityOptions = [
   { label: "自动", value: "auto" },
@@ -2092,6 +2093,8 @@ export default function CreatorWorkspace() {
             </div>
           </div>
           <div className="panel-body history-list">
+            <BatchWorkflowPanel defaultSize={size} />
+
             <div className="library-toolbar">
               <label className="checkbox-row">
                 <input
