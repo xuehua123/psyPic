@@ -59,7 +59,7 @@ export function enqueueImageJob(input: {
   imageJobs.set(job.id, job);
 
   if (status === "running") {
-    markImageTaskRunning(input.taskId);
+    void markImageTaskRunning(input.taskId);
   }
 
   return serializeImageJob(job);
@@ -111,7 +111,7 @@ export function startImageJobForTask(taskId: string, userId: string) {
     updated_at: now
   };
   imageJobs.set(job.id, updated);
-  markImageTaskRunning(taskId);
+  void markImageTaskRunning(taskId);
 
   return serializeImageJob(updated);
 }
@@ -147,7 +147,7 @@ export function expireStaleImageJobs(input: {
       updated_at: input.now
     };
     imageJobs.set(job.id, updated);
-    markImageTaskFailed(job.task_id, {
+    void markImageTaskFailed(job.task_id, {
       code: "timeout",
       message: "图片任务队列执行超时",
       durationMs: input.timeoutMs

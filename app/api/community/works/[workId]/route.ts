@@ -11,7 +11,7 @@ export async function GET(
   const sessionId = readSessionIdFromRequest(request);
   const session = sessionId ? getSession(sessionId) : null;
   const { workId } = await context.params;
-  const work = getCommunityWorkForViewer(workId, session?.user_id ?? null);
+  const work = await getCommunityWorkForViewer(workId, session?.user_id ?? null);
 
   if (!work) {
     return jsonError({

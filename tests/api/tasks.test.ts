@@ -104,7 +104,7 @@ describe("GET/POST /api/tasks/{taskId}", () => {
       throw new Error("expected test session");
     }
 
-    const task = createImageTask({
+    const task = await createImageTask({
       userId: session.user_id,
       keyBindingId: session.key_binding_id,
       type: "generation",

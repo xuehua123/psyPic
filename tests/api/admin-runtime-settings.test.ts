@@ -277,6 +277,71 @@ describe("Admin runtime settings API", () => {
     }
   });
 
+  it("writes database runtime settings without local file persistence in database mode", async () => {
+    resetDevStore();
+    resetRuntimeSettingsStore();
+    resetAuditLogStore();
+    const previousStoreMode = process.env.PSYPIC_RUNTIME_SETTINGS_STORE;
+    const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue("bad\u0000path");
+    const row: RuntimeSettingRow = {
+      key: "global",
+      value: {},
+      updatedByUserId: null,
+      updatedAt: new Date("2026-05-02T00:00:00.000Z")
+    };
+    const upsert = vi.fn().mockResolvedValue(row);
+    const prismaClient = {
+      runtimeSetting: {
+        upsert,
+        findUnique: vi.fn().mockResolvedValue(null)
+      }
+    };
+    (
+      globalThis as typeof globalThis & {
+        __psypicRuntimeSettingsPrismaClient?: typeof prismaClient;
+      }
+    ).__psypicRuntimeSettingsPrismaClient = prismaClient;
+    process.env.PSYPIC_RUNTIME_SETTINGS_STORE = "database";
+
+    try {
+      const cookie = adminCookie();
+      const response = await updateRuntimeSettings(
+        new Request("http://localhost/api/admin/runtime-settings", {
+          method: "PATCH",
+          headers: {
+            "content-type": "application/json",
+            cookie
+          },
+          body: JSON.stringify({
+            max_n: 5,
+            max_upload_mb: 16,
+            max_size_tier: "4K",
+            allow_moderation_low: true,
+            community_enabled: true,
+            public_publish_enabled: false,
+            stream_enabled: false
+          })
+        })
+      );
+
+      expect(response.status).toBe(200);
+      expect(upsert).toHaveBeenCalled();
+    } finally {
+      cwdSpy.mockRestore();
+      resetRuntimeSettingsStore();
+      delete (
+        globalThis as typeof globalThis & {
+          __psypicRuntimeSettingsPrismaClient?: unknown;
+        }
+      ).__psypicRuntimeSettingsPrismaClient;
+      if (previousStoreMode) {
+        process.env.PSYPIC_RUNTIME_SETTINGS_STORE = previousStoreMode;
+      } else {
+        delete process.env.PSYPIC_RUNTIME_SETTINGS_STORE;
+      }
+    }
+  });
+
   it("records and lists redacted audit logs for admin actions", async () => {
     resetDevStore();
     const previousAuditPath = process.env.PSYPIC_AUDIT_LOG_FILE;
@@ -455,6 +520,69 @@ describe("Admin runtime settings API", () => {
       if (existsSync(auditPath)) {
         rmSync(auditPath, { force: true });
       }
+      delete (
+        globalThis as typeof globalThis & {
+          __psypicAuditPrismaClient?: unknown;
+        }
+      ).__psypicAuditPrismaClient;
+      if (previousAuditStore) {
+        process.env.PSYPIC_AUDIT_LOG_STORE = previousAuditStore;
+      } else {
+        delete process.env.PSYPIC_AUDIT_LOG_STORE;
+      }
+      if (previousAuditPath) {
+        process.env.PSYPIC_AUDIT_LOG_FILE = previousAuditPath;
+      } else {
+        delete process.env.PSYPIC_AUDIT_LOG_FILE;
+      }
+    }
+  });
+
+  it("does not fail when database audit logging falls back to an unwritable file store", async () => {
+    resetDevStore();
+    const previousAuditStore = process.env.PSYPIC_AUDIT_LOG_STORE;
+    const previousAuditPath = process.env.PSYPIC_AUDIT_LOG_FILE;
+    const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue("bad\u0000path");
+    const auditFileName = `psypic-audit-fallback-${randomUUID()}.json`;
+    const create = vi.fn().mockRejectedValue(new Error("database down"));
+    const findMany = vi.fn().mockResolvedValue([]);
+    const prismaClient = {
+      auditLog: {
+        create,
+        findMany
+      }
+    };
+    (
+      globalThis as typeof globalThis & {
+        __psypicAuditPrismaClient?: typeof prismaClient;
+      }
+    ).__psypicAuditPrismaClient = prismaClient;
+    process.env.PSYPIC_AUDIT_LOG_STORE = "database";
+    process.env.PSYPIC_AUDIT_LOG_FILE = auditFileName;
+    resetAuditLogStore();
+
+    try {
+      const cookie = adminCookie();
+      const response = await writeAuditLog(
+        new Request("http://localhost/api/admin/audit-logs", {
+          method: "POST",
+          headers: { "content-type": "application/json", cookie },
+          body: JSON.stringify({
+            action: "image_generation.succeeded",
+            target_type: "image_task",
+            target_id: "task_db_fallback",
+            metadata: {
+              upstream_request_id: "upstream_db_fallback"
+            }
+          })
+        })
+      );
+
+      expect(response.status).toBe(200);
+      expect(create).toHaveBeenCalledTimes(1);
+    } finally {
+      cwdSpy.mockRestore();
+      resetAuditLogStore();
       delete (
         globalThis as typeof globalThis & {
           __psypicAuditPrismaClient?: unknown;

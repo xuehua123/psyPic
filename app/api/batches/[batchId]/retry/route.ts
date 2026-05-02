@@ -48,7 +48,7 @@ export async function POST(
   }
 
   const { batchId } = await context.params;
-  const batch = retryImageBatchItemsForUser(batchId, session.user_id, {
+  const batch = await retryImageBatchItemsForUser(batchId, session.user_id, {
     keyBindingId: binding.id,
     itemIds: parsed.data.itemIds
   });
@@ -63,7 +63,8 @@ export async function POST(
   }
   scheduleImageBatchProcessing(batch.batch_id, session.user_id, {
     baseUrl: binding.sub2api_base_url,
-    apiKey: decryptKeyBindingSecret(binding)
+    apiKey: decryptKeyBindingSecret(binding),
+    requestId
   });
 
   return jsonOk(batch, requestId);

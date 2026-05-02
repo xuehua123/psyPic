@@ -20,7 +20,7 @@ export async function POST(
       ? String((body as Record<string, unknown>).reason ?? "").trim()
       : "";
   const { workId } = await context.params;
-  const work = restoreCommunityWork(workId, {
+  const work = await restoreCommunityWork(workId, {
     reviewerUserId: admin.user.id,
     reason
   });

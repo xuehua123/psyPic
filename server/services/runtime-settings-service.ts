@@ -103,11 +103,21 @@ export async function updateRuntimeSettings(
     updated_at: now
   };
   globalThis.__psypicRuntimeSettingsRecord = record;
-  writePersistedRuntimeSettings(record);
   const databaseRecord = await writeDatabaseRuntimeSettings(record);
 
   if (databaseRecord) {
     globalThis.__psypicRuntimeSettingsRecord = databaseRecord;
+    return getRuntimeSettingsSnapshot();
+  }
+
+  if (shouldUseDatabaseRuntimeSettings()) {
+    try {
+      writePersistedRuntimeSettings(record);
+    } catch {
+      // best-effort fallback only in database mode
+    }
+  } else {
+    writePersistedRuntimeSettings(record);
   }
 
   return getRuntimeSettingsSnapshot();

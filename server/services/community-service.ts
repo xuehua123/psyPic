@@ -59,6 +59,89 @@ type CommunityInteraction = {
   created_at: string;
 };
 
+type PrismaCommunityInteractionRow = {
+  id: string;
+  workId: string;
+  userId: string;
+  createdAt: Date;
+};
+
+type PrismaCommunityWorkRow = {
+  id: string;
+  userId: string;
+  taskId: string;
+  assetId: string;
+  visibility: CommunityWorkVisibility;
+  reviewStatus: CommunityWorkReviewStatus;
+  title: string;
+  scene: string | null;
+  tags: string[];
+  promptSnapshot: string;
+  paramsSnapshot: unknown;
+  disclosePrompt: boolean;
+  discloseParams: boolean;
+  discloseReferenceImages: boolean;
+  allowSameGeneration: boolean;
+  allowReferenceReuse: boolean;
+  publishedAt: Date | null;
+  takenDownAt: Date | null;
+  featuredAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  likes?: PrismaCommunityInteractionRow[];
+  favorites?: PrismaCommunityInteractionRow[];
+};
+
+type PrismaCommunityReportRow = {
+  id: string;
+  workId: string;
+  reporterUserId: string;
+  reason: string;
+  details: string | null;
+  status: CommunityReportStatus;
+  reviewerUserId: string | null;
+  reviewedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  work?: PrismaCommunityWorkRow | null;
+};
+
+type PrismaCommunityClient = {
+  user?: {
+    upsert(input: {
+      where: { id: string };
+      create: { id: string };
+      update: Record<string, never>;
+    }): Promise<unknown>;
+  };
+  communityWork: {
+    create(input: {
+      data: Record<string, unknown>;
+      include?: Record<string, unknown>;
+    }): Promise<PrismaCommunityWorkRow>;
+    findFirst(input: Record<string, unknown>): Promise<PrismaCommunityWorkRow | null>;
+    findMany(input: Record<string, unknown>): Promise<PrismaCommunityWorkRow[]>;
+    update(input: {
+      where: { id: string };
+      data: Record<string, unknown>;
+      include?: Record<string, unknown>;
+    }): Promise<PrismaCommunityWorkRow>;
+  };
+  communityWorkLike: {
+    upsert(input: Record<string, unknown>): Promise<unknown>;
+    deleteMany(input: { where: { workId: string; userId: string } }): Promise<unknown>;
+  };
+  communityWorkFavorite: {
+    upsert(input: Record<string, unknown>): Promise<unknown>;
+    deleteMany(input: { where: { workId: string; userId: string } }): Promise<unknown>;
+  };
+  communityReport: {
+    create(input: { data: Record<string, unknown> }): Promise<PrismaCommunityReportRow>;
+    findMany(input: Record<string, unknown>): Promise<PrismaCommunityReportRow[]>;
+    updateMany(input: Record<string, unknown>): Promise<unknown>;
+  };
+};
+
 export type CreateCommunityWorkInput = {
   taskId: string;
   assetId: string;
@@ -78,6 +161,10 @@ declare global {
   var __psypicCommunityReports: Map<string, CommunityReport> | undefined;
   var __psypicCommunityLikes: Map<string, CommunityInteraction> | undefined;
   var __psypicCommunityFavorites: Map<string, CommunityInteraction> | undefined;
+  var __psypicCommunityPrismaClient:
+    | PrismaCommunityClient
+    | null
+    | undefined;
 }
 
 const communityWorks =
@@ -107,12 +194,12 @@ export function resetCommunityInteractionStore() {
   communityFavorites.clear();
 }
 
-export function createCommunityWorkForUser(
+export async function createCommunityWorkForUser(
   userId: string,
   input: CreateCommunityWorkInput
 ) {
-  const task = getImageTaskForUser(input.taskId, userId);
-  const asset = getImageLibraryAssetForUser(userId, input.assetId);
+  const task = await getImageTaskForUser(input.taskId, userId);
+  const asset = await getImageLibraryAssetForUser(userId, input.assetId);
 
   if (!task || !asset || asset.task_id !== task.id) {
     return null;
@@ -146,13 +233,24 @@ export function createCommunityWorkForUser(
   };
 
   communityWorks.set(work.id, work);
-  return serializeCommunityWork(work);
+  const databaseWork = await createDatabaseCommunityWork(work);
+
+  return databaseWork ?? serializeCommunityWork(work);
 }
 
-export function getCommunityWorkForViewer(
+export async function getCommunityWorkForViewer(
   workId: string,
   viewerUserId: string | null
 ) {
+  const databaseLookup = await getDatabaseCommunityWorkRecordLookup(workId);
+  if (databaseLookup.available) {
+    if (!databaseLookup.work || !canViewCommunityWork(databaseLookup.work, viewerUserId)) {
+      return null;
+    }
+
+    return serializeDatabaseCommunityWork(databaseLookup.work, viewerUserId);
+  }
+
   const work = communityWorks.get(workId);
 
   if (!work || !canViewCommunityWork(work, viewerUserId)) {
@@ -162,7 +260,7 @@ export function getCommunityWorkForViewer(
   return serializeCommunityWork(work, { detail: true, viewerUserId });
 }
 
-export function listPublicCommunityWorks(input?: {
+export async function listPublicCommunityWorks(input?: {
   cursor?: string | null;
   limit?: number;
   scene?: string | null;
@@ -170,6 +268,11 @@ export function listPublicCommunityWorks(input?: {
   sort?: string | null;
   viewerUserId?: string | null;
 }) {
+  const databaseWorks = await listDatabasePublicCommunityWorks(input);
+  if (databaseWorks) {
+    return databaseWorks;
+  }
+
   const limit = clampCommunityLimit(input?.limit);
   const scene = input?.scene?.trim();
   const tag = input?.tag?.trim();
@@ -199,7 +302,7 @@ export function listPublicCommunityWorks(input?: {
   };
 }
 
-export function setCommunityWorkInteractionForUser(
+export async function setCommunityWorkInteractionForUser(
   userId: string,
   workId: string,
   input: {
@@ -207,6 +310,15 @@ export function setCommunityWorkInteractionForUser(
     enabled: boolean;
   }
 ) {
+  const databaseResult = await setDatabaseCommunityWorkInteractionForUser(
+    userId,
+    workId,
+    input
+  );
+  if (databaseResult.available) {
+    return databaseResult.work;
+  }
+
   const work = communityWorks.get(workId);
 
   if (!work || !canViewCommunityWork(work, userId)) {
@@ -235,13 +347,13 @@ export function setCommunityWorkInteractionForUser(
   });
 }
 
-export function createCommunitySameGenerationDraft(
+export async function createCommunitySameGenerationDraft(
   workId: string,
   viewerUserId: string | null
 ) {
-  const work = communityWorks.get(workId);
+  const work = await getCommunityWorkRecordForViewer(workId, viewerUserId);
 
-  if (!work || !canViewCommunityWork(work, viewerUserId)) {
+  if (!work) {
     return { status: "not_found" as const };
   }
 
@@ -267,7 +379,7 @@ export function createCommunitySameGenerationDraft(
   };
 }
 
-export function createCommunityReportForUser(
+export async function createCommunityReportForUser(
   userId: string,
   input: {
     workId: string;
@@ -275,9 +387,9 @@ export function createCommunityReportForUser(
     details?: string | null;
   }
 ) {
-  const work = communityWorks.get(input.workId);
+  const work = await getCommunityWorkRecordForViewer(input.workId, userId);
 
-  if (!work || !canViewCommunityWork(work, userId)) {
+  if (!work) {
     return null;
   }
 
@@ -296,16 +408,27 @@ export function createCommunityReportForUser(
   };
 
   communityReports.set(report.id, report);
-  return serializeCommunityReport(report);
+  const databaseReport = await createDatabaseCommunityReport(report);
+
+  return databaseReport ?? serializeCommunityReport(report);
 }
 
-export function takeDownCommunityWork(
+export async function takeDownCommunityWork(
   workId: string,
   input: {
     reviewerUserId: string;
     reason?: string | null;
   }
 ) {
+  const databaseWork = await updateDatabaseCommunityWorkModeration(workId, {
+    reviewStatus: "taken_down",
+    takenDownAt: new Date(),
+    reviewerUserId: input.reviewerUserId
+  });
+  if (databaseWork) {
+    return databaseWork;
+  }
+
   const work = communityWorks.get(workId);
 
   if (!work) {
@@ -337,13 +460,22 @@ export function takeDownCommunityWork(
   return serializeCommunityWork(updated, { detail: true });
 }
 
-export function restoreCommunityWork(
+export async function restoreCommunityWork(
   workId: string,
   input: {
     reviewerUserId: string;
     reason?: string | null;
   }
 ) {
+  const databaseWork = await updateDatabaseCommunityWorkModeration(workId, {
+    reviewStatus: "approved",
+    takenDownAt: null,
+    reviewerUserId: input.reviewerUserId
+  });
+  if (databaseWork) {
+    return databaseWork;
+  }
+
   const work = communityWorks.get(workId);
 
   if (!work) {
@@ -364,13 +496,21 @@ export function restoreCommunityWork(
   return serializeCommunityWork(updated, { detail: true });
 }
 
-export function setCommunityWorkFeatured(
+export async function setCommunityWorkFeatured(
   workId: string,
   input: {
     reviewerUserId: string;
     featured: boolean;
   }
 ) {
+  const databaseWork = await updateDatabaseCommunityWorkFeatured(
+    workId,
+    input.featured
+  );
+  if (databaseWork) {
+    return databaseWork;
+  }
+
   const work = communityWorks.get(workId);
 
   if (!work) {
@@ -389,11 +529,16 @@ export function setCommunityWorkFeatured(
   return serializeCommunityWork(updated, { detail: true });
 }
 
-export function listCommunityReportsForAdmin(input?: {
+export async function listCommunityReportsForAdmin(input?: {
   status?: CommunityReportStatus | "all" | null;
   cursor?: string | null;
   limit?: number;
 }) {
+  const databaseReports = await listDatabaseCommunityReportsForAdmin(input);
+  if (databaseReports) {
+    return databaseReports;
+  }
+
   const limit = clampCommunityLimit(input?.limit);
   const status = input?.status ?? "open";
   const reports = Array.from(communityReports.values())
@@ -576,4 +721,564 @@ function clampCommunityLimit(limit: number | undefined) {
   }
 
   return Math.min(Math.max(limit, 1), 50);
+}
+
+async function getCommunityWorkRecordForViewer(
+  workId: string,
+  viewerUserId: string | null
+) {
+  const databaseLookup = await getDatabaseCommunityWorkRecordLookup(workId);
+  if (databaseLookup.available) {
+    if (!databaseLookup.work || !canViewCommunityWork(databaseLookup.work, viewerUserId)) {
+      return null;
+    }
+
+    return databaseLookup.work;
+  }
+
+  const work = communityWorks.get(workId);
+
+  if (!work || !canViewCommunityWork(work, viewerUserId)) {
+    return null;
+  }
+
+  return work;
+}
+
+async function createDatabaseCommunityWork(work: CommunityWork) {
+  const client = await getPrismaCommunityClient();
+  if (!client) {
+    return null;
+  }
+
+  try {
+    await ensureDatabaseUser(client, work.user_id);
+    const row = await client.communityWork.create({
+      data: toPrismaCommunityWorkData(work),
+      include: interactionInclude()
+    });
+    return serializePrismaCommunityWork(row);
+  } catch {
+    return null;
+  }
+}
+
+async function getDatabaseCommunityWorkRecord(workId: string) {
+  const lookup = await getDatabaseCommunityWorkRecordLookup(workId);
+
+  return lookup.available ? lookup.work : null;
+}
+
+async function getDatabaseCommunityWorkRecordLookup(
+  workId: string
+): Promise<
+  | { available: false }
+  | { available: true; work: CommunityWork | null }
+> {
+  const client = await getPrismaCommunityClient();
+  if (!client) {
+    return { available: false };
+  }
+
+  try {
+    const row = await client.communityWork.findFirst({
+      where: { id: workId },
+      include: interactionInclude()
+    });
+    return {
+      available: true,
+      work: row ? fromPrismaCommunityWork(row) : null
+    };
+  } catch {
+    return { available: false };
+  }
+}
+
+async function getDatabaseCommunityWorkForViewer(
+  workId: string,
+  viewerUserId: string | null
+) {
+  const work = await getDatabaseCommunityWorkRecord(workId);
+  if (!work || !canViewCommunityWork(work, viewerUserId)) {
+    return null;
+  }
+
+  return serializeDatabaseCommunityWork(work, viewerUserId);
+}
+
+async function listDatabasePublicCommunityWorks(input?: {
+  cursor?: string | null;
+  limit?: number;
+  scene?: string | null;
+  tag?: string | null;
+  sort?: string | null;
+  viewerUserId?: string | null;
+}) {
+  const client = await getPrismaCommunityClient();
+  if (!client) {
+    return null;
+  }
+
+  try {
+    const limit = clampCommunityLimit(input?.limit);
+    const scene = input?.scene?.trim();
+    const tag = input?.tag?.trim();
+    const sort = input?.sort?.trim();
+    const works = (await client.communityWork.findMany({
+      where: {
+        visibility: "public",
+        reviewStatus: "approved",
+        takenDownAt: null
+      },
+      include: interactionInclude(),
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 200
+    }))
+      .map(fromPrismaCommunityWork)
+      .filter((work) => (scene ? work.scene === scene : true))
+      .filter((work) => (tag ? work.tags.includes(tag) : true))
+      .sort((left, right) => compareDatabaseCommunityWorks(left, right, sort));
+    const startIndex = input?.cursor
+      ? works.findIndex((work) => work.id === input.cursor) + 1
+      : 0;
+    const safeStartIndex = Math.max(startIndex, 0);
+    const page = works.slice(safeStartIndex, safeStartIndex + limit);
+    const hasNextPage = works.length > safeStartIndex + page.length;
+
+    return {
+      items: page.map((work) =>
+        serializeDatabaseCommunityWork(work, input?.viewerUserId ?? null)
+      ),
+      nextCursor: hasNextPage ? page.at(-1)?.id ?? null : null
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function setDatabaseCommunityWorkInteractionForUser(
+  userId: string,
+  workId: string,
+  input: { type: "like" | "favorite"; enabled: boolean }
+): Promise<
+  | { available: false }
+  | { available: true; work: ReturnType<typeof serializeDatabaseCommunityWork> | null }
+> {
+  const client = await getPrismaCommunityClient();
+  if (!client) {
+    return { available: false };
+  }
+
+  try {
+    const lookup = await getDatabaseCommunityWorkRecordLookup(workId);
+    if (!lookup.available) {
+      return { available: false };
+    }
+
+    const work = lookup.work;
+    if (!work || !canViewCommunityWork(work, userId)) {
+      return { available: true, work: null };
+    }
+
+    await ensureDatabaseUser(client, userId);
+    const store =
+      input.type === "like" ? client.communityWorkLike : client.communityWorkFavorite;
+    if (input.enabled) {
+      await store.upsert({
+        where: { workId_userId: { workId, userId } },
+        create: {
+          id: createId(input.type === "like" ? "like" : "fav"),
+          workId,
+          userId,
+          createdAt: new Date()
+        },
+        update: {}
+      });
+    } else {
+      await store.deleteMany({ where: { workId, userId } });
+    }
+
+    return {
+      available: true,
+      work: await getDatabaseCommunityWorkForViewer(workId, userId)
+    };
+  } catch {
+    return { available: false };
+  }
+}
+
+async function createDatabaseCommunityReport(report: CommunityReport) {
+  const client = await getPrismaCommunityClient();
+  if (!client) {
+    return null;
+  }
+
+  try {
+    await ensureDatabaseUser(client, report.reporter_user_id);
+    const row = await client.communityReport.create({
+      data: {
+        id: report.id,
+        workId: report.work_id,
+        reporterUserId: report.reporter_user_id,
+        reason: report.reason,
+        details: report.details,
+        status: report.status,
+        reviewerUserId: report.reviewer_user_id,
+        reviewedAt: report.reviewed_at ? new Date(report.reviewed_at) : null,
+        createdAt: new Date(report.created_at),
+        updatedAt: new Date(report.updated_at)
+      }
+    });
+    return serializeCommunityReport(fromPrismaCommunityReport(row));
+  } catch {
+    return null;
+  }
+}
+
+async function updateDatabaseCommunityWorkModeration(
+  workId: string,
+  input: {
+    reviewStatus: CommunityWorkReviewStatus;
+    takenDownAt: Date | null;
+    reviewerUserId: string;
+  }
+) {
+  const client = await getPrismaCommunityClient();
+  if (!client) {
+    return null;
+  }
+
+  try {
+    if (input.reviewStatus === "taken_down") {
+      await ensureDatabaseUser(client, input.reviewerUserId);
+    }
+    const row = await client.communityWork.update({
+      where: { id: workId },
+      data: {
+        reviewStatus: input.reviewStatus,
+        takenDownAt: input.takenDownAt,
+        updatedAt: new Date()
+      },
+      include: interactionInclude()
+    });
+    if (input.reviewStatus === "taken_down") {
+      await client.communityReport.updateMany({
+        where: { workId, status: "open" },
+        data: {
+          status: "reviewed",
+          reviewerUserId: input.reviewerUserId,
+          reviewedAt: new Date(),
+          updatedAt: new Date()
+        }
+      });
+    }
+
+    return serializePrismaCommunityWork(row);
+  } catch {
+    return null;
+  }
+}
+
+async function updateDatabaseCommunityWorkFeatured(
+  workId: string,
+  featured: boolean
+) {
+  const client = await getPrismaCommunityClient();
+  if (!client) {
+    return null;
+  }
+
+  try {
+    const current = await getDatabaseCommunityWorkRecord(workId);
+    if (!current) {
+      return null;
+    }
+    const row = await client.communityWork.update({
+      where: { id: workId },
+      data: {
+        featuredAt: featured
+          ? current.featured_at
+            ? new Date(current.featured_at)
+            : new Date()
+          : null,
+        updatedAt: new Date()
+      },
+      include: interactionInclude()
+    });
+    return serializePrismaCommunityWork(row);
+  } catch {
+    return null;
+  }
+}
+
+async function listDatabaseCommunityReportsForAdmin(input?: {
+  status?: CommunityReportStatus | "all" | null;
+  cursor?: string | null;
+  limit?: number;
+}) {
+  const client = await getPrismaCommunityClient();
+  if (!client) {
+    return null;
+  }
+
+  try {
+    const limit = clampCommunityLimit(input?.limit);
+    const status = input?.status ?? "open";
+    const rows = await client.communityReport.findMany({
+      where: status === "all" ? undefined : { status },
+      include: { work: { include: interactionInclude() } },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: limit + 1
+    });
+    const page = rows.slice(0, limit);
+
+    return {
+      items: page.map((row) => {
+        const report = fromPrismaCommunityReport(row);
+        return {
+          ...serializeCommunityReport(report),
+          reporter_user_id: report.reporter_user_id,
+          reviewer_user_id: report.reviewer_user_id,
+          reviewed_at: report.reviewed_at,
+          work: row.work ? serializePrismaCommunityWork(row.work) : null
+        };
+      }),
+      nextCursor: rows.length > limit ? page.at(-1)?.id ?? null : null
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function ensureDatabaseUser(client: PrismaCommunityClient, userId: string) {
+  if (!client.user) {
+    return;
+  }
+
+  await client.user.upsert({
+    where: { id: userId },
+    create: { id: userId },
+    update: {}
+  });
+}
+
+function serializePrismaCommunityWork(row: PrismaCommunityWorkRow) {
+  return serializeDatabaseCommunityWork(fromPrismaCommunityWork(row), null);
+}
+
+function serializeDatabaseCommunityWork(
+  work: CommunityWork,
+  viewerUserId: string | null
+) {
+  const likes = getDatabaseInteractionSnapshot(communityLikes, work.id);
+  const favorites = getDatabaseInteractionSnapshot(communityFavorites, work.id);
+
+  return {
+    ...serializeCommunityWork(work, { detail: true, viewerUserId: null }),
+    like_count: likes.length,
+    favorite_count: favorites.length,
+    liked: viewerUserId
+      ? likes.some((item) => item.user_id === viewerUserId)
+      : false,
+    favorited: viewerUserId
+      ? favorites.some((item) => item.user_id === viewerUserId)
+      : false
+  };
+}
+
+function compareDatabaseCommunityWorks(
+  left: CommunityWork,
+  right: CommunityWork,
+  sort: string | null | undefined
+) {
+  return compareCommunityWorks(left, right, sort);
+}
+
+function getDatabaseInteractionSnapshot(
+  store: Map<string, CommunityInteraction>,
+  workId: string
+) {
+  return Array.from(store.values()).filter((item) => item.work_id === workId);
+}
+
+function fromPrismaCommunityWork(row: PrismaCommunityWorkRow): CommunityWork {
+  const work = {
+    id: row.id,
+    user_id: row.userId,
+    task_id: row.taskId,
+    asset_id: row.assetId,
+    visibility: row.visibility,
+    review_status: row.reviewStatus,
+    title: row.title,
+    scene: row.scene,
+    tags: row.tags,
+    image_url: readString(row, "imageUrl") ?? `/api/assets/${row.assetId}`,
+    thumbnail_url:
+      readString(row, "thumbnailUrl") ?? readString(row, "imageUrl") ?? `/api/assets/${row.assetId}`,
+    prompt_snapshot: row.promptSnapshot,
+    params_snapshot: isImageGenerationParams(row.paramsSnapshot)
+      ? row.paramsSnapshot
+      : imageParamsFallback(),
+    disclose_prompt: row.disclosePrompt,
+    disclose_params: row.discloseParams,
+    disclose_reference_images: row.discloseReferenceImages,
+    allow_same_generation: row.allowSameGeneration,
+    allow_reference_reuse: row.allowReferenceReuse,
+    published_at: row.publishedAt?.toISOString() ?? null,
+    taken_down_at: row.takenDownAt?.toISOString() ?? null,
+    featured_at: row.featuredAt?.toISOString() ?? null,
+    created_at: row.createdAt.toISOString(),
+    updated_at: row.updatedAt.toISOString()
+  };
+
+  communityWorks.set(work.id, work);
+  syncInteractions(communityLikes, work.id, row.likes ?? []);
+  syncInteractions(communityFavorites, work.id, row.favorites ?? []);
+
+  return work;
+}
+
+function fromPrismaCommunityReport(row: PrismaCommunityReportRow): CommunityReport {
+  const report = {
+    id: row.id,
+    work_id: row.workId,
+    reporter_user_id: row.reporterUserId,
+    reason: row.reason,
+    details: row.details,
+    status: row.status,
+    reviewer_user_id: row.reviewerUserId,
+    reviewed_at: row.reviewedAt?.toISOString() ?? null,
+    created_at: row.createdAt.toISOString(),
+    updated_at: row.updatedAt.toISOString()
+  };
+  communityReports.set(report.id, report);
+  if (row.work) {
+    fromPrismaCommunityWork(row.work);
+  }
+
+  return report;
+}
+
+function syncInteractions(
+  store: Map<string, CommunityInteraction>,
+  workId: string,
+  rows: PrismaCommunityInteractionRow[]
+) {
+  for (const key of Array.from(store.keys())) {
+    if (key.startsWith(`${workId}:`)) {
+      store.delete(key);
+    }
+  }
+
+  for (const row of rows) {
+    store.set(buildInteractionKey(row.workId, row.userId), {
+      id: row.id,
+      work_id: row.workId,
+      user_id: row.userId,
+      created_at: row.createdAt.toISOString()
+    });
+  }
+}
+
+function toPrismaCommunityWorkData(work: CommunityWork) {
+  return {
+    id: work.id,
+    userId: work.user_id,
+    taskId: work.task_id,
+    assetId: work.asset_id,
+    visibility: work.visibility,
+    reviewStatus: work.review_status,
+    title: work.title,
+    scene: work.scene,
+    tags: work.tags,
+    promptSnapshot: work.prompt_snapshot,
+    paramsSnapshot: work.params_snapshot,
+    disclosePrompt: work.disclose_prompt,
+    discloseParams: work.disclose_params,
+    discloseReferenceImages: work.disclose_reference_images,
+    allowSameGeneration: work.allow_same_generation,
+    allowReferenceReuse: work.allow_reference_reuse,
+    publishedAt: work.published_at ? new Date(work.published_at) : null,
+    takenDownAt: work.taken_down_at ? new Date(work.taken_down_at) : null,
+    featuredAt: work.featured_at ? new Date(work.featured_at) : null,
+    createdAt: new Date(work.created_at),
+    updatedAt: new Date(work.updated_at)
+  };
+}
+
+function interactionInclude() {
+  return { likes: true, favorites: true };
+}
+
+async function getPrismaCommunityClient() {
+  if (!shouldUseDatabaseCommunityStore()) {
+    return null;
+  }
+
+  if (globalThis.__psypicCommunityPrismaClient !== undefined) {
+    return globalThis.__psypicCommunityPrismaClient;
+  }
+
+  try {
+    const prismaClientPackage = "@prisma/client";
+    const prismaModule = (await import(
+      /* turbopackIgnore: true */ prismaClientPackage
+    )) as {
+      PrismaClient?: new () => PrismaCommunityClient;
+    };
+
+    globalThis.__psypicCommunityPrismaClient = prismaModule.PrismaClient
+      ? new prismaModule.PrismaClient()
+      : null;
+  } catch {
+    globalThis.__psypicCommunityPrismaClient = null;
+  }
+
+  return globalThis.__psypicCommunityPrismaClient;
+}
+
+function shouldUseDatabaseCommunityStore() {
+  const mode = process.env.PSYPIC_COMMUNITY_STORE?.trim().toLowerCase();
+
+  if (mode === "memory" || mode === "file") {
+    return false;
+  }
+
+  return (
+    mode === "database" ||
+    mode === "db" ||
+    (process.env.NODE_ENV === "production" && Boolean(process.env.DATABASE_URL))
+  );
+}
+
+function readString(value: unknown, key: string) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const item = (value as Record<string, unknown>)[key];
+  return typeof item === "string" ? item : undefined;
+}
+
+function isImageGenerationParams(value: unknown): value is ImageGenerationParams {
+  return (
+    Boolean(value) &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    typeof (value as Record<string, unknown>).prompt === "string"
+  );
+}
+
+function imageParamsFallback(): ImageGenerationParams {
+  return {
+    prompt: "",
+    model: "gpt-image-2",
+    size: "1024x1024",
+    quality: "medium",
+    n: 1,
+    output_format: "png",
+    output_compression: null,
+    background: "auto",
+    moderation: "auto"
+  };
 }

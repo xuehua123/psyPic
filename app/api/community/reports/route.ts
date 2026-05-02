@@ -37,7 +37,7 @@ export async function POST(request: Request) {
     });
   }
 
-  const report = createCommunityReportForUser(session.user_id, parsed.data);
+  const report = await createCommunityReportForUser(session.user_id, parsed.data);
 
   if (!report) {
     return jsonError({

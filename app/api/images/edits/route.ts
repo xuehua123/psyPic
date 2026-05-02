@@ -7,9 +7,11 @@ import {
   validateReferenceImageUpload
 } from "@/lib/validation/upload";
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
+import { recordAuditLog } from "@/server/services/audit-log-service";
 import { getKeyBinding, getSession } from "@/server/services/dev-store";
 import { decryptKeyBindingSecret } from "@/server/services/key-binding-service";
 import {
+  acquireImageTaskCreationLock,
   createImageTask,
   getImageTaskConcurrencyState,
   markImageTaskFailed,
@@ -46,6 +48,7 @@ export async function POST(request: Request) {
     });
   }
 
+  const limits = await getEffectiveImageLimits(binding.limits);
   const formData = await request.formData().catch(() => null);
 
   if (!formData) {
@@ -81,7 +84,9 @@ export async function POST(request: Request) {
   }
 
   const imageValidations = await Promise.all(
-    (images as File[]).map((image) => validateReferenceImageUpload(image))
+    (images as File[]).map((image) =>
+      validateReferenceImageUpload(image, { maxUploadMb: limits.max_upload_mb })
+    )
   );
   const failedImageValidation = imageValidations.find(
     (validation) => !validation.success
@@ -114,7 +119,9 @@ export async function POST(request: Request) {
       });
     }
 
-    const maskValidation = await validateMaskImageUpload(mask);
+    const maskValidation = await validateMaskImageUpload(mask, {
+      maxUploadMb: limits.max_upload_mb
+    });
 
     if (!maskValidation.success) {
       return jsonError({
@@ -151,8 +158,6 @@ export async function POST(request: Request) {
     });
   }
 
-  const limits = await getEffectiveImageLimits(binding.limits);
-
   if (parsed.data.n > limits.max_n) {
     return jsonError({
       status: 400,
@@ -185,26 +190,33 @@ export async function POST(request: Request) {
     });
   }
 
-  const concurrency = getImageTaskConcurrencyState(session.user_id);
-
-  if (concurrency.limited) {
-    return jsonError({
-      status: 429,
-      code: "rate_limited",
-      message: "当前有图片任务正在运行，请等待完成或取消后重试。",
-      requestId
-    });
-  }
-
   const startedAt = Date.now();
-  const task = createImageTask({
-    userId: session.user_id,
-    keyBindingId: binding.id,
-    type: "edit",
-    prompt: parsed.data.prompt,
-    params: parsed.data
-  });
-  markImageTaskRunning(task.id);
+  const releaseTaskCreation = await acquireImageTaskCreationLock(session.user_id);
+  let task: Awaited<ReturnType<typeof createImageTask>>;
+
+  try {
+    const concurrency = await getImageTaskConcurrencyState(session.user_id);
+
+    if (concurrency.limited) {
+      return jsonError({
+        status: 429,
+        code: "rate_limited",
+        message: "当前有图片任务正在运行，请等待完成或取消后重试。",
+        requestId
+      });
+    }
+
+    task = await createImageTask({
+      userId: session.user_id,
+      keyBindingId: binding.id,
+      type: "edit",
+      prompt: parsed.data.prompt,
+      params: parsed.data
+    });
+    await markImageTaskRunning(task.id);
+  } finally {
+    releaseTaskCreation();
+  }
 
   try {
     const upstream = await editImageWithSub2API({
@@ -233,11 +245,25 @@ export async function POST(request: Request) {
       })
     );
     const durationMs = Date.now() - startedAt;
-    markImageTaskSucceeded(task.id, {
+    await markImageTaskSucceeded(task.id, {
       images,
       usage: upstream.usage,
       durationMs,
       upstreamRequestId: upstream.upstreamRequestId
+    });
+    await recordAuditLog({
+      actorUserId: session.user_id,
+      action: "image_edit.succeeded",
+      targetType: "image_task",
+      targetId: task.id,
+      requestId,
+      metadata: {
+        upstream_request_id: upstream.upstreamRequestId,
+        image_count: images.length,
+        reference_image_count: validatedImages.length,
+        has_mask: Boolean(maskFile),
+        usage: upstream.usage
+      }
     });
 
     return jsonOk(
@@ -254,11 +280,23 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     if (error instanceof Sub2APIError) {
-      markImageTaskFailed(task.id, {
+      await markImageTaskFailed(task.id, {
         code: error.code,
         message: error.message,
         durationMs: Date.now() - startedAt,
         upstreamRequestId: error.upstreamRequestId
+      });
+      await recordAuditLog({
+        actorUserId: session.user_id,
+        action: "image_edit.failed",
+        targetType: "image_task",
+        targetId: task.id,
+        requestId,
+        metadata: {
+          upstream_request_id: error.upstreamRequestId,
+          code: error.code,
+          message: error.message
+        }
       });
 
       return jsonError({
@@ -270,10 +308,21 @@ export async function POST(request: Request) {
       });
     }
 
-    markImageTaskFailed(task.id, {
+    await markImageTaskFailed(task.id, {
       code: "upstream_error",
       message: "图片编辑失败",
       durationMs: Date.now() - startedAt
+    });
+    await recordAuditLog({
+      actorUserId: session.user_id,
+      action: "image_edit.failed",
+      targetType: "image_task",
+      targetId: task.id,
+      requestId,
+      metadata: {
+        code: "upstream_error",
+        message: "图片编辑失败"
+      }
     });
 
     return jsonError({

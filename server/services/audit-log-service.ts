@@ -103,7 +103,11 @@ export async function recordAuditLog(input: {
   const persistedToDatabase = await writeDatabaseAuditLog(log);
 
   if (!persistedToDatabase) {
-    writePersistedAuditLogs();
+    try {
+      writePersistedAuditLogs();
+    } catch {
+      // best-effort fallback only
+    }
   }
 
   return serializeAuditLog(log);

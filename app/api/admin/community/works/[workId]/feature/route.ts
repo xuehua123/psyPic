@@ -31,7 +31,7 @@ export async function POST(
   }
 
   const { workId } = await context.params;
-  const work = setCommunityWorkFeatured(workId, {
+  const work = await setCommunityWorkFeatured(workId, {
     reviewerUserId: admin.user.id,
     featured
   });

@@ -58,7 +58,7 @@ const validGenerationBody = {
   moderation: "auto"
 } as const;
 
-function createRunningTaskForCookie(cookie: string) {
+async function createRunningTaskForCookie(cookie: string) {
   const sessionId = cookie.replace("psypic_session=", "");
   const session = getSession(sessionId);
 
@@ -72,14 +72,14 @@ function createRunningTaskForCookie(cookie: string) {
     throw new Error("Expected test key binding");
   }
 
-  const task = createImageTask({
+  const task = await createImageTask({
     userId: session.user_id,
     keyBindingId: binding.id,
     type: "generation",
     prompt: validGenerationBody.prompt,
     params: validGenerationBody
   });
-  markImageTaskRunning(task.id);
+  await markImageTaskRunning(task.id);
 }
 
 describe("POST /api/images/generations", () => {
@@ -239,7 +239,7 @@ describe("POST /api/images/generations", () => {
     resetDevStore();
     resetImageTaskStore();
     const cookie = await bindSession();
-    createRunningTaskForCookie(cookie);
+    await createRunningTaskForCookie(cookie);
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
 

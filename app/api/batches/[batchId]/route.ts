@@ -51,7 +51,8 @@ export async function GET(
     batch =
       (await processImageBatchForUser(batchId, session.user_id, {
         baseUrl: binding.sub2api_base_url,
-        apiKey: decryptKeyBindingSecret(binding)
+        apiKey: decryptKeyBindingSecret(binding),
+        requestId
       })) ?? batch;
   }
 

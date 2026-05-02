@@ -34,7 +34,7 @@ export async function POST(request: Request) {
   try {
     const files = await Promise.all(
       parsed.data.asset_ids.map(async (assetId) => {
-        const item = getImageLibraryAssetForUser(session.user_id, assetId);
+    const item = await getImageLibraryAssetForUser(session.user_id, assetId);
 
         if (!item) {
           throw new TempAssetError("not_found", "素材不存在");

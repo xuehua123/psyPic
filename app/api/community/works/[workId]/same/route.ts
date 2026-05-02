@@ -11,7 +11,7 @@ export async function POST(
   const sessionId = readSessionIdFromRequest(request);
   const session = sessionId ? getSession(sessionId) : null;
   const { workId } = await context.params;
-  const result = createCommunitySameGenerationDraft(
+  const result = await createCommunitySameGenerationDraft(
     workId,
     session?.user_id ?? null
   );
