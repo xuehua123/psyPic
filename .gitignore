@@ -4,6 +4,7 @@ out/
 coverage/
 output/
 .data/
+.claude/
 .env
 .env.*
 !.env.example
