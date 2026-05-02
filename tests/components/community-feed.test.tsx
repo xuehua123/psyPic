@@ -29,6 +29,15 @@ describe("CommunityFeedPage", () => {
     );
 
     expect(screen.getByText("高级灰香水主图")).toBeInTheDocument();
+    expect(screen.getByText("PsyPic")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "工作台" })).toHaveAttribute(
+      "href",
+      "/"
+    );
+    expect(screen.getByRole("link", { name: "灵感社区" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
     expect(screen.getByText("ecommerce")).toBeInTheDocument();
     expect(screen.getByText("电商主图")).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "高级灰香水主图" })).toHaveAttribute(
@@ -48,6 +57,9 @@ describe("CommunityFeedPage", () => {
     render(<CommunityFeedPage works={[]} />);
 
     expect(screen.getByText("暂无公开作品")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "返回创作台" })
+    ).not.toBeInTheDocument();
   });
 
   it("updates like state from the feed card", async () => {

@@ -34,11 +34,15 @@ describe("CommunityWorkDetailPage", () => {
       "src",
       "/api/assets/asset_detail_123"
     );
-    expect(screen.getByText("Create a premium product photo.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "返回社区" })).toHaveAttribute(
-      "href",
-      "/community"
+    expect(screen.getByText("PsyPic")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "灵感社区" })).toHaveAttribute(
+      "aria-current",
+      "page"
     );
+    expect(screen.getByText("Create a premium product photo.")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "返回社区" })
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "点赞 2" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "收藏 1" })).toBeInTheDocument();
   });
@@ -47,6 +51,7 @@ describe("CommunityWorkDetailPage", () => {
     render(<CommunityWorkDetailPage work={null} />);
 
     expect(screen.getByRole("alert")).toHaveTextContent("作品不存在");
+    expect(screen.getByText("PsyPic")).toBeInTheDocument();
   });
 
   it("loads a same-generation draft without exposing hidden fields", async () => {

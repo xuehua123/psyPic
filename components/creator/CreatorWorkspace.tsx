@@ -3,18 +3,21 @@
 import Link from "next/link";
 import {
   Brush,
+  ChevronDown,
+  ChevronRight,
   Copy,
   Download,
   Eraser,
   ExternalLink,
   FlipHorizontal,
+  Folder,
   History,
   ImagePlus,
+  MessageSquarePlus,
   PanelBottom,
   Play,
   RefreshCw,
   RotateCcw,
-  Settings,
   SlidersHorizontal,
   Sparkles,
   Star,
@@ -26,15 +29,71 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   ChangeEvent,
   ClipboardEvent,
+  CSSProperties,
   DragEvent,
   FormEvent,
   PointerEvent as ReactPointerEvent
 } from "react";
+
+import BatchWorkflowPanel from "@/components/creator/BatchWorkflowPanel";
+import AppShell from "@/components/layout/AppShell";
+
+import { formatApiError, formatTaskError } from "@/lib/creator/api-error";
+import {
+  fetchReferenceImageFile,
+  mimeTypeForFormat,
+  normalizeContentType
+} from "@/lib/creator/content-type";
+import { buildEditFormData } from "@/lib/creator/edit-form";
+import {
+  isRecord,
+  parseGenerationImage,
+  parseGenerationImages,
+  parseJsonRecord,
+  parseSseBlock,
+  parseUsage,
+  readNumber,
+  readString
+} from "@/lib/creator/sse-parser";
+import {
+  canCancelTask,
+  canRetryTask,
+  isImageTaskSnapshot,
+  taskStatusLabels,
+  taskTypeLabels
+} from "@/lib/creator/task-status";
+import { createTemplateFieldValues } from "@/lib/creator/template-render";
+import type {
+  ApiCommunityWorkResponse,
+  ApiGenerationResponse,
+  ApiLibraryPatchResponse,
+  ApiLibraryResponse,
+  ApiPromptAssistResponse,
+  ApiSameGenerationDraftResponse,
+  ApiTaskResponse,
+  CreatorConversationId,
+  CreatorMode,
+  CreatorProjectId,
+  CurrentTask,
+  GenerationImage,
+  GenerationResult,
+  LibraryAssetItem,
+  MaskMode,
+  TemplateFieldValue,
+  TemplateFieldValues
+} from "@/lib/creator/types";
+
 import {
   listLocalHistoryItems,
   saveLocalHistoryItem,
   type LocalHistoryItem
 } from "@/lib/history/local-history";
+import {
+  createNodeFromHistory,
+  createVersionNode,
+  summarizeNodeParams,
+  type CreatorVersionNode
+} from "@/lib/creator/version-graph";
 import {
   listPromptFavorites,
   savePromptFavorite,
@@ -51,7 +110,6 @@ import {
   imageGenerationDefaults,
   type ImageGenerationParams
 } from "@/lib/validation/image-params";
-import BatchWorkflowPanel from "@/components/creator/BatchWorkflowPanel";
 
 const qualityOptions = [
   { label: "自动", value: "auto" },
@@ -59,178 +117,62 @@ const qualityOptions = [
   { label: "高质", value: "high" }
 ] as const;
 
-type GenerationImage = {
-  asset_id: string;
-  url: string;
-  format: string;
+type SidebarProjectGroup = {
+  project: (typeof creatorProjects)[number];
+  nodes: CreatorVersionNode[];
+  branchSummaries: Array<{
+    id: string;
+    label: string;
+    count: number;
+    latestNode: CreatorVersionNode | null;
+  }>;
 };
 
-type GenerationResult = {
-  task_id: string;
-  images: GenerationImage[];
-  usage: {
-    input_tokens: number;
-    output_tokens: number;
-    total_tokens: number;
-    estimated_cost: string;
-  };
-  duration_ms: number;
-  request_id: string;
-  upstream_request_id?: string;
-};
-
-type ApiGenerationResponse = {
-  data?: Omit<GenerationResult, "request_id" | "upstream_request_id">;
-  request_id?: string;
-  upstream_request_id?: string;
-  error?: {
-    code: string;
-    message: string;
-    details?: { field?: string };
-  };
-};
-
-type CreatorMode = "text" | "image";
-type MaskMode = "paint" | "restore";
-type ImageTaskStatus =
-  | "queued"
-  | "running"
-  | "succeeded"
-  | "failed"
-  | "canceled";
-type CreatorTaskStatus = ImageTaskStatus | "submitting";
-
-type ImageTaskSnapshot = {
-  id: string;
-  type: "generation" | "edit";
-  status: ImageTaskStatus;
-  prompt: string;
-  images: GenerationImage[];
-  usage?: GenerationResult["usage"];
-  upstream_request_id?: string;
-  error?: {
-    code: string;
-    message?: string;
-  };
-  duration_ms?: number;
-  updated_at?: string;
-};
-
-type CurrentTask = Omit<Partial<ImageTaskSnapshot>, "status"> & {
-  status: CreatorTaskStatus;
-  type?: "generation" | "edit";
-  prompt?: string;
-};
-
-type ApiTaskResponse = {
-  data?: ImageTaskSnapshot;
-  request_id?: string;
-  upstream_request_id?: string;
-  error?: {
-    code: string;
-    message: string;
-    details?: { field?: string };
-  };
-};
-
-type LibraryAssetItem = {
-  asset_id: string;
-  task_id: string;
-  type: "generation" | "edit";
-  prompt: string;
-  params: ImageGenerationParams;
-  url: string;
-  thumbnail_url: string;
-  format: string;
-  usage?: GenerationResult["usage"];
-  duration_ms?: number;
-  created_at: string;
-  favorite: boolean;
-  tags: string[];
-};
-
-type ApiLibraryResponse = {
-  data?: {
-    items: LibraryAssetItem[];
-    next_cursor: string | null;
-  };
-  request_id?: string;
-  error?: {
-    code: string;
-    message: string;
-  };
-};
-
-type ApiLibraryPatchResponse = {
-  data?: LibraryAssetItem;
-  request_id?: string;
-  error?: {
-    code: string;
-    message: string;
-  };
-};
-
-type ApiPromptAssistResponse = {
-  data?: {
-    optimized_prompt: string;
-    sections: string[];
-    preservation_notes: string[];
-  };
-  request_id?: string;
-  error?: {
-    code: string;
-    message: string;
-    details?: { field?: string };
-  };
-};
-
-type ApiCommunityWorkResponse = {
-  data?: {
-    work_id: string;
-  };
-  request_id?: string;
-  error?: {
-    code: string;
-    message: string;
-    details?: { field?: string };
-  };
-};
-
-type ApiSameGenerationDraftResponse = {
-  data?: {
-    draft: {
-      prompt: string;
-      params?: Partial<ImageGenerationParams>;
-      reference_asset_id?: string;
-    };
-  };
-  request_id?: string;
-  error?: {
-    code: string;
-    message: string;
-  };
-};
-
-type TemplateFieldValue = string | boolean;
-type TemplateFieldValues = Record<string, TemplateFieldValue>;
-
-const taskStatusLabels: Record<CreatorTaskStatus, string> = {
-  submitting: "提交中",
-  queued: "排队中",
-  running: "运行中",
-  succeeded: "已完成",
-  failed: "失败",
-  canceled: "已取消"
-};
-
-const taskTypeLabels: Record<NonNullable<CurrentTask["type"]>, string> = {
-  generation: "文生图",
-  edit: "图生图"
-};
 const maskCanvasSize = 512;
 const defaultTemplateId = "tpl_ecommerce_main";
 
-export default function CreatorWorkspace() {
+const creatorProjects: Array<{
+  id: CreatorProjectId;
+  title: string;
+  description: string;
+  emptyTitle: string;
+  emptyDescription: string;
+}> = [
+  {
+    id: "commercial",
+    title: "商业图库项目",
+    description: "默认项目 · 本地工作区",
+    emptyTitle: "商业图片创作",
+    emptyDescription: "准备第一张结果图。"
+  },
+  {
+    id: "social",
+    title: "社媒内容项目",
+    description: "小红书、封面与信息流",
+    emptyTitle: "社媒封面创作",
+    emptyDescription: "为移动端内容流建立一条独立版本对话。"
+  },
+  {
+    id: "campaign",
+    title: "广告投放项目",
+    description: "Banner、活动图与多尺寸批量",
+    emptyTitle: "广告活动创作",
+    emptyDescription: "把同一活动概念拆成横版、竖版和方图分支。"
+  },
+  {
+    id: "same",
+    title: "社区同款草稿",
+    description: "同款生成与参考图",
+    emptyTitle: "社区同款草稿",
+    emptyDescription: "从社区作品或参考图开始一条新对话。"
+  }
+];
+
+export default function CreatorWorkspace({
+  showAdminLink = false
+}: {
+  showAdminLink?: boolean;
+} = {}) {
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [mode, setMode] = useState<CreatorMode>("text");
   const [selectedTemplateId, setSelectedTemplateId] = useState(defaultTemplateId);
@@ -258,7 +200,6 @@ export default function CreatorWorkspace() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isAssistingPrompt, setIsAssistingPrompt] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [result, setResult] = useState<GenerationResult | null>(null);
   const [partialImages, setPartialImages] = useState<GenerationImage[]>([]);
   const [historyItems, setHistoryItems] = useState<LocalHistoryItem[]>([]);
   const [promptFavorites, setPromptFavorites] = useState<PromptFavoriteItem[]>(
@@ -277,10 +218,33 @@ export default function CreatorWorkspace() {
   );
   const [referenceImages, setReferenceImages] = useState<File[]>([]);
   const referenceImage = referenceImages[0] ?? null;
+  const referencePreviews = useMemo(() => {
+    if (
+      referenceImages.length === 0 ||
+      typeof URL.createObjectURL !== "function"
+    ) {
+      return [];
+    }
+
+    return referenceImages.map((image) => ({
+      name: image.name,
+      url: URL.createObjectURL(image)
+    }));
+  }, [referenceImages]);
   const [maskEnabled, setMaskEnabled] = useState(false);
   const [maskMode, setMaskMode] = useState<MaskMode>("paint");
   const [maskBrushSize, setMaskBrushSize] = useState(48);
   const [currentTask, setCurrentTask] = useState<CurrentTask | null>(null);
+  const [versionNodes, setVersionNodes] = useState<CreatorVersionNode[]>([]);
+  const [activeNodeId, setActiveNodeId] = useState<string | null>(null);
+  const [forkParentId, setForkParentId] = useState<string | null>(null);
+  const [activeProjectId, setActiveProjectId] =
+    useState<CreatorProjectId>("commercial");
+  const [activeConversationId, setActiveConversationId] =
+    useState<CreatorConversationId>("all");
+  const [nodeProjectIds, setNodeProjectIds] = useState<
+    Record<string, CreatorProjectId>
+  >({});
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const maskDrawingRef = useRef(false);
 
@@ -294,10 +258,123 @@ export default function CreatorWorkspace() {
   );
   const selectedCommercialSizeId =
     commercialSizePresets.find((preset) => preset.size === size)?.id ?? "custom";
+  const sidebarProjects = useMemo<SidebarProjectGroup[]>(
+    () =>
+      creatorProjects.map((project) => {
+        const nodes = versionNodes.filter(
+          (node) => (nodeProjectIds[node.id] ?? "commercial") === project.id
+        );
+
+        return {
+          project,
+          nodes,
+          branchSummaries: Array.from(
+            new Map(
+              nodes.map((node) => [
+                node.branchId,
+                {
+                  id: node.branchId,
+                  label: node.branchLabel,
+                  count: nodes.filter((item) => item.branchId === node.branchId)
+                    .length,
+                  latestNode:
+                    nodes
+                      .filter((item) => item.branchId === node.branchId)
+                      .sort(
+                        (left, right) =>
+                          new Date(right.createdAt).getTime() -
+                          new Date(left.createdAt).getTime()
+                      )[0] ?? null
+                }
+              ])
+            ).values()
+          )
+        };
+      }),
+    [nodeProjectIds, versionNodes]
+  );
+  const activeProjectGroup = useMemo<SidebarProjectGroup>(
+    () =>
+      sidebarProjects.find((item) => item.project.id === activeProjectId) ??
+      sidebarProjects[0] ?? {
+        project: creatorProjects[0],
+        nodes: [],
+        branchSummaries: []
+      },
+    [activeProjectId, sidebarProjects]
+  );
+  const activeProject = activeProjectGroup.project;
+  const projectVersionNodes = activeProjectGroup.nodes;
+  const branchSummaries = activeProjectGroup.branchSummaries;
+  const displayedVersionNodes = useMemo(() => {
+    if (activeConversationId === "new") {
+      return [];
+    }
+
+    if (!activeConversationId.startsWith("branch:")) {
+      return projectVersionNodes;
+    }
+
+    const branchId = activeConversationId.slice("branch:".length);
+    const branchNodes = projectVersionNodes.filter(
+      (node) => node.branchId === branchId
+    );
+    const ancestorIds = new Set<string>();
+
+    branchNodes.forEach((node) => {
+      let parentId = node.parentId;
+
+      while (parentId) {
+        ancestorIds.add(parentId);
+        parentId =
+          projectVersionNodes.find((candidate) => candidate.id === parentId)
+            ?.parentId ?? null;
+      }
+    });
+
+    return projectVersionNodes.filter(
+      (node) => node.branchId === branchId || ancestorIds.has(node.id)
+    );
+  }, [activeConversationId, projectVersionNodes]);
+  const activeVersionNode = useMemo(
+    () => projectVersionNodes.find((node) => node.id === activeNodeId) ?? null,
+    [activeNodeId, projectVersionNodes]
+  );
+  const activeBranchSummary = activeConversationId.startsWith("branch:")
+    ? branchSummaries.find(
+        (branch) =>
+          branch.id === activeConversationId.slice("branch:".length)
+      ) ?? null
+    : null;
+  const galleryImages = activeVersionNode?.images ?? [];
+  const galleryRequestId = activeVersionNode?.requestId ?? "";
+  const galleryTotalTokens =
+    activeVersionNode?.usage?.total_tokens ?? 0;
+
+  useEffect(() => {
+    return () => {
+      if (typeof URL.revokeObjectURL !== "function") {
+        return;
+      }
+
+      referencePreviews.forEach((preview) => URL.revokeObjectURL(preview.url));
+    };
+  }, [referencePreviews]);
 
   useEffect(() => {
     void listLocalHistoryItems()
-      .then(setHistoryItems)
+      .then((items) => {
+        setHistoryItems(items);
+        const importedNodes = items.map(createNodeFromHistory);
+        setVersionNodes((nodes) => (nodes.length > 0 ? nodes : importedNodes));
+        setNodeProjectIds((projects) => ({
+          ...Object.fromEntries(
+            importedNodes.map((node) => [node.id, "commercial"] as const)
+          ),
+          ...projects
+        }));
+        setActiveNodeId((current) => current ?? importedNodes[0]?.id ?? null);
+      })
       .catch(() => setHistoryItems([]));
   }, []);
 
@@ -328,15 +405,11 @@ export default function CreatorWorkspace() {
         }
 
         const asset = body.data;
-        const imageResponse = await fetch(asset.thumbnail_url);
-        const blob = await imageResponse.blob();
         const extension = asset.format === "jpeg" ? "jpg" : asset.format;
-        const reference = new File([blob], `${asset.asset_id}.${extension}`, {
-          type:
-            blob.type ||
-            (asset.format === "jpeg" || asset.format === "jpg"
-              ? "image/jpeg"
-              : `image/${asset.format}`)
+        const reference = await fetchReferenceImageFile({
+          url: asset.thumbnail_url,
+          fileName: `${asset.asset_id}.${extension}`,
+          fallbackType: mimeTypeForFormat(asset.format)
         });
 
         if (!active) {
@@ -423,6 +496,9 @@ export default function CreatorWorkspace() {
           setModeration(draft.params.moderation);
         }
 
+        setActiveProjectId("same");
+        setActiveConversationId("new");
+        setActiveNodeId(null);
         setMode("text");
         setErrorMessage("");
       } catch {
@@ -702,14 +778,28 @@ export default function CreatorWorkspace() {
     nextResult: GenerationResult,
     requestParams: ImageGenerationParams
   ) {
-    setResult(nextResult);
-
     const firstImage = nextResult.images[0];
     if (!firstImage) {
       return;
     }
 
     const createdAt = new Date().toISOString();
+    const parentId =
+      activeConversationId === "new" ? null : forkParentId ?? activeNodeId;
+    const versionNode = createVersionNode({
+      existingNodes: versionNodes,
+      parentId,
+      id: `node_${nextResult.task_id}`,
+      prompt: requestParams.prompt,
+      params: requestParams,
+      images: nextResult.images,
+      requestId: nextResult.request_id,
+      upstreamRequestId: nextResult.upstream_request_id,
+      usage: nextResult.usage,
+      durationMs: nextResult.duration_ms,
+      source: mode === "image" ? "edit" : "generation",
+      createdAt
+    });
     const historyItem: LocalHistoryItem = {
       taskId: nextResult.task_id,
       prompt: requestParams.prompt,
@@ -724,12 +814,25 @@ export default function CreatorWorkspace() {
         moderation: requestParams.moderation
       },
       thumbnailUrl: firstImage.url,
+      images: nextResult.images,
+      parentTaskId: versionNode.parentId,
+      branchId: versionNode.branchId,
+      branchLabel: versionNode.branchLabel,
+      versionNodeId: versionNode.id,
       requestId: nextResult.request_id,
       durationMs: nextResult.duration_ms,
       totalTokens: nextResult.usage.total_tokens,
       createdAt
     };
 
+    setVersionNodes((nodes) => [...nodes, versionNode]);
+    setNodeProjectIds((projects) => ({
+      ...projects,
+      [versionNode.id]: activeProjectId
+    }));
+    setActiveNodeId(versionNode.id);
+    setActiveConversationId(`branch:${versionNode.branchId}`);
+    setForkParentId(null);
     setHistoryItems((items) => [historyItem, ...items]);
     void saveLocalHistoryItem(historyItem).catch(() => undefined);
   }
@@ -750,21 +853,7 @@ export default function CreatorWorkspace() {
     };
   }
 
-  function formatApiError(body: ApiGenerationResponse) {
-    const message = body.error?.message ?? "生成失败，请稍后重试。";
-    const requestIds = [
-      body.request_id ? `request_id: ${body.request_id}` : "",
-      body.upstream_request_id
-        ? `upstream_request_id: ${body.upstream_request_id}`
-        : ""
-    ].filter(Boolean);
 
-    if (requestIds.length === 0) {
-      return message;
-    }
-
-    return `${message}（${requestIds.join(" · ")}）`;
-  }
 
   async function refreshTaskStatus(taskId: string) {
     try {
@@ -801,19 +890,6 @@ export default function CreatorWorkspace() {
     }
   }
 
-  function formatTaskError(body: ApiTaskResponse) {
-    const message = body.error?.message ?? "任务操作失败，请稍后重试。";
-    const requestIds = [
-      body.request_id ? `request_id: ${body.request_id}` : "",
-      body.upstream_request_id
-        ? `upstream_request_id: ${body.upstream_request_id}`
-        : ""
-    ].filter(Boolean);
-
-    return requestIds.length > 0
-      ? `${message}（${requestIds.join(" · ")}）`
-      : message;
-  }
 
   async function optimizePrompt() {
     if (!prompt.trim() || isAssistingPrompt) {
@@ -877,105 +953,7 @@ export default function CreatorWorkspace() {
     setErrorMessage("");
   }
 
-  function isImageTaskSnapshot(value: ImageTaskSnapshot) {
-    return Boolean(value.id && value.status && taskStatusLabels[value.status]);
-  }
 
-  function canCancelTask(task: CurrentTask) {
-    return Boolean(
-      task.id && (task.status === "queued" || task.status === "running")
-    );
-  }
-
-  function canRetryTask(task: CurrentTask) {
-    return task.status === "failed" || task.status === "canceled";
-  }
-
-  function parseSseBlock(block: string) {
-    const lines = block.split(/\r?\n/);
-    const data: string[] = [];
-    let event = "";
-
-    for (const line of lines) {
-      if (line.startsWith("event:")) {
-        event = line.slice("event:".length).trim();
-      }
-
-      if (line.startsWith("data:")) {
-        data.push(line.slice("data:".length).trim());
-      }
-    }
-
-    return {
-      event,
-      data: data.join("\n")
-    };
-  }
-
-  function parseJsonRecord(input: string) {
-    try {
-      const parsed = JSON.parse(input);
-
-      return isRecord(parsed) ? parsed : null;
-    } catch {
-      return null;
-    }
-  }
-
-  function parseGenerationImage(input: Record<string, unknown> | null) {
-    const assetId = readString(input, "asset_id");
-    const url = readString(input, "url");
-    const format = readString(input, "format");
-
-    if (!assetId || !url || !format) {
-      return null;
-    }
-
-    return {
-      asset_id: assetId,
-      url,
-      format
-    };
-  }
-
-  function parseGenerationImages(input: Record<string, unknown> | null) {
-    const images = input?.images;
-
-    if (!Array.isArray(images)) {
-      return [];
-    }
-
-    return images
-      .map((image) => (isRecord(image) ? parseGenerationImage(image) : null))
-      .filter((image): image is GenerationImage => image !== null);
-  }
-
-  function parseUsage(input: Record<string, unknown> | null) {
-    const usage = isRecord(input?.usage) ? input.usage : {};
-
-    return {
-      input_tokens: readNumber(usage, "input_tokens") ?? 0,
-      output_tokens: readNumber(usage, "output_tokens") ?? 0,
-      total_tokens: readNumber(usage, "total_tokens") ?? 0,
-      estimated_cost: readString(usage, "estimated_cost") ?? "0.0000"
-    };
-  }
-
-  function readString(input: Record<string, unknown> | null, key: string) {
-    const value = input?.[key];
-
-    return typeof value === "string" ? value : undefined;
-  }
-
-  function readNumber(input: Record<string, unknown> | null, key: string) {
-    const value = input?.[key];
-
-    return typeof value === "number" ? value : undefined;
-  }
-
-  function isRecord(input: unknown): input is Record<string, unknown> {
-    return typeof input === "object" && input !== null && !Array.isArray(input);
-  }
 
   async function copyPrompt() {
     await navigator.clipboard?.writeText(prompt);
@@ -1003,30 +981,6 @@ export default function CreatorWorkspace() {
     return new File([blob], "mask.png", { type: "image/png" });
   }
 
-  function buildEditFormData(
-    params: ImageGenerationParams,
-    images: File[],
-    mask?: File
-  ) {
-    const formData = new FormData();
-    images.forEach((image) => formData.append("image", image));
-
-    if (mask) {
-      formData.set("mask", mask);
-    }
-
-    Object.entries(params).forEach(([key, value]) => {
-      if (key === "output_compression" && value === null) {
-        return;
-      }
-
-      if (value !== undefined && value !== null) {
-        formData.set(key, String(value));
-      }
-    });
-
-    return formData;
-  }
 
   function handleReferenceInput(event: ChangeEvent<HTMLInputElement>) {
     selectReferenceImages(Array.from(event.target.files ?? []));
@@ -1293,10 +1247,10 @@ export default function CreatorWorkspace() {
 
   async function handleResultAsReference(image: GenerationImage) {
     try {
-      const response = await fetch(image.url);
-      const blob = await response.blob();
-      const reference = new File([blob], `${image.asset_id}.${image.format}`, {
-        type: blob.type || mimeTypeForFormat(image.format)
+      const reference = await fetchReferenceImageFile({
+        url: image.url,
+        fileName: `${image.asset_id}.${image.format}`,
+        fallbackType: mimeTypeForFormat(image.format)
       });
 
       setReferenceImages([reference]);
@@ -1427,10 +1381,10 @@ export default function CreatorWorkspace() {
 
   async function handleLibraryContinueEdit(item: LibraryAssetItem) {
     try {
-      const response = await fetch(item.thumbnail_url);
-      const blob = await response.blob();
-      const reference = new File([blob], libraryReferenceName(item), {
-        type: blob.type || mimeTypeForFormat(item.format)
+      const reference = await fetchReferenceImageFile({
+        url: item.thumbnail_url,
+        fileName: libraryReferenceName(item),
+        fallbackType: mimeTypeForFormat(item.format)
       });
 
       setReferenceImages([reference]);
@@ -1454,11 +1408,11 @@ export default function CreatorWorkspace() {
 
   async function handleHistoryContinueEdit(item: LocalHistoryItem) {
     try {
-      const response = await fetch(item.thumbnailUrl);
-      const blob = await response.blob();
       const format = item.params.output_format;
-      const reference = new File([blob], historyReferenceName(item), {
-        type: blob.type || mimeTypeForFormat(format)
+      const reference = await fetchReferenceImageFile({
+        url: item.thumbnailUrl,
+        fileName: historyReferenceName(item),
+        fallbackType: mimeTypeForFormat(format)
       });
 
       setReferenceImages([reference]);
@@ -1503,35 +1457,1337 @@ export default function CreatorWorkspace() {
     return typeof value === "string" ? value.trim() : "";
   }
 
-  function mimeTypeForFormat(format: string) {
-    if (format === "jpeg" || format === "jpg") {
-      return "image/jpeg";
+  function restoreVersionNodeParams(node: CreatorVersionNode) {
+    setPrompt(node.prompt);
+    setSize(node.params.size);
+    setQuality(node.params.quality);
+    setOutputFormat(node.params.output_format);
+    setN(node.params.n);
+    setOutputCompression(
+      node.params.output_compression === null
+        ? ""
+        : String(node.params.output_compression)
+    );
+    setModeration(node.params.moderation);
+    setErrorMessage("");
+  }
+
+  function returnToVersionNode(node: CreatorVersionNode) {
+    setActiveProjectId(nodeProjectIds[node.id] ?? "commercial");
+    setActiveConversationId(`branch:${node.branchId}`);
+    setActiveNodeId(node.id);
+    setForkParentId(null);
+    setErrorMessage("");
+  }
+
+  function startVersionFork(node: CreatorVersionNode) {
+    setActiveProjectId(nodeProjectIds[node.id] ?? "commercial");
+    setActiveConversationId(`branch:${node.branchId}`);
+    setActiveNodeId(node.id);
+    setForkParentId(node.id);
+    restoreVersionNodeParams(node);
+  }
+
+  function formatVersionNodeTime(node: CreatorVersionNode) {
+    return new Date(node.createdAt).toLocaleTimeString("zh-CN", {
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  }
+
+  function selectProject(projectId: CreatorProjectId) {
+    const nextProjectNodes = versionNodes.filter(
+      (node) => (nodeProjectIds[node.id] ?? "commercial") === projectId
+    );
+    const latestNode = [...nextProjectNodes].sort(
+      (left, right) =>
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+    )[0];
+
+    setActiveProjectId(projectId);
+    setActiveConversationId(latestNode ? "all" : "new");
+    setActiveNodeId(latestNode?.id ?? null);
+    setForkParentId(null);
+    setErrorMessage("");
+  }
+
+  function selectConversation(conversationId: CreatorConversationId) {
+    if (conversationId === "new") {
+      setActiveConversationId("new");
+      setActiveNodeId(null);
+      setForkParentId(null);
+      setPrompt("");
+      setErrorMessage("");
+      return;
     }
 
-    return `image/${format}`;
+    const nextNodes = conversationId.startsWith("branch:")
+      ? projectVersionNodes.filter(
+          (node) => node.branchId === conversationId.slice("branch:".length)
+        )
+      : projectVersionNodes;
+    const latestNode = [...nextNodes].sort(
+      (left, right) =>
+        new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+    )[0];
+
+    setActiveConversationId(conversationId);
+    setActiveNodeId(latestNode?.id ?? null);
+    setForkParentId(null);
+    setErrorMessage("");
+  }
+
+  const useCodexChatStudio =
+    process.env.NEXT_PUBLIC_PSYPIC_LEGACY_CREATOR !== "1";
+  const currentConversationTitle =
+    activeConversationId === "new"
+      ? activeProject.emptyTitle
+      : activeConversationId === "all"
+      ? activeProject.emptyTitle
+      : activeBranchSummary?.latestNode?.prompt.slice(0, 30) ||
+        activeBranchSummary?.label ||
+        activeProject.emptyTitle;
+
+  if (useCodexChatStudio) {
+    return (
+      <AppShell
+        bodyClassName="product-workbench-body"
+        currentPath="/"
+        showAdminLink={showAdminLink}
+      >
+        <main className="chat-studio-shell" data-testid="chat-studio-shell">
+        <aside
+          className="project-sidebar"
+          data-testid="left-parameter-panel"
+          aria-label="项目与对话"
+        >
+          <div className="project-brand">
+            <span className="sidebar-section-title">创作台</span>
+            <button
+              aria-pressed={activeConversationId === "new"}
+              className={`project-create-button ${
+                activeConversationId === "new" ? "active" : ""
+              }`}
+              onClick={() => selectConversation("new")}
+              type="button"
+            >
+              <MessageSquarePlus size={16} aria-hidden="true" />
+              <span>新建对话</span>
+            </button>
+            <p className="project-context-note">
+              当前项目 · {activeProject.title}
+            </p>
+          </div>
+
+          <div className="project-sidebar-tree sidebar-fill">
+            {sidebarProjects.map((item) => {
+              const isActiveProject = activeProjectId === item.project.id;
+
+              return (
+                <section
+                  className={`project-tree-group ${
+                    isActiveProject ? "active" : ""
+                  }`}
+                  key={item.project.id}
+                >
+                  <button
+                    aria-pressed={isActiveProject}
+                    className={`project-row project-tree-row ${
+                      isActiveProject ? "active" : ""
+                    }`}
+                    onClick={() => selectProject(item.project.id)}
+                    type="button"
+                  >
+                    <span className="project-row-copy">
+                      <Folder size={15} aria-hidden="true" />
+                      <span>
+                        <strong>{item.project.title}</strong>
+                        <small>
+                          {item.nodes.length > 0
+                            ? `${item.nodes.length} 个历史节点`
+                            : item.project.description}
+                        </small>
+                      </span>
+                    </span>
+                    <span className="project-row-meta">
+                      <span className="template-pill">{item.nodes.length}</span>
+                      {isActiveProject ? (
+                        <ChevronDown size={14} aria-hidden="true" />
+                      ) : (
+                        <ChevronRight size={14} aria-hidden="true" />
+                      )}
+                    </span>
+                  </button>
+
+                  {isActiveProject ? (
+                    <div
+                      className="project-conversation-tree"
+                      data-testid="project-conversation-tree"
+                    >
+                      <button
+                        aria-pressed={activeConversationId === "all"}
+                        className={`conversation-row ${
+                          activeConversationId === "all" ? "active" : ""
+                        }`}
+                        onClick={() => selectConversation("all")}
+                        type="button"
+                      >
+                        <span>
+                          <strong>{item.project.emptyTitle}</strong>
+                          <small>
+                            全部对话 · {item.nodes.length || 0} 次生成
+                          </small>
+                        </span>
+                      </button>
+                      {item.branchSummaries.map((branch) => (
+                        <button
+                          aria-pressed={activeConversationId === `branch:${branch.id}`}
+                          className={`conversation-row ${
+                            activeConversationId === `branch:${branch.id}`
+                              ? "active"
+                              : ""
+                          }`}
+                          key={branch.id}
+                          onClick={() => selectConversation(`branch:${branch.id}`)}
+                          type="button"
+                        >
+                          <span>
+                            <strong>
+                              {branch.latestNode?.prompt.slice(0, 24) || branch.label}
+                            </strong>
+                            <small>
+                              {branch.label} · {branch.count} 个历史节点
+                            </small>
+                          </span>
+                        </button>
+                      ))}
+                      {item.nodes.length === 0 ? (
+                        <div className="conversation-empty">还没有生成记录</div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </section>
+              );
+            })}
+          </div>
+
+        </aside>
+
+        <section className="chat-workspace" data-testid="center-workspace">
+          <header className="chat-workspace-header">
+            <div>
+              <span className="sidebar-section-title">当前对话</span>
+              <h1>{currentConversationTitle}</h1>
+            </div>
+            <div className="chat-header-actions">
+              {forkParentId ? (
+                <span className="version-context-pill">分叉生成中</span>
+              ) : null}
+              <button className="secondary-button" type="button">
+                Board
+              </button>
+            </div>
+          </header>
+
+          <div
+            className="chat-transcript"
+            data-testid="chat-transcript"
+            aria-label="创作对话流"
+          >
+            {displayedVersionNodes.length === 0 ? (
+              <section className="chat-empty-state" data-testid="active-gallery">
+                <div className="studio-empty-state-panel">
+                  <div className="studio-empty-state-copy">
+                    <span className="template-pill">新对话</span>
+                    <h2>{activeProject.emptyTitle}</h2>
+                    <p>{activeProject.emptyDescription}</p>
+                  </div>
+                  <div className="studio-empty-canvas" aria-hidden="true">
+                    <div className="studio-empty-toolbar">
+                      <span />
+                      <span />
+                      <span />
+                    </div>
+                    <div className="studio-empty-grid">
+                      <span className="studio-empty-frame studio-empty-frame-main" />
+                      <span className="studio-empty-frame" />
+                      <span className="studio-empty-frame" />
+                    </div>
+                  </div>
+                </div>
+              </section>
+            ) : (
+              displayedVersionNodes.map((node, index) => (
+                <article
+                  className={`chat-turn ${
+                    node.id === activeNodeId ? "active" : ""
+                  }`}
+                  data-testid={node.id === activeNodeId ? "active-gallery" : undefined}
+                  key={node.id}
+                >
+                  <div className="chat-message user-message">
+                    <div className="chat-avatar">你</div>
+                    <div className="chat-bubble">
+                      <div className="chat-message-meta">
+                        <span>{node.branchLabel}</span>
+                        <span>#{index + 1}</span>
+                        <span>{formatVersionNodeTime(node)}</span>
+                      </div>
+                      <p>{node.prompt}</p>
+                    </div>
+                  </div>
+
+                  <div className="chat-message assistant-message">
+                    <div className="chat-avatar assistant-avatar">P</div>
+                    <div className="chat-bubble generation-bubble">
+                      <div className="generation-message-header">
+                        <div>
+                          <strong>
+                            {node.source === "edit" ? "图生图结果" : "文生图结果"}
+                          </strong>
+                          <p>{summarizeNodeParams(node)}</p>
+                        </div>
+                        <div className="history-actions">
+                          <button
+                            className="secondary-button"
+                            onClick={() => returnToVersionNode(node)}
+                            type="button"
+                            aria-label={`回到版本 ${node.prompt}`}
+                          >
+                            回到版本
+                          </button>
+                          <button
+                            className="secondary-button"
+                            onClick={() => restoreVersionNodeParams(node)}
+                            type="button"
+                            aria-label={`恢复参数 ${node.prompt}`}
+                          >
+                            恢复参数
+                          </button>
+                          <button
+                            className="secondary-button"
+                            onClick={() => startVersionFork(node)}
+                            type="button"
+                            aria-label={`从此分叉 ${node.prompt}`}
+                          >
+                            从此分叉
+                          </button>
+                        </div>
+                      </div>
+                      {node.images.length > 0 ? (
+                        <div className="result-grid chat-result-grid">
+                          {node.images.map((image) => (
+                            <article className="result-card" key={image.asset_id}>
+                              <img alt="生成结果" src={image.url} />
+                              <div className="result-card-body">
+                                <strong>{image.asset_id}</strong>
+                                <p>{node.requestId}</p>
+                                <p>{node.usage?.total_tokens ?? 0} tokens</p>
+                                <div className="result-actions">
+                                  <a
+                                    className="secondary-button"
+                                    download
+                                    href={image.url}
+                                  >
+                                    <Download size={16} aria-hidden="true" />
+                                    下载
+                                  </a>
+                                  <button
+                                    className="secondary-button"
+                                    onClick={copyPrompt}
+                                    type="button"
+                                  >
+                                    <Copy size={16} aria-hidden="true" />
+                                    复制 Prompt
+                                  </button>
+                                  <button
+                                    className="secondary-button"
+                                    onClick={submitGeneration}
+                                    type="button"
+                                  >
+                                    <RotateCcw size={16} aria-hidden="true" />
+                                    重试
+                                  </button>
+                                  <button
+                                    className="secondary-button"
+                                    onClick={() => void handleResultAsReference(image)}
+                                    type="button"
+                                  >
+                                    <ImagePlus size={16} aria-hidden="true" />
+                                    作为参考图
+                                  </button>
+                                </div>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="inline-hint">该节点暂无图片结果。</p>
+                      )}
+                    </div>
+                  </div>
+                </article>
+              ))
+            )}
+
+            {currentTask ? (
+              <section
+                aria-label="任务状态"
+                className={`task-status-strip task-status-${currentTask.status}`}
+                role="status"
+              >
+                <div className="task-status-main">
+                  <div>
+                    <span className="field-label">任务状态</span>
+                    <strong>{taskStatusLabels[currentTask.status]}</strong>
+                  </div>
+                  <span className="task-status-pill">
+                    {currentTask.type ? taskTypeLabels[currentTask.type] : "任务"}
+                  </span>
+                </div>
+                <div className="task-status-meta">
+                  <span>{currentTask.id ?? "等待任务 ID"}</span>
+                  {currentTask.duration_ms ? (
+                    <span>{currentTask.duration_ms}ms</span>
+                  ) : null}
+                  {currentTask.upstream_request_id ? (
+                    <span>{currentTask.upstream_request_id}</span>
+                  ) : null}
+                  {currentTask.error?.message ? (
+                    <span>{currentTask.error.message}</span>
+                  ) : null}
+                </div>
+                <div className="task-status-actions">
+                  {currentTask.id ? (
+                    <button
+                      className="secondary-button"
+                      onClick={() => void refreshTaskStatus(currentTask.id ?? "")}
+                      type="button"
+                    >
+                      <RotateCcw size={16} aria-hidden="true" />
+                      刷新状态
+                    </button>
+                  ) : null}
+                  {canCancelTask(currentTask) ? (
+                    <button
+                      className="secondary-button"
+                      onClick={() => void cancelCurrentTask()}
+                      type="button"
+                    >
+                      <X size={16} aria-hidden="true" />
+                      取消任务
+                    </button>
+                  ) : null}
+                  {canRetryTask(currentTask) ? (
+                    <button
+                      className="secondary-button"
+                      disabled={isGenerating}
+                      onClick={submitGeneration}
+                      type="button"
+                    >
+                      <RotateCcw size={16} aria-hidden="true" />
+                      重新生成
+                    </button>
+                  ) : null}
+                </div>
+              </section>
+            ) : null}
+
+            {partialImages.length > 0 ? (
+              <section className="partial-preview-strip" aria-label="流式预览结果">
+                <div className="field-label">流式预览</div>
+                <div className="partial-preview-list">
+                  {partialImages.map((image, index) => (
+                    <article className="partial-preview-item" key={image.asset_id}>
+                      <img alt="流式预览" src={image.url} />
+                      <div>
+                        <strong>{image.asset_id}</strong>
+                        <span>#{index + 1}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </div>
+
+          <div className="chat-composer" data-testid="prompt-composer">
+            <div className="composer-inner">
+              <div className="composer-context-row">
+                <span>{mode === "image" ? "图生图" : "文生图"}</span>
+                <span>{size}</span>
+                <span>{quality}</span>
+                <span>{n} 张</span>
+                <span>{outputFormat}</span>
+                {streamEnabled ? <span>stream</span> : null}
+              </div>
+              <label className="sr-only" htmlFor="prompt">
+                Prompt
+              </label>
+              <textarea
+                className="chat-prompt-input"
+                id="prompt"
+                onChange={(event) => setPrompt(event.target.value)}
+                placeholder="描述你要生成的商业图片"
+                value={prompt}
+              />
+              <div className="composer-actions">
+                <span className="inline-hint">
+                  {forkParentId
+                    ? "当前上下文：独立分支。"
+                    : "默认不生成文字，不改变参考图主体。"}
+                </span>
+                <div className="prompt-action-buttons">
+                  <button
+                    className="secondary-button"
+                    disabled={isAssistingPrompt || isGenerating}
+                    onClick={optimizePrompt}
+                    type="button"
+                  >
+                    <Sparkles size={16} aria-hidden="true" />
+                    {isAssistingPrompt ? "优化中" : "优化 Prompt"}
+                  </button>
+                  <button
+                    className="secondary-button"
+                    disabled={isGenerating}
+                    onClick={() => void saveCurrentPromptFavorite()}
+                    type="button"
+                  >
+                    <Star size={16} aria-hidden="true" />
+                    收藏 Prompt
+                  </button>
+                  <button
+                    className="primary-button"
+                    disabled={isGenerating}
+                    onClick={submitGeneration}
+                    type="button"
+                  >
+                    <Play size={16} aria-hidden="true" />
+                    {isGenerating ? "生成中" : "生成图片"}
+                  </button>
+                </div>
+              </div>
+              {errorMessage ? (
+                <p className="error-message" role="alert">
+                  {errorMessage}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </section>
+
+        <aside
+          className="studio-inspector"
+          data-testid="right-history-panel"
+          aria-label="参数、素材与 Inspector"
+        >
+          <div className="inspector-scroll">
+            <section className="inspector-section">
+              <div className="section-heading">
+                <SlidersHorizontal size={15} aria-hidden="true" />
+                <strong>生成参数</strong>
+              </div>
+              <div className="field-stack">
+                <div className="field">
+                  <div className="field-label">模式</div>
+                  <div className="segmented">
+                    <button
+                      className={`segment ${mode === "text" ? "active" : ""}`}
+                      onClick={() => setMode("text")}
+                      type="button"
+                    >
+                      文生图
+                    </button>
+                    <button
+                      className={`segment ${mode === "image" ? "active" : ""}`}
+                      onClick={() => setMode("image")}
+                      type="button"
+                    >
+                      图生图
+                    </button>
+                  </div>
+                </div>
+
+                <div className="field">
+                  <label htmlFor="model">模型</label>
+                  <select className="select" id="model" defaultValue="gpt-image-2">
+                    <option value="gpt-image-2">gpt-image-2</option>
+                  </select>
+                </div>
+
+                <div className="field">
+                  <label htmlFor="commercial-size">商业尺寸</label>
+                  <select
+                    className="select"
+                    id="commercial-size"
+                    onChange={(event) => selectCommercialSize(event.target.value)}
+                    value={selectedCommercialSizeId}
+                  >
+                    {commercialSizePresets.map((preset) => (
+                      <option key={preset.id} value={preset.id}>
+                        {preset.label} · {preset.size}
+                      </option>
+                    ))}
+                    <option value="custom">按尺寸选择</option>
+                  </select>
+                </div>
+
+                <div className="field">
+                  <label htmlFor="size">尺寸</label>
+                  <select
+                    className="select"
+                    id="size"
+                    onChange={(event) =>
+                      setSize(event.target.value as ImageGenerationParams["size"])
+                    }
+                    value={size}
+                  >
+                    {GENERATION_SIZE_OPTIONS.map((size) => (
+                      <option key={size} value={size}>
+                        {size === "auto" ? "自动" : size}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="field">
+                  <div className="field-label">质量</div>
+                  <div className="segmented three">
+                    {qualityOptions.map((option) => (
+                      <button
+                        className={`segment ${
+                          option.value === quality ? "active" : ""
+                        }`}
+                        key={option.value}
+                        onClick={() => setQuality(option.value)}
+                        type="button"
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="field">
+                  <label htmlFor="output-format">输出格式</label>
+                  <select
+                    className="select"
+                    id="output-format"
+                    onChange={(event) =>
+                      setOutputFormat(
+                        event.target
+                          .value as ImageGenerationParams["output_format"]
+                      )
+                    }
+                    value={outputFormat}
+                  >
+                    <option value="png">PNG</option>
+                    <option value="jpeg">JPEG</option>
+                    <option value="webp">WebP</option>
+                  </select>
+                </div>
+
+                <div className="field">
+                  <label htmlFor="count">数量</label>
+                  <input
+                    className="input"
+                    id="count"
+                    min={1}
+                    max={8}
+                    onChange={(event) => setN(Number(event.target.value))}
+                    type="number"
+                    value={n}
+                  />
+                </div>
+
+                <label className="toggle-row">
+                  <input
+                    aria-label="流式预览"
+                    checked={streamEnabled}
+                    onChange={(event) => setStreamEnabled(event.target.checked)}
+                    type="checkbox"
+                  />
+                  <span>流式预览</span>
+                </label>
+
+                {streamEnabled ? (
+                  <div className="field">
+                    <label htmlFor="partial-images">Partial Images</label>
+                    <select
+                      className="select"
+                      id="partial-images"
+                      onChange={(event) =>
+                        setPartialImageCount(Number(event.target.value))
+                      }
+                      value={partialImageCount}
+                    >
+                      <option value={0}>0</option>
+                      <option value={1}>1</option>
+                      <option value={2}>2</option>
+                      <option value={3}>3</option>
+                    </select>
+                  </div>
+                ) : null}
+
+                <button
+                  aria-expanded={advancedOpen}
+                  className="secondary-button"
+                  onClick={() => setAdvancedOpen((open) => !open)}
+                  type="button"
+                >
+                  <SlidersHorizontal size={16} aria-hidden="true" />
+                  高级参数
+                </button>
+
+                {advancedOpen ? (
+                  <div className="field-stack">
+                    <div className="field">
+                      <label htmlFor="compression">Output Compression</label>
+                      <input
+                        className="input"
+                        id="compression"
+                        max={100}
+                        min={1}
+                        onChange={(event) => setOutputCompression(event.target.value)}
+                        type="number"
+                        placeholder="仅 JPEG/WebP"
+                        value={outputCompression}
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor="moderation">Moderation</label>
+                      <select
+                        className="select"
+                        id="moderation"
+                        onChange={(event) =>
+                          setModeration(
+                            event.target
+                              .value as ImageGenerationParams["moderation"]
+                          )
+                        }
+                        value={moderation}
+                      >
+                        <option value="auto">auto</option>
+                        <option value="low">low</option>
+                      </select>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+
+            {mode === "image" ? (
+              <section className="inspector-section">
+                <div
+                  className="reference-dropzone"
+                  data-testid="reference-dropzone"
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={handleReferenceDrop}
+                  onPaste={handleReferencePaste}
+                  tabIndex={0}
+                >
+                  <label className="reference-upload">
+                    <input
+                      accept="image/png,image/jpeg,image/webp"
+                      aria-label="参考图"
+                      multiple
+                      onChange={handleReferenceInput}
+                      type="file"
+                    />
+                    <ImagePlus size={18} aria-hidden="true" />
+                    <span>
+                      <strong>参考图</strong>
+                      <span>
+                        {referenceImages.length > 0
+                          ? `${referenceImages.length} 张参考图`
+                          : "点击、拖拽或粘贴图片"}
+                      </span>
+                    </span>
+                  </label>
+                  {referenceImages.length > 0 ? (
+                    <div className="reference-list">
+                      {referenceImages.map((image, index) => (
+                        <div
+                          className="reference-preview-item"
+                          key={`${image.name}-${image.lastModified}-${index}`}
+                        >
+                          {referencePreviews[index] ? (
+                            <img
+                              alt={`参考图 ${image.name}`}
+                              src={referencePreviews[index].url}
+                            />
+                          ) : null}
+                          <span className="reference-preview-name">{image.name}</span>
+                          <button
+                            aria-label={`移除参考图 ${image.name}`}
+                            onClick={() => removeReferenceImage(index)}
+                            type="button"
+                          >
+                            <X size={12} aria-hidden="true" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                {referenceImage ? (
+                  <section className="mask-editor" aria-label="遮罩编辑器">
+                    <label className="toggle-row">
+                      <input
+                        aria-label="遮罩编辑"
+                        checked={maskEnabled}
+                        onChange={(event) => setMaskEnabled(event.target.checked)}
+                        type="checkbox"
+                      />
+                      <span>遮罩编辑</span>
+                    </label>
+                    {maskEnabled ? (
+                      <div className="mask-editor-body">
+                        <div className="mask-toolbar">
+                          <div className="segmented" aria-label="遮罩模式">
+                            <button
+                              className={`segment ${
+                                maskMode === "paint" ? "active" : ""
+                              }`}
+                              onClick={() => setMaskMode("paint")}
+                              type="button"
+                            >
+                              <Brush size={15} aria-hidden="true" />
+                              涂抹
+                            </button>
+                            <button
+                              className={`segment ${
+                                maskMode === "restore" ? "active" : ""
+                              }`}
+                              onClick={() => setMaskMode("restore")}
+                              type="button"
+                            >
+                              <Eraser size={15} aria-hidden="true" />
+                              还原
+                            </button>
+                          </div>
+                          <label className="mask-size-control">
+                            <span>画笔大小</span>
+                            <input
+                              aria-label="画笔大小"
+                              max={120}
+                              min={8}
+                              onChange={(event) =>
+                                setMaskBrushSize(Number(event.target.value))
+                              }
+                              type="range"
+                              value={maskBrushSize}
+                            />
+                          </label>
+                          <button
+                            className="secondary-button"
+                            onClick={resetMaskCanvas}
+                            type="button"
+                          >
+                            <RotateCcw size={16} aria-hidden="true" />
+                            清空遮罩
+                          </button>
+                          <button
+                            className="secondary-button"
+                            onClick={invertMaskCanvas}
+                            type="button"
+                          >
+                            <FlipHorizontal size={16} aria-hidden="true" />
+                            反选遮罩
+                          </button>
+                        </div>
+                        <canvas
+                          aria-label="遮罩画布"
+                          className="mask-canvas"
+                          height={maskCanvasSize}
+                          onPointerCancel={stopMaskStroke}
+                          onPointerDown={startMaskStroke}
+                          onPointerLeave={stopMaskStroke}
+                          onPointerMove={continueMaskStroke}
+                          onPointerUp={stopMaskStroke}
+                          ref={maskCanvasRef}
+                          width={maskCanvasSize}
+                        />
+                      </div>
+                    ) : null}
+                  </section>
+                ) : null}
+              </section>
+            ) : null}
+
+            <section
+              className="inspector-section"
+              data-testid="commercial-template-list"
+            >
+              <div className="section-heading">
+                <Sparkles size={15} aria-hidden="true" />
+                <strong>商业模板</strong>
+              </div>
+              {selectedTemplate ? (
+                <div className="template-field-editor" aria-label="模板字段">
+                  <div className="template-editor-header">
+                    <strong>{selectedTemplate.name}</strong>
+                    <span>{selectedTemplate.description}</span>
+                  </div>
+                  <div className="template-field-grid">
+                    {selectedTemplate.fields.map(renderTemplateField)}
+                  </div>
+                  <button
+                    className="primary-button"
+                    onClick={applySelectedTemplate}
+                    type="button"
+                  >
+                    <Sparkles size={16} aria-hidden="true" />
+                    应用模板
+                  </button>
+                </div>
+              ) : null}
+              <div className="template-list">
+                {mvpTemplates.map((template) => (
+                  <button
+                    className="template-button"
+                    key={template.id}
+                    onClick={() => selectCommercialTemplate(template.id)}
+                    type="button"
+                  >
+                    <span>
+                      <strong>{template.name}</strong>
+                      <span>{template.description}</span>
+                    </span>
+                    <span className="template-pill">
+                      {template.requiresImage ? "需参考图" : "文生图"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section
+              aria-label="版本流"
+              className="version-stream inspector-section"
+              data-testid="version-stream"
+            >
+              <div className="version-stream-header">
+                <div>
+                  <strong>对话式版本流</strong>
+                  <p>回溯参数，或从任意节点分叉生成。</p>
+                </div>
+                {forkParentId ? (
+                  <span className="version-context-pill">分叉中</span>
+                ) : null}
+              </div>
+              {projectVersionNodes.length === 0 ? (
+                <div className="version-empty">
+                  <strong>暂无版本节点</strong>
+                  <p>首次生成后会自动记录 prompt、参数和结果。</p>
+                </div>
+              ) : (
+                <div className="version-node-list">
+                  {projectVersionNodes.map((node, index) => (
+                    <article
+                      className={`version-node ${
+                        node.id === activeNodeId ? "active" : ""
+                      }`}
+                      key={node.id}
+                    >
+                      <div className="version-node-meta">
+                        <span className="version-branch-badge">
+                          {node.branchLabel}
+                        </span>
+                        <span>#{index + 1}</span>
+                        <span>{formatVersionNodeTime(node)}</span>
+                      </div>
+                      <strong>{node.source === "edit" ? "图生图" : "文生图"}</strong>
+                      <p>Prompt: {node.prompt}</p>
+                      <p>{summarizeNodeParams(node)}</p>
+                      {node.images.length > 0 ? (
+                        <div className="version-thumb-strip">
+                          {node.images.slice(0, 4).map((image) => (
+                            <img alt="" key={image.asset_id} src={image.url} />
+                          ))}
+                        </div>
+                      ) : null}
+                      <div className="history-actions">
+                        <button
+                          className="secondary-button"
+                          onClick={() => returnToVersionNode(node)}
+                          type="button"
+                          aria-label={`回到版本 ${node.prompt}`}
+                        >
+                          回到版本
+                        </button>
+                        <button
+                          className="secondary-button"
+                          onClick={() => restoreVersionNodeParams(node)}
+                          type="button"
+                          aria-label={`版本流恢复参数 ${node.prompt}`}
+                        >
+                          恢复参数
+                        </button>
+                        <button
+                          className="secondary-button"
+                          onClick={() => startVersionFork(node)}
+                          type="button"
+                          aria-label={`版本流从此分叉 ${node.prompt}`}
+                        >
+                          从此分叉
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section
+              aria-label="分支图"
+              className="branch-map inspector-section"
+              data-testid="branch-map"
+            >
+              <div className="version-stream-header">
+                <strong>分支图</strong>
+                <p>Board 模式前置预览。</p>
+              </div>
+              {projectVersionNodes.length === 0 ? (
+                <p className="inline-hint">生成后显示节点关系。</p>
+              ) : (
+                <div className="branch-node-list">
+                  {projectVersionNodes.map((node) => (
+                    <div
+                      className={`branch-node ${
+                        node.id === activeNodeId ? "active" : ""
+                      }`}
+                      data-depth={node.depth}
+                      key={node.id}
+                      style={{ "--node-depth": node.depth } as CSSProperties}
+                    >
+                      <span>{node.parentId ? "↳" : "●"}</span>
+                      <strong>路径：{node.branchLabel}</strong>
+                      <p>{node.prompt}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section
+              aria-label="当前节点参数"
+              className="node-inspector inspector-section"
+              data-testid="node-inspector"
+            >
+              <div className="version-stream-header">
+                <strong>Inspector</strong>
+                <p>当前节点的参数快照。</p>
+              </div>
+              {activeVersionNode ? (
+                <div className="inspector-stack">
+                  <p>{summarizeNodeParams(activeVersionNode)}</p>
+                  <p>{activeVersionNode.requestId ?? "暂无 request id"}</p>
+                  <p>{activeVersionNode.durationMs ?? 0}ms</p>
+                </div>
+              ) : (
+                <p className="inline-hint">选择或生成一个版本后查看参数。</p>
+              )}
+            </section>
+
+            <BatchWorkflowPanel defaultSize={size} />
+
+            <section className="inspector-section">
+              <div className="section-heading">
+                <History size={15} aria-hidden="true" />
+                <strong>素材与历史</strong>
+                <button
+                  aria-label="同步素材库"
+                  className="icon-button"
+                  disabled={libraryStatus === "loading"}
+                  onClick={() => void loadServerLibrary()}
+                  title="同步素材库"
+                  type="button"
+                >
+                  <RefreshCw size={16} aria-hidden="true" />
+                </button>
+              </div>
+              <div className="library-toolbar">
+                <label className="checkbox-row">
+                  <input
+                    aria-label="仅收藏素材"
+                    checked={libraryFavoriteOnly}
+                    onChange={(event) =>
+                      setLibraryFavoriteOnly(event.currentTarget.checked)
+                    }
+                    type="checkbox"
+                  />
+                  仅收藏
+                </label>
+                <div className="library-tag-filter">
+                  <Tags size={14} aria-hidden="true" />
+                  <input
+                    aria-label="素材标签过滤"
+                    onChange={(event) => setLibraryTagFilter(event.target.value)}
+                    placeholder="标签"
+                    value={libraryTagFilter}
+                  />
+                </div>
+              </div>
+
+              {libraryStatus === "loading" ? (
+                <div className="history-item">
+                  <strong>同步中</strong>
+                  <p>正在读取服务端素材库。</p>
+                </div>
+              ) : null}
+
+              {libraryStatus === "unavailable" ? (
+                <div className="history-item">
+                  <strong>素材库暂不可用</strong>
+                  <p>继续使用本地历史，不影响生成和继续编辑。</p>
+                </div>
+              ) : null}
+
+              {promptFavorites.length > 0 ? (
+                <div className="library-section">
+                  {promptFavorites.map((item) => (
+                    <div className="history-item" key={item.id}>
+                      <strong>{item.title}</strong>
+                      <p>{item.prompt}</p>
+                      <p>{item.mode === "image" ? "图生图" : "文生图"}</p>
+                      <div className="history-actions">
+                        <button
+                          className="secondary-button"
+                          onClick={() => applyPromptFavorite(item)}
+                          type="button"
+                        >
+                          <Copy size={16} aria-hidden="true" />
+                          套用 Prompt
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {libraryItems.length > 0 ? (
+                <div className="library-section">
+                  {libraryItems.map((item) => (
+                    <div className="history-item library-item" key={item.asset_id}>
+                      <img
+                        alt=""
+                        className="library-thumb"
+                        src={item.thumbnail_url}
+                      />
+                      <div className="library-item-body">
+                        <strong>{item.asset_id}</strong>
+                        <p>{item.prompt}</p>
+                        <p>
+                          {item.task_id}
+                          {item.usage?.total_tokens
+                            ? ` · ${item.usage.total_tokens} tokens`
+                            : ""}
+                          {item.duration_ms ? ` · ${item.duration_ms}ms` : ""}
+                        </p>
+                        {item.tags.length > 0 ? (
+                          <div className="tag-list">
+                            {item.tags.map((tag) => (
+                              <span key={tag}>{tag}</span>
+                            ))}
+                          </div>
+                        ) : null}
+                        <div className="history-actions">
+                          <button
+                            className="secondary-button"
+                            onClick={() => void handleLibraryContinueEdit(item)}
+                            type="button"
+                          >
+                            <ImagePlus size={16} aria-hidden="true" />
+                            继续编辑
+                          </button>
+                          <button
+                            className="secondary-button"
+                            onClick={() => void toggleLibraryFavorite(item)}
+                            type="button"
+                          >
+                            <Star
+                              fill={item.favorite ? "currentColor" : "none"}
+                              size={16}
+                              aria-hidden="true"
+                            />
+                            {item.favorite ? "取消收藏" : "收藏素材"}
+                          </button>
+                          <button
+                            className="secondary-button"
+                            onClick={() =>
+                              setPublishAssetId((current) =>
+                                current === item.asset_id ? null : item.asset_id
+                              )
+                            }
+                            type="button"
+                          >
+                            <UploadCloud size={16} aria-hidden="true" />
+                            发布作品
+                          </button>
+                          <Link
+                            className="secondary-button"
+                            href={`/library/${item.asset_id}`}
+                          >
+                            <ExternalLink size={16} aria-hidden="true" />
+                            详情
+                          </Link>
+                        </div>
+                        {publishAssetId === item.asset_id ? (
+                          <form
+                            className="community-publish-panel"
+                            onSubmit={(event) =>
+                              void publishLibraryItem(event, item)
+                            }
+                          >
+                            <div className="field">
+                              <label htmlFor={`publish-title-${item.asset_id}`}>
+                                作品标题
+                              </label>
+                              <input
+                                className="input"
+                                defaultValue={defaultCommunityTitle(item)}
+                                id={`publish-title-${item.asset_id}`}
+                                name="title"
+                                type="text"
+                              />
+                            </div>
+                            <div className="field">
+                              <label
+                                htmlFor={`publish-visibility-${item.asset_id}`}
+                              >
+                                可见性
+                              </label>
+                              <select
+                                className="select"
+                                defaultValue="private"
+                                id={`publish-visibility-${item.asset_id}`}
+                                name="visibility"
+                              >
+                                <option value="private">私有</option>
+                                <option value="unlisted">链接可见</option>
+                                <option value="public">公开社区</option>
+                              </select>
+                            </div>
+                            <div className="community-publish-options">
+                              <label className="checkbox-row">
+                                <input name="disclose_prompt" type="checkbox" />
+                                公开 Prompt
+                              </label>
+                              <label className="checkbox-row">
+                                <input name="disclose_params" type="checkbox" />
+                                公开参数
+                              </label>
+                              <label className="checkbox-row">
+                                <input
+                                  name="disclose_reference_images"
+                                  type="checkbox"
+                                />
+                                公开参考图
+                              </label>
+                              <label className="checkbox-row">
+                                <input
+                                  defaultChecked
+                                  name="allow_same_generation"
+                                  type="checkbox"
+                                />
+                                允许同款生成
+                              </label>
+                              <label className="checkbox-row">
+                                <input
+                                  name="allow_reference_reuse"
+                                  type="checkbox"
+                                />
+                                允许参考复用
+                              </label>
+                              <label className="checkbox-row">
+                                <input name="public_confirmed" type="checkbox" />
+                                确认公开发布
+                              </label>
+                            </div>
+                            <button
+                              className="primary-button"
+                              disabled={publishingAssetId === item.asset_id}
+                              type="submit"
+                            >
+                              <UploadCloud size={16} aria-hidden="true" />
+                              {publishingAssetId === item.asset_id
+                                ? "发布中"
+                                : "确认发布"}
+                            </button>
+                          </form>
+                        ) : null}
+                        {publishMessages[item.asset_id] ? (
+                          <p className="inline-hint">
+                            {publishMessages[item.asset_id]}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {historyItems.length === 0 &&
+              libraryItems.length === 0 &&
+              promptFavorites.length === 0 ? (
+                <div className="history-item">
+                  <strong>尚未生成</strong>
+                  <p>生成后会显示 prompt、参数、request id、耗时和 usage。</p>
+                </div>
+              ) : (
+                historyItems.map((item) => (
+                  <div className="history-item" key={item.taskId}>
+                    <strong>{item.taskId}</strong>
+                    <p>{item.prompt}</p>
+                    <p>{item.requestId}</p>
+                    <p>{item.totalTokens} tokens · {item.durationMs}ms</p>
+                    <div className="history-actions">
+                      <button
+                        className="secondary-button"
+                        onClick={() => void handleHistoryContinueEdit(item)}
+                        type="button"
+                      >
+                        <ImagePlus size={16} aria-hidden="true" />
+                        继续编辑
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </section>
+          </div>
+        </aside>
+
+        <div className="mobile-bottom-bar">
+          <button className="secondary-button" type="button">
+            <PanelBottom size={16} aria-hidden="true" />
+            打开参数面板
+          </button>
+          <button
+            className="primary-button"
+            disabled={isGenerating}
+            onClick={submitGeneration}
+            type="button"
+          >
+            <Play size={16} aria-hidden="true" />
+            {isGenerating ? "生成中" : "生成"}
+          </button>
+        </div>
+        </main>
+      </AppShell>
+    );
   }
 
   return (
-    <main className="app-shell">
-      <header className="topbar">
-        <div className="brand" aria-label="PsyPic">
-          <div className="brand-mark">P</div>
-          <div>
-            <div className="brand-title">PsyPic</div>
-            <div className="brand-subtitle">商业创作台</div>
-          </div>
-        </div>
-        <div className="topbar-actions">
-          <button className="icon-button" type="button" title="历史">
-            <History size={17} aria-hidden="true" />
-          </button>
-          <Link className="icon-button" href="/settings" title="设置">
-            <Settings size={17} aria-hidden="true" />
-          </Link>
-        </div>
-      </header>
-
-      <div className="creator-grid">
+    <AppShell
+      bodyClassName="product-workbench-body"
+      currentPath="/"
+      showAdminLink={showAdminLink}
+    >
+      <main className="legacy-workbench-shell">
+        <div className="creator-grid gallery-studio-shell" data-testid="creator-gallery-shell">
         <aside
           className="workspace-panel left-column"
           data-testid="left-parameter-panel"
@@ -1773,8 +3029,17 @@ export default function CreatorWorkspace() {
                 {referenceImages.length > 0 ? (
                   <div className="reference-list">
                     {referenceImages.map((image, index) => (
-                      <span key={`${image.name}-${index}`}>
-                        {image.name}
+                      <div
+                        className="reference-preview-item"
+                        key={`${image.name}-${image.lastModified}-${index}`}
+                      >
+                        {referencePreviews[index] ? (
+                          <img
+                            alt={`参考图 ${image.name}`}
+                            src={referencePreviews[index].url}
+                          />
+                        ) : null}
+                        <span className="reference-preview-name">{image.name}</span>
                         <button
                           aria-label={`移除参考图 ${image.name}`}
                           onClick={() => removeReferenceImage(index)}
@@ -1782,7 +3047,7 @@ export default function CreatorWorkspace() {
                         >
                           <X size={12} aria-hidden="true" />
                         </button>
-                      </span>
+                      </div>
                     ))}
                   </div>
                 ) : null}
@@ -1868,7 +3133,7 @@ export default function CreatorWorkspace() {
               </section>
             ) : null}
 
-            <div className="field">
+            <div className="field prompt-composer" data-testid="prompt-composer">
               <label htmlFor="prompt">Prompt</label>
               <textarea
                 className="textarea"
@@ -2039,16 +3304,20 @@ export default function CreatorWorkspace() {
               </div>
             </div>
 
-            <div className="result-stage" aria-label="结果区">
-              {result ? (
+            <div
+              className="result-stage active-gallery"
+              aria-label="结果区"
+              data-testid="active-gallery"
+            >
+              {galleryImages.length > 0 ? (
                 <div className="result-grid">
-                  {result.images.map((image) => (
+                  {galleryImages.map((image) => (
                     <article className="result-card" key={image.asset_id}>
                       <img alt="生成结果" src={image.url} />
                       <div className="result-card-body">
                         <strong>{image.asset_id}</strong>
-                        <p>{result.request_id}</p>
-                        <p>{result.usage.total_tokens} tokens</p>
+                        <p>{galleryRequestId}</p>
+                        <p>{galleryTotalTokens} tokens</p>
                         <div className="result-actions">
                           <a
                             className="secondary-button"
@@ -2125,6 +3394,136 @@ export default function CreatorWorkspace() {
             </div>
           </div>
           <div className="panel-body history-list">
+            <section
+              aria-label="版本流"
+              className="version-stream"
+              data-testid="version-stream"
+            >
+              <div className="version-stream-header">
+                <div>
+                  <strong>对话式版本流</strong>
+                  <p>回溯参数，或从任意节点分叉生成。</p>
+                </div>
+                {forkParentId ? <span className="version-context-pill">分叉中</span> : null}
+              </div>
+              {versionNodes.length === 0 ? (
+                <div className="version-empty">
+                  <strong>暂无版本节点</strong>
+                  <p>首次生成后会自动记录 prompt、参数和结果。</p>
+                </div>
+              ) : (
+                <div className="version-node-list">
+                  {versionNodes.map((node, index) => (
+                    <article
+                      className={`version-node ${
+                        node.id === activeNodeId ? "active" : ""
+                      }`}
+                      key={node.id}
+                    >
+                      <div className="version-node-meta">
+                        <span className="version-branch-badge">
+                          {node.branchLabel}
+                        </span>
+                        <span>#{index + 1}</span>
+                        <span>{formatVersionNodeTime(node)}</span>
+                      </div>
+                      <strong>{node.source === "edit" ? "图生图" : "文生图"}</strong>
+                      <p>Prompt: {node.prompt}</p>
+                      <p>{summarizeNodeParams(node)}</p>
+                      {node.images.length > 0 ? (
+                        <div className="version-thumb-strip">
+                          {node.images.slice(0, 4).map((image) => (
+                            <img
+                              alt=""
+                              key={image.asset_id}
+                              src={image.url}
+                            />
+                          ))}
+                        </div>
+                      ) : null}
+                      <div className="history-actions">
+                        <button
+                          className="secondary-button"
+                          onClick={() => returnToVersionNode(node)}
+                          type="button"
+                          aria-label={`回到版本 ${node.prompt}`}
+                        >
+                          回到版本
+                        </button>
+                        <button
+                          className="secondary-button"
+                          onClick={() => restoreVersionNodeParams(node)}
+                          type="button"
+                          aria-label={`恢复参数 ${node.prompt}`}
+                        >
+                          恢复参数
+                        </button>
+                        <button
+                          className="secondary-button"
+                          onClick={() => startVersionFork(node)}
+                          type="button"
+                          aria-label={`从此分叉 ${node.prompt}`}
+                        >
+                          从此分叉
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section
+              aria-label="分支图"
+              className="branch-map"
+              data-testid="branch-map"
+            >
+              <div className="version-stream-header">
+                <strong>分支图</strong>
+                <p>Board 模式前置预览。</p>
+              </div>
+              {versionNodes.length === 0 ? (
+                <p className="inline-hint">生成后显示节点关系。</p>
+              ) : (
+                <div className="branch-node-list">
+                  {versionNodes.map((node) => (
+                    <div
+                      className={`branch-node ${
+                        node.id === activeNodeId ? "active" : ""
+                      }`}
+                      data-depth={node.depth}
+                      key={node.id}
+                      style={{ "--node-depth": node.depth } as CSSProperties}
+                    >
+                      <span>{node.parentId ? "↳" : "●"}</span>
+                      <strong>路径：{node.branchLabel}</strong>
+                      <p>{node.prompt}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section
+              aria-label="当前节点参数"
+              className="node-inspector"
+              data-testid="node-inspector"
+            >
+              <div className="version-stream-header">
+                <strong>Inspector</strong>
+                <p>当前节点的参数快照。</p>
+              </div>
+              {activeVersionNode ? (
+                <div className="inspector-stack">
+                  <p>{summarizeNodeParams(activeVersionNode)}</p>
+                  <p>{activeVersionNode.requestId ?? "暂无 request id"}</p>
+                  <p>{activeVersionNode.durationMs ?? 0}ms</p>
+                </div>
+              ) : (
+                <p className="inline-hint">选择或生成一个版本后查看参数。</p>
+              )}
+            </section>
+
             <BatchWorkflowPanel defaultSize={size} />
 
             <div className="library-toolbar">
@@ -2370,39 +3769,26 @@ export default function CreatorWorkspace() {
             )}
           </div>
         </aside>
-      </div>
+        </div>
 
-      <div className="mobile-bottom-bar">
-        <button className="secondary-button" type="button">
-          <PanelBottom size={16} aria-hidden="true" />
-          打开参数面板
-        </button>
-        <button
-          className="primary-button"
-          disabled={isGenerating}
-          onClick={submitGeneration}
-          type="button"
-        >
-          <Play size={16} aria-hidden="true" />
-          {isGenerating ? "生成中" : "生成"}
-        </button>
-      </div>
-    </main>
+        <div className="mobile-bottom-bar">
+          <button className="secondary-button" type="button">
+            <PanelBottom size={16} aria-hidden="true" />
+            打开参数面板
+          </button>
+          <button
+            className="primary-button"
+            disabled={isGenerating}
+            onClick={submitGeneration}
+            type="button"
+          >
+            <Play size={16} aria-hidden="true" />
+            {isGenerating ? "生成中" : "生成"}
+          </button>
+        </div>
+      </main>
+    </AppShell>
   );
 }
 
-function createTemplateFieldValues(
-  template: CommercialTemplate | undefined,
-  seedText: string
-): TemplateFieldValues {
-  if (!template) {
-    return {};
-  }
 
-  return Object.fromEntries(
-    template.fields.map((field) => [
-      field.key,
-      field.defaultValue ?? (field.required ? seedText : "")
-    ])
-  ) as TemplateFieldValues;
-}

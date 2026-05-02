@@ -1,5 +1,6 @@
 import CommunityFeedPage from "@/components/community/CommunityFeedPage";
 import { listPublicCommunityWorks } from "@/server/services/community-service";
+import { isCurrentRequestAdmin } from "@/server/services/request-user-service";
 
 export default async function Page({
   searchParams
@@ -10,13 +11,16 @@ export default async function Page({
   const sort = parseSort(firstParam(params.sort));
   const scene = firstParam(params.scene);
   const tag = firstParam(params.tag);
-  const allWorks = listPublicCommunityWorks({ limit: 50 });
-  const works = listPublicCommunityWorks({
-    limit: 30,
-    scene,
-    tag,
-    sort
-  });
+  const [allWorks, works, showAdminLink] = await Promise.all([
+    listPublicCommunityWorks({ limit: 50 }),
+    listPublicCommunityWorks({
+      limit: 30,
+      scene,
+      tag,
+      sort
+    }),
+    isCurrentRequestAdmin()
+  ]);
   const scenes = Array.from(
     new Set(allWorks.items.map((work) => work.scene).filter(Boolean))
   ) as string[];
@@ -31,6 +35,7 @@ export default async function Page({
         scenes,
         tags
       }}
+      showAdminLink={showAdminLink}
       works={works.items}
     />
   );

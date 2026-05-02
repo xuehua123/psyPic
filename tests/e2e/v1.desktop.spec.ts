@@ -20,12 +20,22 @@ test("一键导入 API 不返回明文 Key", async ({ request }) => {
   expect(JSON.stringify(body)).not.toContain("devkey");
 });
 
+test("工作台使用固定产品壳，页面本身不滚动", async ({ page }) => {
+  await bindManualKey(page);
+
+  await page.goto("/");
+  await expectFixedProductShell(page);
+  await expect(page.getByTestId("chat-studio-shell")).toBeVisible();
+  await expect(page.getByTestId("chat-transcript")).toBeVisible();
+});
+
 test("创作台覆盖手动 key、文生图、图生图、遮罩、流式、批量、素材和社区发布", async ({
   page
 }) => {
   await bindManualKey(page);
 
   await page.goto("/");
+  await expectFixedProductShell(page);
   await expect(page.getByTestId("left-parameter-panel")).toBeVisible();
   await expect(page.getByTestId("center-workspace")).toBeVisible();
   await expect(page.getByTestId("right-history-panel")).toBeVisible();
@@ -169,6 +179,35 @@ function creatorPrompt(page: Page) {
 
 async function bindAdminSession(page: Page) {
   await bindE2ESession(page, "admin");
+}
+
+async function expectFixedProductShell(page: Page) {
+  const layout = await page.evaluate(() => {
+    const shell = document.querySelector(".product-shell");
+    const transcript = document.querySelector(".chat-transcript");
+    const workbench = document.querySelector(".product-workbench-body");
+
+    return {
+      viewportHeight: window.innerHeight,
+      documentClientHeight: document.documentElement.clientHeight,
+      documentScrollHeight: document.documentElement.scrollHeight,
+      bodyClientHeight: document.body.clientHeight,
+      bodyScrollHeight: document.body.scrollHeight,
+      shellBottom: shell?.getBoundingClientRect().bottom ?? 0,
+      workbenchOverflowY: workbench
+        ? getComputedStyle(workbench).overflowY
+        : null,
+      transcriptOverflowY: transcript
+        ? getComputedStyle(transcript).overflowY
+        : null
+    };
+  });
+
+  expect(layout.documentScrollHeight).toBe(layout.documentClientHeight);
+  expect(layout.bodyScrollHeight).toBe(layout.bodyClientHeight);
+  expect(layout.shellBottom).toBeLessThanOrEqual(layout.viewportHeight + 1);
+  expect(layout.workbenchOverflowY).toBe("hidden");
+  expect(layout.transcriptOverflowY).toBe("auto");
 }
 
 async function bindE2ESession(page: Page, role: "admin" | "user") {

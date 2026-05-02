@@ -1,8 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Bookmark, Flag, Heart, Star } from "lucide-react";
+import { Bookmark, Flag, Heart, ImagePlus, Sparkles, Star } from "lucide-react";
 import { useState } from "react";
+
+import AppPageHeader from "@/components/layout/AppPageHeader";
+import AppShell from "@/components/layout/AppShell";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export type CommunityWorkDetail = {
   work_id: string;
@@ -37,9 +44,11 @@ type SameGenerationDraftResponse = {
 };
 
 export default function CommunityWorkDetailPage({
-  work
+  work,
+  showAdminLink = false
 }: {
   work: CommunityWorkDetail | null;
+  showAdminLink?: boolean;
 }) {
   const [samePrompt, setSamePrompt] = useState("");
   const [sameError, setSameError] = useState("");
@@ -50,122 +59,177 @@ export default function CommunityWorkDetailPage({
     liked: work?.liked ?? false,
     favorited: work?.favorited ?? false
   });
-  const [reportState, setReportState] = useState<"idle" | "sending" | "sent" | "failed">(
-    "idle"
-  );
+  const [reportState, setReportState] = useState<
+    "idle" | "sending" | "sent" | "failed"
+  >("idle");
 
   if (!work) {
     return (
-      <main className="community-shell">
-        <section className="community-empty" role="alert">
-          <h1>作品不存在</h1>
-          <p>作品可能是私有、已下架，或链接不正确。</p>
-          <Link className="secondary-button" href="/community">
-            返回社区
-          </Link>
-        </section>
-      </main>
+      <AppShell currentPath="/community" showAdminLink={showAdminLink}>
+        <main className="mx-auto flex w-full max-w-[800px] px-5 py-10">
+          <Card className="w-full p-7" role="alert">
+            <h1 className="mb-1.5 text-base font-semibold">作品不存在</h1>
+            <p className="text-[13px] text-muted-foreground">
+              作品可能是私有、已下架，或链接不正确。
+            </p>
+            <Button asChild className="mt-4 w-fit" variant="secondary">
+              <Link href="/community">返回灵感社区</Link>
+            </Button>
+          </Card>
+        </main>
+      </AppShell>
     );
   }
 
   return (
-    <main className="community-shell">
-      <div className="community-detail-grid">
-        <section className="community-detail-preview">
-          <img alt={work.title} src={work.image_url} />
-        </section>
-        <aside className="workspace-panel community-detail-panel">
-          <Link className="secondary-button" href="/community">
-            返回社区
-          </Link>
-          <h1>{work.title}</h1>
-          {work.featured ? (
-            <span className="template-pill">
-              <Star size={12} aria-hidden="true" />
-              精选
-            </span>
-          ) : null}
-          {work.scene ? <span className="template-pill">{work.scene}</span> : null}
-          {work.tags.length > 0 ? (
-            <div className="tag-list">
-              {work.tags.map((tag) => (
-                <span key={tag}>{tag}</span>
-              ))}
+    <AppShell currentPath="/community" showAdminLink={showAdminLink}>
+      <main className="mx-auto flex w-full max-w-[1180px] flex-col gap-5 px-5 py-6">
+        <AppPageHeader
+          eyebrow="作品详情"
+          title={work.title}
+          description={work.scene ? `场景：${work.scene}` : undefined}
+          actions={
+            <Button asChild variant="ghost">
+              <Link href="/community">← 灵感社区</Link>
+            </Button>
+          }
+        />
+
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
+          <Card className="overflow-hidden p-0">
+            <div className="relative bg-muted">
+              <img
+                alt={work.title}
+                className="block max-h-[calc(100vh-220px)] w-full object-contain"
+                src={work.image_url}
+              />
+              <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
+                {work.featured ? (
+                  <Badge className="bg-amber-50 text-amber-700 backdrop-blur" variant="outline">
+                    <Star aria-hidden className="size-3 fill-amber-400 text-amber-500" />
+                    精选
+                  </Badge>
+                ) : null}
+                {work.scene ? (
+                  <Badge className="bg-white/85 backdrop-blur" variant="outline">
+                    {work.scene}
+                  </Badge>
+                ) : null}
+              </div>
             </div>
-          ) : null}
-          <div className="history-actions">
-            <button
-              className="secondary-button"
-              onClick={() => void toggleInteraction("like")}
-              type="button"
-            >
-              <Heart size={15} aria-hidden="true" />
-              {interaction.liked ? "已点赞" : "点赞"} {interaction.like_count}
-            </button>
-            <button
-              className="secondary-button"
-              onClick={() => void toggleInteraction("favorite")}
-              type="button"
-            >
-              <Bookmark size={15} aria-hidden="true" />
-              {interaction.favorited ? "已收藏" : "收藏"}{" "}
-              {interaction.favorite_count}
-            </button>
-            <button
-              className="secondary-button"
-              disabled={reportState === "sending" || reportState === "sent"}
-              onClick={() => void reportWork()}
-              type="button"
-            >
-              <Flag size={15} aria-hidden="true" />
-              举报作品
-            </button>
-          </div>
-          {reportState === "sent" ? (
-            <p className="settings-note">已提交举报</p>
-          ) : null}
-          {reportState === "failed" ? (
-            <p className="error-message">举报提交失败，请稍后重试。</p>
-          ) : null}
-          {work.prompt ? (
-            <section className="community-disclosed-block">
-              <div className="field-label">公开 Prompt</div>
-              <p>{work.prompt}</p>
-            </section>
-          ) : (
-            <section className="community-disclosed-block">
-              <div className="field-label">Prompt 未公开</div>
-              <p>作者未公开原始 Prompt，同款生成只会使用公开场景、标签和安全约束。</p>
-            </section>
-          )}
-          {work.same_generation_available ? (
-            <section className="community-disclosed-block">
-              <div className="field-label">同款生成</div>
-              <button
-                className="primary-button"
-                disabled={sameLoading}
-                onClick={() => void loadSameGenerationDraft(work.work_id)}
-                type="button"
-              >
-                {sameLoading ? "生成中" : "生成同款草稿"}
-              </button>
-              {samePrompt ? (
-                <>
-                  <p>{samePrompt}</p>
-                  <Link
-                    className="secondary-button"
-                    href={`/?same_work=${work.work_id}`}
-                  >
-                    套用到创作台
-                  </Link>
-                </>
+          </Card>
+
+          <Card>
+            <CardContent className="flex flex-col gap-4 px-5 py-5">
+              {work.tags.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {work.tags.map((tag) => (
+                    <Badge key={tag} variant="secondary">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
               ) : null}
-              {sameError ? <p className="error-message">{sameError}</p> : null}
-            </section>
-          ) : null}
-        </aside>
-      </div>
-    </main>
+
+              {/* 主 CTA：生成同款草稿 — spec 强制 */}
+              {work.same_generation_available ? (
+                <div className="flex flex-col gap-2 border-t border-border pt-4">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    同款创作
+                  </span>
+                  <Button
+                    disabled={sameLoading}
+                    onClick={() => void loadSameGenerationDraft(work.work_id)}
+                    type="button"
+                  >
+                    <Sparkles aria-hidden className="size-4" />
+                    {sameLoading ? "生成中..." : "生成同款草稿"}
+                  </Button>
+                  {samePrompt ? (
+                    <>
+                      <p className="rounded-md bg-muted/60 px-3 py-2 text-[12.5px] leading-relaxed text-foreground/80">
+                        {samePrompt}
+                      </p>
+                      <Button asChild variant="secondary">
+                        <Link href={`/?same_work=${work.work_id}`}>
+                          <ImagePlus aria-hidden className="size-4" />
+                          套用到创作台
+                        </Link>
+                      </Button>
+                    </>
+                  ) : null}
+                  {sameError ? (
+                    <p className="text-[12.5px] text-destructive">{sameError}</p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {/* 互动操作 */}
+              <div className="flex items-center gap-1 border-t border-border pt-4">
+                <Button
+                  className={cn(interaction.liked && "text-rose-600")}
+                  onClick={() => void toggleInteraction("like")}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Heart
+                    aria-hidden
+                    className={cn("size-3.5", interaction.liked && "fill-rose-500")}
+                  />
+                  {interaction.liked ? "已点赞" : "点赞"} {interaction.like_count}
+                </Button>
+                <Button
+                  className={cn(interaction.favorited && "text-amber-700")}
+                  onClick={() => void toggleInteraction("favorite")}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Bookmark
+                    aria-hidden
+                    className={cn(
+                      "size-3.5",
+                      interaction.favorited && "fill-amber-400"
+                    )}
+                  />
+                  {interaction.favorited ? "已收藏" : "收藏"} {interaction.favorite_count}
+                </Button>
+                <div className="grow" />
+                <Button
+                  className="text-muted-foreground"
+                  disabled={reportState === "sending" || reportState === "sent"}
+                  onClick={() => void reportWork()}
+                  size="sm"
+                  type="button"
+                  variant="ghost"
+                >
+                  <Flag aria-hidden className="size-3.5" />
+                  举报作品
+                </Button>
+              </div>
+              {reportState === "sent" ? (
+                <p className="text-[12px] text-muted-foreground">已提交举报</p>
+              ) : null}
+              {reportState === "failed" ? (
+                <p className="text-[12px] text-destructive">举报提交失败，请稍后重试。</p>
+              ) : null}
+
+              {/* 公开 Prompt / 隐私说明 */}
+              <div className="flex flex-col gap-1.5 border-t border-border pt-4">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  {work.prompt ? "公开 Prompt" : "Prompt 未公开"}
+                </span>
+                <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+                  {work.prompt ??
+                    "作者未公开原始 Prompt，同款生成只会使用公开场景、标签和安全约束。"}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    </AppShell>
   );
 
   async function loadSameGenerationDraft(workId: string) {
