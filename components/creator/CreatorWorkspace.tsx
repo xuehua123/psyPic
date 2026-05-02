@@ -36,6 +36,7 @@ import type {
 } from "react";
 
 import BatchWorkflowPanel from "@/components/creator/BatchWorkflowPanel";
+import ChatEmptyState from "@/components/creator/studio/ChatEmptyState";
 import AppShell from "@/components/layout/AppShell";
 
 import { formatApiError, formatTaskError } from "@/lib/creator/api-error";
@@ -1695,27 +1696,10 @@ export default function CreatorWorkspace({
             aria-label="创作对话流"
           >
             {displayedVersionNodes.length === 0 ? (
-              <section className="chat-empty-state" data-testid="active-gallery">
-                <div className="studio-empty-state-panel">
-                  <div className="studio-empty-state-copy">
-                    <span className="template-pill">新对话</span>
-                    <h2>{activeProject.emptyTitle}</h2>
-                    <p>{activeProject.emptyDescription}</p>
-                  </div>
-                  <div className="studio-empty-canvas" aria-hidden="true">
-                    <div className="studio-empty-toolbar">
-                      <span />
-                      <span />
-                      <span />
-                    </div>
-                    <div className="studio-empty-grid">
-                      <span className="studio-empty-frame studio-empty-frame-main" />
-                      <span className="studio-empty-frame" />
-                      <span className="studio-empty-frame" />
-                    </div>
-                  </div>
-                </div>
-              </section>
+              <ChatEmptyState
+                emptyDescription={activeProject.emptyDescription}
+                emptyTitle={activeProject.emptyTitle}
+              />
             ) : (
               displayedVersionNodes.map((node, index) => (
                 <article
