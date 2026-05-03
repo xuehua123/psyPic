@@ -3,17 +3,13 @@
 import Link from "next/link";
 import {
   Brush,
-  ChevronDown,
-  ChevronRight,
   Copy,
   Download,
   Eraser,
   ExternalLink,
   FlipHorizontal,
-  Folder,
   History,
   ImagePlus,
-  MessageSquarePlus,
   PanelBottom,
   Play,
   RefreshCw,
@@ -42,6 +38,7 @@ import ChatHeader from "@/components/creator/studio/ChatHeader";
 import CommunityPublishPanel from "@/components/creator/studio/CommunityPublishPanel";
 import NodeInspectorSection from "@/components/creator/studio/NodeInspectorSection";
 import PartialPreviewStrip from "@/components/creator/studio/PartialPreviewStrip";
+import ProjectSidebar from "@/components/creator/studio/ProjectSidebar";
 import TaskStatusStrip from "@/components/creator/studio/TaskStatusStrip";
 import VersionStreamSection from "@/components/creator/studio/VersionStreamSection";
 import AppShell from "@/components/layout/AppShell";
@@ -104,6 +101,10 @@ import {
   type CreatorVersionNode
 } from "@/lib/creator/version-graph";
 import {
+  creatorProjects,
+  type SidebarProjectGroup
+} from "@/lib/creator/projects";
+import {
   listPromptFavorites,
   savePromptFavorite,
   type PromptFavoriteItem
@@ -126,56 +127,8 @@ const qualityOptions = [
   { label: "高质", value: "high" }
 ] as const;
 
-type SidebarProjectGroup = {
-  project: (typeof creatorProjects)[number];
-  nodes: CreatorVersionNode[];
-  branchSummaries: Array<{
-    id: string;
-    label: string;
-    count: number;
-    latestNode: CreatorVersionNode | null;
-  }>;
-};
-
 const maskCanvasSize = 512;
 const defaultTemplateId = "tpl_ecommerce_main";
-
-const creatorProjects: Array<{
-  id: CreatorProjectId;
-  title: string;
-  description: string;
-  emptyTitle: string;
-  emptyDescription: string;
-}> = [
-  {
-    id: "commercial",
-    title: "商业图库项目",
-    description: "默认项目 · 本地工作区",
-    emptyTitle: "商业图片创作",
-    emptyDescription: "准备第一张结果图。"
-  },
-  {
-    id: "social",
-    title: "社媒内容项目",
-    description: "小红书、封面与信息流",
-    emptyTitle: "社媒封面创作",
-    emptyDescription: "为移动端内容流建立一条独立版本对话。"
-  },
-  {
-    id: "campaign",
-    title: "广告投放项目",
-    description: "Banner、活动图与多尺寸批量",
-    emptyTitle: "广告活动创作",
-    emptyDescription: "把同一活动概念拆成横版、竖版和方图分支。"
-  },
-  {
-    id: "same",
-    title: "社区同款草稿",
-    description: "同款生成与参考图",
-    emptyTitle: "社区同款草稿",
-    emptyDescription: "从社区作品或参考图开始一条新对话。"
-  }
-];
 
 export default function CreatorWorkspace({
   showAdminLink = false
@@ -1558,122 +1511,14 @@ export default function CreatorWorkspace({
         showAdminLink={showAdminLink}
       >
         <main className="chat-studio-shell" data-testid="chat-studio-shell">
-        <aside
-          className="project-sidebar"
-          data-testid="left-parameter-panel"
-          aria-label="项目与对话"
-        >
-          <div className="project-brand">
-            <span className="sidebar-section-title">创作台</span>
-            <button
-              aria-pressed={activeConversationId === "new"}
-              className={`project-create-button ${
-                activeConversationId === "new" ? "active" : ""
-              }`}
-              onClick={() => selectConversation("new")}
-              type="button"
-            >
-              <MessageSquarePlus size={16} aria-hidden="true" />
-              <span>新建对话</span>
-            </button>
-            <p className="project-context-note">
-              当前项目 · {activeProject.title}
-            </p>
-          </div>
-
-          <div className="project-sidebar-tree sidebar-fill">
-            {sidebarProjects.map((item) => {
-              const isActiveProject = activeProjectId === item.project.id;
-
-              return (
-                <section
-                  className={`project-tree-group ${
-                    isActiveProject ? "active" : ""
-                  }`}
-                  key={item.project.id}
-                >
-                  <button
-                    aria-pressed={isActiveProject}
-                    className={`project-row project-tree-row ${
-                      isActiveProject ? "active" : ""
-                    }`}
-                    onClick={() => selectProject(item.project.id)}
-                    type="button"
-                  >
-                    <span className="project-row-copy">
-                      <Folder size={15} aria-hidden="true" />
-                      <span>
-                        <strong>{item.project.title}</strong>
-                        <small>
-                          {item.nodes.length > 0
-                            ? `${item.nodes.length} 个历史节点`
-                            : item.project.description}
-                        </small>
-                      </span>
-                    </span>
-                    <span className="project-row-meta">
-                      <span className="template-pill">{item.nodes.length}</span>
-                      {isActiveProject ? (
-                        <ChevronDown size={14} aria-hidden="true" />
-                      ) : (
-                        <ChevronRight size={14} aria-hidden="true" />
-                      )}
-                    </span>
-                  </button>
-
-                  {isActiveProject ? (
-                    <div
-                      className="project-conversation-tree"
-                      data-testid="project-conversation-tree"
-                    >
-                      <button
-                        aria-pressed={activeConversationId === "all"}
-                        className={`conversation-row ${
-                          activeConversationId === "all" ? "active" : ""
-                        }`}
-                        onClick={() => selectConversation("all")}
-                        type="button"
-                      >
-                        <span>
-                          <strong>{item.project.emptyTitle}</strong>
-                          <small>
-                            全部对话 · {item.nodes.length || 0} 次生成
-                          </small>
-                        </span>
-                      </button>
-                      {item.branchSummaries.map((branch) => (
-                        <button
-                          aria-pressed={activeConversationId === `branch:${branch.id}`}
-                          className={`conversation-row ${
-                            activeConversationId === `branch:${branch.id}`
-                              ? "active"
-                              : ""
-                          }`}
-                          key={branch.id}
-                          onClick={() => selectConversation(`branch:${branch.id}`)}
-                          type="button"
-                        >
-                          <span>
-                            <strong>
-                              {branch.latestNode?.prompt.slice(0, 24) || branch.label}
-                            </strong>
-                            <small>
-                              {branch.label} · {branch.count} 个历史节点
-                            </small>
-                          </span>
-                        </button>
-                      ))}
-                      {item.nodes.length === 0 ? (
-                        <div className="conversation-empty">还没有生成记录</div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </section>
-              );
-            })}
-          </div>
-
-        </aside>
+        <ProjectSidebar
+          activeConversationId={activeConversationId}
+          activeProjectId={activeProjectId}
+          activeProjectTitle={activeProject.title}
+          onSelectConversation={selectConversation}
+          onSelectProject={selectProject}
+          sidebarProjects={sidebarProjects}
+        />
 
         <section className="chat-workspace" data-testid="center-workspace">
           <ChatHeader

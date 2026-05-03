@@ -56,9 +56,9 @@
 | ✅ | `studio/BranchMapSection.tsx` | (已抽) | `projectVersionNodes`, `activeNodeId` | ⭐⭐ | 56 |
 | ✅ | `studio/VersionStreamSection.tsx` | (已抽) | `projectVersionNodes`, `activeNodeId`, `forkParentId`, return/restore/fork handlers | ⭐⭐ | 113 |
 | ✅ | `studio/CommunityPublishPanel.tsx` | (已抽) | `item: LibraryAssetItem`, `defaultTitle`, `isPublishing`, `onSubmit` | ⭐⭐ | 98 |
+| ✅ | `studio/ProjectSidebar.tsx` | (已抽) | `sidebarProjects`, `activeProjectId`, `activeConversationId`, `activeProjectTitle`, select handlers | ⭐⭐ | 159 |
 | 6 | `studio/Composer.tsx` | ~L1898-1967 | `prompt`, `setPrompt`, `mode`, `referenceImages`, `n`, `submitGeneration`, `applyPromptFavorite`, etc. | ⭐⭐⭐ | ~200 |
-| 7 | `studio/ProjectSidebar.tsx` | ~L1561-1683 | `sidebarProjects`, `activeProjectId`, `activeConversationId`, `selectProject`, `selectConversation` | ⭐⭐ | ~250 |
-| 8 | `studio/inspector/Inspector.tsx` | ~L1968-2768 | 容器 + section 编排 | ⭐⭐ | ~80 |
+| 7 | `studio/inspector/Inspector.tsx` | ~L1968-2768 | 容器 + section 编排 | ⭐⭐ | ~80 |
 | 9 | `studio/inspector/ParamsSection.tsx` | ~L1968-2163 | `mode`, `n`, `selectedTemplate`, `outputCompression`, `streamEnabled`, `partialImageCount`, `advancedOpen` | ⭐⭐⭐ | ~250 |
 | 10 | `studio/inspector/ReferenceSection.tsx` | ~L2163-2218 | `referenceImages`, `referencePreviews`, ref handlers | ⭐⭐ | ~150 |
 | 11 | `studio/inspector/MaskEditor.tsx` | ~L2218-~2270 (mask sub-block) | `maskEnabled`, `maskMode`, `maskBrushSize`, mask ref & 6 个 stroke handler | ⭐⭐⭐ | ~200 |
