@@ -16,14 +16,22 @@ creatorworkspace-extraction-map.md 顶部"📍 下次会话从这里开始"secti
 
 ### 下一刀（按依赖顺序）
 
-1. **第 17 刀：抽 `components/creator/studio/inspector/TemplatesSection.tsx`** — ⭐⭐⭐ 重头戏，消费 selectedTemplate / mvpTemplates + template field handlers + renderTemplateField + applySelectedTemplate + selectCommercialTemplate。
-   - **入口**：grep `commercial-template-list` 找。
-   - 几乎肯定要 Step A 扩 Context 加 mvpTemplates / selectedTemplate / templateFieldValues / setTemplateFieldValues / selectCommercialTemplate / updateTemplateFieldValue / applySelectedTemplate / renderTemplateField。
-   - 或者把 renderTemplateField 这种内部派生函数留在子组件里重新实现（更解耦）。
+1. **第 19 刀：抽 `components/creator/legacy/LegacyCreatorWorkspace.tsx`** — Phase 4 收尾刀。整段 legacy main JSX (~1009 行) 一次性搬到独立 .tsx，主壳从 2694 → ~1700 行（预计 -1000 行）。
+   - **入口**：grep `legacy-workbench-shell` → ~1689 行（每抽一刀偏移）。范围 1683-2691（含 return + AppShell + main + 内部 JSX + 闭合）。
+   - **关键挑战**：legacy 段 inline 引用大约 60+ 个 state / handler / 派生值。**两个方案二选一**：
+     - **方案 A（推荐）**：把 `<CreatorStudioProvider>` 提到主壳 return 顶层（包整个 if-else），LegacyCreatorWorkspace 用 `useCreatorStudio()` 消费 Context。**前置工作**：grep legacy 段引用，确认 Context 是否覆盖；不覆盖的字段（候选：`cancelCurrentTask` / `refreshTaskStatus` / `activeProject` / `activeBranchSummary` / `nodeProjectIds` / `versionNodes` / `setSelectedTemplateId` / `defaultTemplateId` / `currentConversationTitle` / `qualityOptions` 等）需先扩 Context。
+     - **方案 B**：LegacyCreatorWorkspace 接收一个超大 props bag（60+ 字段），主壳传 `<LegacyCreatorWorkspace {...allFields} />`。优点：legacy 完全独立可删；缺点：60 个 prop 接口噪声大。
+   - **执行步骤（方案 A）**：
+     1. grep 主壳 legacy 段（1683-2691）所有 inline 引用，对照 Context 81 字段清单，列出"需补 Context"列表。
+     2. 扩 Context 补这些字段（独立 commit "扩 Context for Legacy"）。
+     3. 重构主壳 return：`<CreatorStudioProvider value={...}>{useCodexChatStudio ? <chat-studio> : <legacy>}</CreatorStudioProvider>`。
+     4. 把 legacy main 整段 1009 行剪切到 `components/creator/legacy/LegacyCreatorWorkspace.tsx`，组件顶层 `useCreatorStudio()` 解构所有需要字段。
+     5. 主壳 legacy return 替换为 `<LegacyCreatorWorkspace />`。
+     6. 顺手清理主壳 dead helper：`renderTemplateField` (现仅 legacy 用 → 也搬到 LegacyCreatorWorkspace) + `qualityOptions` const 等。
+     7. typecheck + 把所有 legacy 专用 lucide icon 从主壳 import 删除（主壳清爽到只 import top-of-file 的 imports）。
+     8. commit "抽出 LegacyCreatorWorkspace 整段 (UI 重构 Phase 4 第十九刀) ✅ Phase 4 收尾" + push。
 
-2. **第 18 刀：抽 `studio/inspector/LibrarySection.tsx`** — ⭐⭐ 中等，`libraryItems/libraryStatus/libraryFavoriteOnly/libraryTagFilter/historyItems/promptFavorites` + 9+ handler。
-
-3. **第 19 刀：抽 `legacy/LegacyCreatorWorkspace.tsx`** — 整段 legacy JSX (~900 行)。这一刀会一次性大幅减少主壳，建议从 grep `legacy-workbench-shell` 找入口。
+2. **可选简化：移除 `useCodexChatStudio` flag** — 如果产品已确认不再需要 legacy fallback，直接 grep `NEXT_PUBLIC_PSYPIC_LEGACY_CREATOR` 看用法，把 flag + legacy 整段删掉，主壳只剩 chat-studio 一个分支。这一步可作为 Phase 4 完美收尾。需要产品确认。
 
 ### 进入项目后第一组动作
 
