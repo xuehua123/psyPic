@@ -2,37 +2,66 @@
 
 ## 📍 下次会话从这里开始（READ ME FIRST）
 
-**当前进度**：**Phase 4 ✅ + Phase 5 ✅ + 衍生项 5/5 ✅ + 收尾扫荡 ✅** 🎉🎉🎉
-- Phase 4：17 / 17 子组件 + 1 / 1 legacy fallback + Context 91 字段
-- Phase 5：6 / 6 视觉打磨刀（详见下面 Phase 5 完成清单）
-- Phase 5 衍生项 ①（`60a6b97` `49ef672`）：2026-05-03 删除 LegacyCreatorWorkspace + 移除 useCodexChatStudio flag（1244 行 dead code 出库，CreatorWorkspace.tsx 单一返回路径，Context 91→81 字段）
-- Phase 5 衍生项 ②（`85c3fed`）：2026-05-03 shadcn Input 全站替换 7 处（6 文件：BatchWorkflowPanel / CommunityPublishPanel / LibrarySection / ParamsSection ×2 / ReferenceSection / TemplatesSection）
-- Phase 5 衍生项 ③（`9cb79fb`）：2026-05-04 shadcn Select 全站替换 8 处（3 文件：ParamsSection ×6 / CommunityPublishPanel / TemplatesSection）+ 5 处测试改造（selectOptions/toHaveValue 不适用于 shadcn Select 的 button trigger，全部切到 user.click + getByRole + toHaveTextContent 模式）+ vitest.setup.ts 加 Radix popover polyfills（hasPointerCapture / releasePointerCapture / scrollIntoView，jsdom 默认未实现）
-- Phase 5 衍生项 ④（`a866ce9`）：2026-05-04 shadcn Checkbox 全站替换 12 处（6 文件：AdminDashboard / CommunityPublishPanel / LibrarySection / ParamsSection / ReferenceSection / TemplatesSection），新增 `components/ui/checkbox.tsx`（36 行），装 `@radix-ui/react-checkbox`，vitest.setup.ts 补 polyfill
-- Phase 5 衍生项 ⑤（`781dce6`）：2026-05-04 shadcn Slider 替换 1 处（ReferenceSection mask brush size），新增 `components/ui/slider.tsx`（75 行），装 `@radix-ui/react-slider`
-- 收尾扫荡 ①（`e5716fc`）：ChatHeader Board 按钮接 onClick → useRef 抓 BranchMapSection 容器，scrollIntoView 平滑滚动（原始衍生项第 4 件）
-- 收尾扫荡 ②（`1ab3f1f`）：globals.css 旧 `.input` / `.select` 孤儿规则清理（-6/+2 行；shadcn 元件接管后 raw className 全无引用）
+**当前进度**：**plan slug `linear-stirring-acorn` 全部封板** 🎉🎉🎉
+- Phase 4 ✅：17 / 17 子组件 + 1 / 1 legacy fallback + Context 91 → 81 字段
+- Phase 5 ✅：6 / 6 视觉打磨刀（详见下面 Phase 5 完成清单）
+- 衍生项 5/5 ✅：删 legacy fallback / shadcn Input ×7 / Select ×8 / Checkbox ×12 / Slider ×1
+- 收尾扫荡 ✅：ChatHeader Board onClick / globals.css 孤儿规则清理
+- **Phase 6 暗色模式 ✅**（commits `4d8b16a` / `8ff2b3c` / `bfc98ff`）：ThemeProvider 三态切换 + ThemeNoFlashScript 抗 FOUC + globals.css 全量 hex → CSS var + theme.test.tsx 6 用例
+- **Plan Task 6 移动端 ✅**（commits `bad24be` / `9ec3201`）：工作台左 / 底 Sheet 抽屉 + 社区 chip 单行横滚 + 详情主图 mobile ≤ 55vh CTA 首屏可达
+- **Plan Task 7 文档 + 全套验收 ✅**（commit `bb08205` + 验收）：docs/14 加暗色 + 移动端两章节、docs/17 加 6 路由走查表、docs/文档索引 加 extraction-map 路径、README 更新；`git diff --check` clean / `pnpm lint` ✅ / `pnpm typecheck` ✅ / `pnpm test` 49 files / 220 tests ✅ / `pnpm build` ✅
 
-`components/creator/CreatorWorkspace.tsx`：4116 → **~1593 行** (-61%)；`components/creator/legacy/` 已整目录删除。
-分支 `codex/fix-v1-review-findings`，最新进度：Phase 5 全闭环出库。
+`components/creator/CreatorWorkspace.tsx`：4116 → **~1607 行** (-61%)；`components/creator/legacy/` 已整目录删除。
+分支 `codex/fix-v1-review-findings`，最新状态：plan 全部出库，封板回归通过。
 
 ### 复制这一句开局（→ 粘到新 Claude Code 会话）
 
 ```
-PsyPic UI 重构 Phase 4 + Phase 5 全部收尾，衍生项 5/5 ✅ + 收尾扫荡 ✅
-（① 删 legacy fallback + 移除 useCodexChatStudio flag；② shadcn Input ×7；
-③ shadcn Select ×8 + Radix polyfills 入 vitest.setup；④ shadcn Checkbox ×12；
-⑤ shadcn Slider ×1；+ ChatHeader Board onClick 接通；+ globals.css 孤儿规则清理）。
-下一波候选三选一：
-- Phase 6 暗色模式（globals.css L60-81 .dark token 已预埋；工作量是 raw
-  bg-*/text-*/border-* 改 CSS var 或加 .dark 重载 + ProjectSidebar 底加切换 UI；
-  spec 明确说 Phase 6 之前不做暗色，意味着 Phase 6 就是入口，但需 product 排期）
-- Plan Task 6 移动端结构重排（左对话抽屉化 / Inspector 底抽屉化 / Composer 固底
-  + 社区/详情移动端首屏 CTA 优化；plan 里待办大任务）
-- Plan Task 7 文档收尾 + 全套验收（更新 docs/14 / docs/17 / docs/文档索引 +
-  README，跑 git diff --check / lint / typecheck / test / build，桌面+移动端
-  6 路由人工走查）
+PsyPic UI 重构 plan slug `linear-stirring-acorn` 已全部封板：
+- Phase 4 + Phase 5 + 衍生项 5/5 + 收尾扫荡：CreatorWorkspace 4116 → 1607 行
+  （-61%），legacy 1244 行整目录出库，shadcn 元件全站收敛
+- Phase 6 暗色模式：ThemeProvider 三态切换（亮 / 暗 / 跟随系统）+
+  ThemeNoFlashScript 抗 FOUC + globals.css 全量 hex → CSS var
+- Plan Task 6 移动端：工作台左 / 底 Sheet 抽屉，社区 chip 单行横滚，
+  详情主图 ≤ 55vh CTA 首屏可达
+- Plan Task 7：docs/14 + docs/17 + docs/文档索引 + README 同步，全套
+  验收（git diff --check / lint / typecheck / test 220✅ / build）通过
+
+下一波由 product 决定。可选项见 CLAUDE.md「后续可选项」段：
+- 桌面 + 移动端真机走查 6 路由（docs/17 走查表）
+- BatchWorkflowPanel state 上 Context 让移动端底抽屉也能展示
+- 暗色 polish 跟踪：accent-soft 系少量字面量未迁移
+- next-themes 迁移（如需 cookies-based 持久化或 multi-theme）
 ```
+
+### Phase 6 暗色模式落地清单（3 / 3 ✅）
+
+| 刀 | commit | 改动 | 文件 |
+| --- | --- | --- | --- |
+| P6-1 ✅ | `4d8b16a` | ThemeProvider + ThemeToggle 三态切换 + ThemeNoFlashScript 抗 FOUC + AppTopNav 嵌入 | +2 文件，174 / -2 行 |
+| P6-2 ✅ | `8ff2b3c` | globals.css `.dark` block 扩展覆盖 17 legacy var；hex 字面量批量迁移到 var()（70+ 处）；3 处 raw `bg-white/8X` Badge → `bg-card/8X` | 5 文件，96 / -62 行 |
+| P6-3 ✅ | `bfc98ff` | tests/components/theme.test.tsx（6 用例）+ vitest.setup.ts 加 matchMedia polyfill；ThemeProvider 重构以满足 react-hooks/set-state-in-effect 规则 | 3 文件，200 / -24 行 |
+
+### Plan Task 6 移动端落地清单（2 / 2 ✅）
+
+| 刀 | commit | 改动 | 文件 |
+| --- | --- | --- | --- |
+| T6-1 ✅ | `bad24be` | ChatHeader 加 md:hidden 汉堡按钮；CreatorWorkspace 加 mobileSidebarOpen / mobileInspectorOpen state 用 shadcn Sheet 装 ProjectSidebar / Inspector；mobile-bottom-bar「打开参数面板」按钮接 onClick；globals.css 加 `[data-mobile-drawer]` 范围样式；creator-shell.test.tsx 加 2 抽屉用例 | 4 文件，182 / -5 行 |
+| T6-2 ✅ | `9ec3201` | CommunityFeedPage chip 行 mobile flex-nowrap + overflow-x-auto；CommunityWorkDetail / LibraryAssetDetail 主图 max-h mobile 55vh 让 CTA 首屏可达 | 3 文件，18 / -13 行 |
+
+### Plan Task 7 文档与验收清单（1 + 验收 ✅）
+
+| 项 | commit / 状态 | 描述 |
+| --- | --- | --- |
+| docs/14 | `bb08205` | 增加「暗色模式标准（Phase 6 落地后）」+「移动端标准（Plan Task 6 落地后）」两章节 |
+| docs/17 | `bb08205` | 增加「UI 重构落地后回归」章节 + 6 路由桌面+移动端人工走查表 |
+| docs/文档索引 | `bb08205` | 把 extraction-map 加入「当前有效的 UI 设计与实施文档」表 |
+| README | `bb08205` | 增补 UI 重构条目；技术栈 UI 行更新为「Tailwind v4 + shadcn/ui + lucide-react」 |
+| `git diff --check` | ✅ | clean |
+| `pnpm lint` | ✅ | pass |
+| `pnpm typecheck` | ✅ | pass |
+| `pnpm test` | ✅ | 49 files / 220 tests pass |
+| `pnpm build` | ✅ | next build pass |
 
 ### Phase 5 收尾完成清单（6 / 6 ✅）
 
