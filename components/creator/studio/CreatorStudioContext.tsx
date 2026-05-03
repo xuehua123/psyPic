@@ -60,6 +60,27 @@ export type CreatorStudioContextValue = {
   isGenerating: boolean;
   optimizePrompt: () => Promise<void> | void;
   saveCurrentPromptFavorite: () => Promise<void> | void;
+
+  // ParamsSection 所需（第 15 刀-A 扩）：6 个 setter for Composer 已读
+  // 字段 + advanced/moderation 等 4 个 read+write + 商业尺寸预设
+  setMode: Dispatch<SetStateAction<CreatorMode>>;
+  setSize: Dispatch<SetStateAction<ImageGenerationParams["size"]>>;
+  setQuality: Dispatch<SetStateAction<ImageGenerationParams["quality"]>>;
+  setOutputFormat: Dispatch<
+    SetStateAction<ImageGenerationParams["output_format"]>
+  >;
+  setN: Dispatch<SetStateAction<number>>;
+  setStreamEnabled: Dispatch<SetStateAction<boolean>>;
+  partialImageCount: number;
+  setPartialImageCount: Dispatch<SetStateAction<number>>;
+  advancedOpen: boolean;
+  setAdvancedOpen: Dispatch<SetStateAction<boolean>>;
+  outputCompression: string;
+  setOutputCompression: Dispatch<SetStateAction<string>>;
+  moderation: ImageGenerationParams["moderation"];
+  setModeration: Dispatch<SetStateAction<ImageGenerationParams["moderation"]>>;
+  selectedCommercialSizeId: string;
+  selectCommercialSize: (presetId: string) => void;
 };
 
 const CreatorStudioContext = createContext<CreatorStudioContextValue | null>(

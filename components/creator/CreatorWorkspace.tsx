@@ -1533,7 +1533,23 @@ export default function CreatorWorkspace({
             isAssistingPrompt,
             isGenerating,
             optimizePrompt,
-            saveCurrentPromptFavorite
+            saveCurrentPromptFavorite,
+            setMode,
+            setSize,
+            setQuality,
+            setOutputFormat,
+            setN,
+            setStreamEnabled,
+            partialImageCount,
+            setPartialImageCount,
+            advancedOpen,
+            setAdvancedOpen,
+            outputCompression,
+            setOutputCompression,
+            moderation,
+            setModeration,
+            selectedCommercialSizeId,
+            selectCommercialSize
           }}
         >
         <main className="chat-studio-shell" data-testid="chat-studio-shell">
