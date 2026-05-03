@@ -1517,7 +1517,21 @@ export default function CreatorWorkspace({
             startVersionFork,
             submitGeneration,
             copyPrompt,
-            handleResultAsReference
+            handleResultAsReference,
+            prompt,
+            setPrompt,
+            mode,
+            size,
+            quality,
+            outputFormat,
+            n,
+            streamEnabled,
+            forkParentId,
+            errorMessage,
+            isAssistingPrompt,
+            isGenerating,
+            optimizePrompt,
+            saveCurrentPromptFavorite
           }}
         >
         <main className="chat-studio-shell" data-testid="chat-studio-shell">

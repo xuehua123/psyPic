@@ -20,10 +20,17 @@
  * - useCreatorStudio() 在没有 Provider 时抛错，避免 silent undefined。
  */
 
-import { createContext, useContext, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction
+} from "react";
 
-import type { GenerationImage } from "@/lib/creator/types";
+import type { CreatorMode, GenerationImage } from "@/lib/creator/types";
 import type { CreatorVersionNode } from "@/lib/creator/version-graph";
+import type { ImageGenerationParams } from "@/lib/validation/image-params";
 
 export type CreatorStudioContextValue = {
   // version graph 选择 / 操作
@@ -36,6 +43,23 @@ export type CreatorStudioContextValue = {
   submitGeneration: () => Promise<void> | void;
   copyPrompt: () => Promise<void> | void;
   handleResultAsReference: (image: GenerationImage) => Promise<void> | void;
+
+  // Composer 所需（第 13 刀-A 扩）：当前 prompt + 生成参数只读视图 +
+  // composer-context-row 显示用，及优化 / 收藏两个辅助 handler
+  prompt: string;
+  setPrompt: Dispatch<SetStateAction<string>>;
+  mode: CreatorMode;
+  size: ImageGenerationParams["size"];
+  quality: ImageGenerationParams["quality"];
+  outputFormat: ImageGenerationParams["output_format"];
+  n: number;
+  streamEnabled: boolean;
+  forkParentId: string | null;
+  errorMessage: string;
+  isAssistingPrompt: boolean;
+  isGenerating: boolean;
+  optimizePrompt: () => Promise<void> | void;
+  saveCurrentPromptFavorite: () => Promise<void> | void;
 };
 
 const CreatorStudioContext = createContext<CreatorStudioContextValue | null>(
