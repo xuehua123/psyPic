@@ -481,7 +481,6 @@ a {
   border-color: var(--accent);
   background: var(--accent-soft);
   color: var(--accent-strong);
-  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .project-sidebar-section {
@@ -585,9 +584,8 @@ a {
 .project-row.active,
 .conversation-row.active {
   background: var(--accent-soft);
-  border-color: rgba(12, 122, 111, 0.35);
+  border-color: var(--accent);
   color: var(--accent-strong);
-  box-shadow: inset 3px 0 0 var(--accent);
 }
 
 .project-row strong,
