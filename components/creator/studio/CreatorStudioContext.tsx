@@ -23,12 +23,21 @@
 import {
   createContext,
   useContext,
+  type ChangeEvent,
+  type ClipboardEvent,
   type Dispatch,
+  type DragEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type RefObject,
   type SetStateAction
 } from "react";
 
-import type { CreatorMode, GenerationImage } from "@/lib/creator/types";
+import type {
+  CreatorMode,
+  GenerationImage,
+  MaskMode
+} from "@/lib/creator/types";
 import type { CreatorVersionNode } from "@/lib/creator/version-graph";
 import type { ImageGenerationParams } from "@/lib/validation/image-params";
 
@@ -81,6 +90,28 @@ export type CreatorStudioContextValue = {
   setModeration: Dispatch<SetStateAction<ImageGenerationParams["moderation"]>>;
   selectedCommercialSizeId: string;
   selectCommercialSize: (presetId: string) => void;
+
+  // ReferenceSection / MaskEditor 所需（第 16 刀扩）：参考图列表 + 4 个
+  // input handler + mask 状态 + canvas ref + 6 个 stroke handler
+  referenceImages: File[];
+  referencePreviews: { name: string; url: string }[];
+  referenceImage: File | null;
+  handleReferenceInput: (event: ChangeEvent<HTMLInputElement>) => void;
+  handleReferenceDrop: (event: DragEvent<HTMLDivElement>) => void;
+  handleReferencePaste: (event: ClipboardEvent<HTMLDivElement>) => void;
+  removeReferenceImage: (index: number) => void;
+  maskEnabled: boolean;
+  setMaskEnabled: Dispatch<SetStateAction<boolean>>;
+  maskMode: MaskMode;
+  setMaskMode: Dispatch<SetStateAction<MaskMode>>;
+  maskBrushSize: number;
+  setMaskBrushSize: Dispatch<SetStateAction<number>>;
+  maskCanvasRef: RefObject<HTMLCanvasElement | null>;
+  resetMaskCanvas: () => void;
+  invertMaskCanvas: () => void;
+  startMaskStroke: (event: ReactPointerEvent<HTMLCanvasElement>) => void;
+  continueMaskStroke: (event: ReactPointerEvent<HTMLCanvasElement>) => void;
+  stopMaskStroke: (event: ReactPointerEvent<HTMLCanvasElement>) => void;
 };
 
 const CreatorStudioContext = createContext<CreatorStudioContextValue | null>(

@@ -40,6 +40,7 @@ import Composer from "@/components/creator/studio/Composer";
 import { CreatorStudioProvider } from "@/components/creator/studio/CreatorStudioContext";
 import Inspector from "@/components/creator/studio/inspector/Inspector";
 import ParamsSection from "@/components/creator/studio/inspector/ParamsSection";
+import ReferenceSection from "@/components/creator/studio/inspector/ReferenceSection";
 import NodeInspectorSection from "@/components/creator/studio/NodeInspectorSection";
 import ProjectSidebar from "@/components/creator/studio/ProjectSidebar";
 import VersionStreamSection from "@/components/creator/studio/VersionStreamSection";
@@ -1550,7 +1551,26 @@ export default function CreatorWorkspace({
             moderation,
             setModeration,
             selectedCommercialSizeId,
-            selectCommercialSize
+            selectCommercialSize,
+            referenceImages,
+            referencePreviews,
+            referenceImage,
+            handleReferenceInput,
+            handleReferenceDrop,
+            handleReferencePaste,
+            removeReferenceImage,
+            maskEnabled,
+            setMaskEnabled,
+            maskMode,
+            setMaskMode,
+            maskBrushSize,
+            setMaskBrushSize,
+            maskCanvasRef,
+            resetMaskCanvas,
+            invertMaskCanvas,
+            startMaskStroke,
+            continueMaskStroke,
+            stopMaskStroke
           }}
         >
         <main className="chat-studio-shell" data-testid="chat-studio-shell">
@@ -1587,145 +1607,7 @@ export default function CreatorWorkspace({
         <Inspector>
             <ParamsSection />
 
-            {mode === "image" ? (
-              <section className="inspector-section">
-                <div
-                  className="reference-dropzone"
-                  data-testid="reference-dropzone"
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={handleReferenceDrop}
-                  onPaste={handleReferencePaste}
-                  tabIndex={0}
-                >
-                  <label className="reference-upload">
-                    <input
-                      accept="image/png,image/jpeg,image/webp"
-                      aria-label="参考图"
-                      multiple
-                      onChange={handleReferenceInput}
-                      type="file"
-                    />
-                    <ImagePlus size={18} aria-hidden="true" />
-                    <span>
-                      <strong>参考图</strong>
-                      <span>
-                        {referenceImages.length > 0
-                          ? `${referenceImages.length} 张参考图`
-                          : "点击、拖拽或粘贴图片"}
-                      </span>
-                    </span>
-                  </label>
-                  {referenceImages.length > 0 ? (
-                    <div className="reference-list">
-                      {referenceImages.map((image, index) => (
-                        <div
-                          className="reference-preview-item"
-                          key={`${image.name}-${image.lastModified}-${index}`}
-                        >
-                          {referencePreviews[index] ? (
-                            <img
-                              alt={`参考图 ${image.name}`}
-                              src={referencePreviews[index].url}
-                            />
-                          ) : null}
-                          <span className="reference-preview-name">{image.name}</span>
-                          <button
-                            aria-label={`移除参考图 ${image.name}`}
-                            onClick={() => removeReferenceImage(index)}
-                            type="button"
-                          >
-                            <X size={12} aria-hidden="true" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-
-                {referenceImage ? (
-                  <section className="mask-editor" aria-label="遮罩编辑器">
-                    <label className="toggle-row">
-                      <input
-                        aria-label="遮罩编辑"
-                        checked={maskEnabled}
-                        onChange={(event) => setMaskEnabled(event.target.checked)}
-                        type="checkbox"
-                      />
-                      <span>遮罩编辑</span>
-                    </label>
-                    {maskEnabled ? (
-                      <div className="mask-editor-body">
-                        <div className="mask-toolbar">
-                          <div className="segmented" aria-label="遮罩模式">
-                            <button
-                              className={`segment ${
-                                maskMode === "paint" ? "active" : ""
-                              }`}
-                              onClick={() => setMaskMode("paint")}
-                              type="button"
-                            >
-                              <Brush size={15} aria-hidden="true" />
-                              涂抹
-                            </button>
-                            <button
-                              className={`segment ${
-                                maskMode === "restore" ? "active" : ""
-                              }`}
-                              onClick={() => setMaskMode("restore")}
-                              type="button"
-                            >
-                              <Eraser size={15} aria-hidden="true" />
-                              还原
-                            </button>
-                          </div>
-                          <label className="mask-size-control">
-                            <span>画笔大小</span>
-                            <input
-                              aria-label="画笔大小"
-                              max={120}
-                              min={8}
-                              onChange={(event) =>
-                                setMaskBrushSize(Number(event.target.value))
-                              }
-                              type="range"
-                              value={maskBrushSize}
-                            />
-                          </label>
-                          <button
-                            className="secondary-button"
-                            onClick={resetMaskCanvas}
-                            type="button"
-                          >
-                            <RotateCcw size={16} aria-hidden="true" />
-                            清空遮罩
-                          </button>
-                          <button
-                            className="secondary-button"
-                            onClick={invertMaskCanvas}
-                            type="button"
-                          >
-                            <FlipHorizontal size={16} aria-hidden="true" />
-                            反选遮罩
-                          </button>
-                        </div>
-                        <canvas
-                          aria-label="遮罩画布"
-                          className="mask-canvas"
-                          height={maskCanvasSize}
-                          onPointerCancel={stopMaskStroke}
-                          onPointerDown={startMaskStroke}
-                          onPointerLeave={stopMaskStroke}
-                          onPointerMove={continueMaskStroke}
-                          onPointerUp={stopMaskStroke}
-                          ref={maskCanvasRef}
-                          width={maskCanvasSize}
-                        />
-                      </div>
-                    ) : null}
-                  </section>
-                ) : null}
-              </section>
-            ) : null}
+            <ReferenceSection />
 
             <section
               className="inspector-section"
