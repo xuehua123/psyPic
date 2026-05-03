@@ -874,13 +874,18 @@ a {
 
 .composer-context-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
   gap: 6px;
   margin-bottom: 4px;
+  overflow-x: auto;
+  min-width: 0;
 }
 
 .composer-context-row span {
-  min-height: 22px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  min-height: 20px;
   display: inline-flex;
   align-items: center;
   border: 1px solid #d7e0eb;
@@ -888,7 +893,7 @@ a {
   background: #f6f8fb;
   color: #536176;
   font-size: 12px;
-  padding: 0 8px;
+  padding: 0 7px;
 }
 
 .chat-prompt-input {
