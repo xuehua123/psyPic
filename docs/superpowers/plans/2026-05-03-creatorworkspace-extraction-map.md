@@ -52,6 +52,7 @@
 | 3 | `studio/ChatTurn.tsx` | ~L1700-1815 | `displayedVersionNodes`(item), `activeNodeId`, `formatVersionNodeTime`, `summarizeNodeParams`, `returnToVersionNode`, `restoreVersionNodeParams`, `startVersionFork`, `copyPrompt`, `submitGeneration`, `handleResultAsReference` | ⭐⭐⭐ | ~200 |
 | 4 | `studio/ChatTranscript.tsx` | ~L1693-1881 | 包裹 ChatEmptyState + ChatTurn + TaskStatusStrip 编排 | ⭐⭐ | ~50 |
 | ✅ | `studio/ChatHeader.tsx` | (已抽) | `currentConversationTitle`, `forkParentId` | ⭐ | 39 |
+| ✅ | `studio/NodeInspectorSection.tsx` | (已抽) | `activeVersionNode` | ⭐ | 44 |
 | 6 | `studio/Composer.tsx` | ~L1898-1967 | `prompt`, `setPrompt`, `mode`, `referenceImages`, `n`, `submitGeneration`, `applyPromptFavorite`, etc. | ⭐⭐⭐ | ~200 |
 | 7 | `studio/ProjectSidebar.tsx` | ~L1561-1683 | `sidebarProjects`, `activeProjectId`, `activeConversationId`, `selectProject`, `selectConversation` | ⭐⭐ | ~250 |
 | 8 | `studio/inspector/Inspector.tsx` | ~L1968-2768 | 容器 + section 编排 | ⭐⭐ | ~80 |
@@ -61,10 +62,9 @@
 | 12 | `studio/inspector/TemplatesSection.tsx` | ~L2270-2351 | `selectedTemplateId`, `mvpTemplates`, template field handlers, `renderTemplateField` (L1184) | ⭐⭐⭐ | ~250 |
 | 13 | `studio/inspector/VersionStreamSection.tsx` | L2352-2428 | `versionNodes`, `displayedVersionNodes`, `activeVersionNode`, version handlers | ⭐⭐ | ~150 |
 | 14 | `studio/inspector/BranchMapSection.tsx` | L2429-2462 | `versionNodes`, branch graph 数据 | ⭐⭐ | ~100 |
-| 15 | `studio/inspector/NodeInspectorSection.tsx` | L2463-~2479 | `activeVersionNode` | ⭐ | ~100 |
-| 16 | `studio/inspector/LibrarySection.tsx` | L2533-2622 | `libraryItems`, `libraryStatus`, `libraryFavoriteOnly`, `libraryTagFilter`, `historyItems` | ⭐⭐ | ~150 |
-| 17 | `studio/inspector/CommunityPublishPanel.tsx` | L2623-~2710 | `publishAssetId`, `publishingAssetId`, `publishMessages`, publish handlers | ⭐⭐ | ~120 |
-| 18 | `legacy/LegacyCreatorWorkspace.tsx` | L2773-3794 | 整段 legacy JSX + 重复 inspector sections；接口同主壳 | ⭐⭐ | ~1100 |
+| 15 | `studio/inspector/LibrarySection.tsx` | L2533-2622 | `libraryItems`, `libraryStatus`, `libraryFavoriteOnly`, `libraryTagFilter`, `historyItems` | ⭐⭐ | ~150 |
+| 16 | `studio/inspector/CommunityPublishPanel.tsx` | L2623-~2710 | `publishAssetId`, `publishingAssetId`, `publishMessages`, publish handlers | ⭐⭐ | ~120 |
+| 17 | `legacy/LegacyCreatorWorkspace.tsx` | L2773-3794 | 整段 legacy JSX + 重复 inspector sections；接口同主壳 | ⭐⭐ | ~1100 |
 
 ## 推荐抽取顺序
 
@@ -73,7 +73,7 @@
 2. ✅ PartialPreviewStrip
 3. ✅ TaskStatusStrip
 4. ✅ ChatHeader
-5. NodeInspectorSection ⭐
+5. ✅ NodeInspectorSection
 
 **第二波：中等（在抽前先建 Context 共享 state）**
 6. ChatTurn ⭐⭐⭐

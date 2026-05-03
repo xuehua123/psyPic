@@ -38,6 +38,7 @@ import type {
 import BatchWorkflowPanel from "@/components/creator/BatchWorkflowPanel";
 import ChatEmptyState from "@/components/creator/studio/ChatEmptyState";
 import ChatHeader from "@/components/creator/studio/ChatHeader";
+import NodeInspectorSection from "@/components/creator/studio/NodeInspectorSection";
 import PartialPreviewStrip from "@/components/creator/studio/PartialPreviewStrip";
 import TaskStatusStrip from "@/components/creator/studio/TaskStatusStrip";
 import AppShell from "@/components/layout/AppShell";
@@ -2378,25 +2379,7 @@ export default function CreatorWorkspace({
               )}
             </section>
 
-            <section
-              aria-label="当前节点参数"
-              className="node-inspector inspector-section"
-              data-testid="node-inspector"
-            >
-              <div className="version-stream-header">
-                <strong>Inspector</strong>
-                <p>当前节点的参数快照。</p>
-              </div>
-              {activeVersionNode ? (
-                <div className="inspector-stack">
-                  <p>{summarizeNodeParams(activeVersionNode)}</p>
-                  <p>{activeVersionNode.requestId ?? "暂无 request id"}</p>
-                  <p>{activeVersionNode.durationMs ?? 0}ms</p>
-                </div>
-              ) : (
-                <p className="inline-hint">选择或生成一个版本后查看参数。</p>
-              )}
-            </section>
+            <NodeInspectorSection activeVersionNode={activeVersionNode} />
 
             <BatchWorkflowPanel defaultSize={size} />
 
