@@ -37,6 +37,7 @@ import type {
 
 import BatchWorkflowPanel from "@/components/creator/BatchWorkflowPanel";
 import ChatEmptyState from "@/components/creator/studio/ChatEmptyState";
+import PartialPreviewStrip from "@/components/creator/studio/PartialPreviewStrip";
 import AppShell from "@/components/layout/AppShell";
 
 import { formatApiError, formatTaskError } from "@/lib/creator/api-error";
@@ -1877,22 +1878,7 @@ export default function CreatorWorkspace({
               </section>
             ) : null}
 
-            {partialImages.length > 0 ? (
-              <section className="partial-preview-strip" aria-label="流式预览结果">
-                <div className="field-label">流式预览</div>
-                <div className="partial-preview-list">
-                  {partialImages.map((image, index) => (
-                    <article className="partial-preview-item" key={image.asset_id}>
-                      <img alt="流式预览" src={image.url} />
-                      <div>
-                        <strong>{image.asset_id}</strong>
-                        <span>#{index + 1}</span>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            ) : null}
+            <PartialPreviewStrip partialImages={partialImages} />
           </div>
 
           <div className="chat-composer" data-testid="prompt-composer">

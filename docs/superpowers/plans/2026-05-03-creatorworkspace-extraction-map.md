@@ -47,7 +47,7 @@
 | # | 组件 | 行号 | 主要 state/handler 依赖 | 难度 | 目标行数 |
 | --- | --- | --- | --- | --- | --- |
 | ✅ | `studio/ChatEmptyState.tsx` | (已抽) | `activeProject.{emptyTitle,emptyDescription}` | ⭐ | 44 |
-| 1 | `studio/PartialPreviewStrip.tsx` | ~L1881-1897 | `partialImages` | ⭐ | ~60 |
+| ✅ | `studio/PartialPreviewStrip.tsx` | (已抽) | `partialImages` | ⭐ | 42 |
 | 2 | `studio/TaskStatusStrip.tsx` | ~L1815-1880 | `currentTask`, `taskStatusLabels`, `taskTypeLabels`, cancel/retry handlers | ⭐⭐ | ~80 |
 | 3 | `studio/ChatTurn.tsx` | ~L1700-1815 | `displayedVersionNodes`(item), `activeNodeId`, `formatVersionNodeTime`, `summarizeNodeParams`, `returnToVersionNode`, `restoreVersionNodeParams`, `startVersionFork`, `copyPrompt`, `submitGeneration`, `handleResultAsReference` | ⭐⭐⭐ | ~200 |
 | 4 | `studio/ChatTranscript.tsx` | ~L1693-1881 | 包裹 ChatEmptyState + ChatTurn + TaskStatusStrip 编排 | ⭐⭐ | ~50 |
@@ -70,7 +70,7 @@
 
 **第一波：纯叶子（独立、低风险，建议本会话或下个会话连做）**
 1. ✅ ChatEmptyState
-2. PartialPreviewStrip ⭐
+2. ✅ PartialPreviewStrip
 3. TaskStatusStrip ⭐⭐
 4. ChatHeader ⭐
 5. NodeInspectorSection ⭐
