@@ -7,11 +7,8 @@ import { Button } from "@/components/ui/button";
  * 入口与分叉提示 pill）。
  *
  * 来自原 CreatorWorkspace.tsx L1680-1693（4116 行单文件巨兽拆分计划
- * 的第四刀）。当前实现保留原视觉与 className，后续 Phase 5/6 会再统一
- * 视觉 token / 替换 raw className 为 shadcn variant。
- *
- * Board 按钮目前没绑 onClick（原状），等版本图 / Branch Map 落地后再
- * 接入。
+ * 的第四刀）。Board 按钮 onClick 滚动到 Inspector 中的 BranchMapSection
+ * (`data-testid="branch-map"`)，让用户从中栏一键跳到分支图。
  */
 type ChatHeaderProps = {
   conversationTitle: string;
@@ -32,7 +29,16 @@ export default function ChatHeader({
         {forkParentId ? (
           <span className="version-context-pill">分叉生成中</span>
         ) : null}
-        <Button variant="secondary" type="button">
+        <Button
+          onClick={() => {
+            const target = document.querySelector(
+              '[data-testid="branch-map"]'
+            );
+            target?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+          type="button"
+          variant="secondary"
+        >
           Board
         </Button>
       </div>
