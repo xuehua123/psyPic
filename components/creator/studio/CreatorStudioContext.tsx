@@ -27,6 +27,7 @@ import {
   type ClipboardEvent,
   type Dispatch,
   type DragEvent,
+  type FormEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type RefObject,
@@ -36,11 +37,14 @@ import {
 import type {
   CreatorMode,
   GenerationImage,
+  LibraryAssetItem,
   MaskMode,
   TemplateFieldValue,
   TemplateFieldValues
 } from "@/lib/creator/types";
 import type { CreatorVersionNode } from "@/lib/creator/version-graph";
+import type { LocalHistoryItem } from "@/lib/history/local-history";
+import type { PromptFavoriteItem } from "@/lib/prompts/prompt-favorites";
 import type { CommercialTemplate } from "@/lib/templates/commercial-templates";
 import type { ImageGenerationParams } from "@/lib/validation/image-params";
 
@@ -124,6 +128,33 @@ export type CreatorStudioContextValue = {
   updateTemplateFieldValue: (key: string, value: TemplateFieldValue) => void;
   selectCommercialTemplate: (templateId: string) => void;
   applySelectedTemplate: () => void;
+
+  // LibrarySection 所需（第 18 刀扩）：素材库 + 本地历史 + prompt
+  // 收藏 + 发布状态 + 7 个 handler
+  libraryItems: LibraryAssetItem[];
+  libraryStatus: "idle" | "loading" | "loaded" | "unavailable";
+  libraryFavoriteOnly: boolean;
+  setLibraryFavoriteOnly: Dispatch<SetStateAction<boolean>>;
+  libraryTagFilter: string;
+  setLibraryTagFilter: Dispatch<SetStateAction<string>>;
+  promptFavorites: PromptFavoriteItem[];
+  historyItems: LocalHistoryItem[];
+  publishAssetId: string | null;
+  setPublishAssetId: Dispatch<SetStateAction<string | null>>;
+  publishingAssetId: string | null;
+  publishMessages: Record<string, string>;
+  loadServerLibrary: () => Promise<void> | void;
+  applyPromptFavorite: (item: PromptFavoriteItem) => void;
+  handleLibraryContinueEdit: (item: LibraryAssetItem) => Promise<void> | void;
+  toggleLibraryFavorite: (item: LibraryAssetItem) => Promise<void> | void;
+  publishLibraryItem: (
+    event: FormEvent<HTMLFormElement>,
+    item: LibraryAssetItem
+  ) => Promise<void> | void;
+  handleHistoryContinueEdit: (
+    item: LocalHistoryItem
+  ) => Promise<void> | void;
+  defaultCommunityTitle: (item: LibraryAssetItem) => string;
 };
 
 const CreatorStudioContext = createContext<CreatorStudioContextValue | null>(
