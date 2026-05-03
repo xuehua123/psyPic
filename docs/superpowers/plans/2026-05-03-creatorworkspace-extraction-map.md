@@ -2,9 +2,9 @@
 
 ## 📍 下次会话从这里开始（READ ME FIRST）
 
-**当前进度**：**9 / 17** 子组件 + **0 / 1** legacy fallback。
-`components/creator/CreatorWorkspace.tsx`：3794 → **3358 行** (-436，-11.5%)。
-分支 `codex/fix-v1-review-findings`，已同步 origin（最新 `9fc30e1`）。
+**当前进度**：**9 / 17** 子组件 + **1** Context skeleton + **0 / 1** legacy fallback。
+`components/creator/CreatorWorkspace.tsx`：3794 → **3371 行** (-423，-11.1%)。Context skeleton 暂 +13 行，抽 ChatTurn 后会回落。
+分支 `codex/fix-v1-review-findings`，已同步 origin（最新 `e4fa14f`，本刀 commit 即将 push）。
 
 ### 复制这一句开局（→ 粘到新 Claude Code 会话）
 
@@ -16,12 +16,14 @@ creatorworkspace-extraction-map.md 顶部"📍 下次会话从这里开始"secti
 
 ### 下一刀（按依赖顺序）
 
-1. **第 10 刀：建 `components/creator/studio/CreatorStudioContext.tsx`** — 把共享 state + dispatcher 收纳到 React Context。**理由**：剩下的 ChatTurn / Composer / Inspector 等组件每个都依赖 5-10 个共享 state/handler，继续 prop drilling 会让每个 import 写出 8-10 行 JSX 调用，且未来加新 state 要改所有调用方。
-   - **暴露什么**：见下文「## State 清单」+「## 关键 helper 函数」两节。建议先暴露 ChatTurn 用到的 8 个 handler，其它后续按需加。
-   - **不要试图一次到位** —— 暴露多少看下一个组件需要多少。
-   - 跑 `pnpm typecheck`，commit "建 CreatorStudioContext skeleton (Phase 4 第 10 刀)"。
+1. **第 11 刀：抽 `components/creator/studio/ChatTurn.tsx`** — Context 已就位（第 10 刀 ✅），可直接 `useCreatorStudio()` 拿 7 个 handler/state。这是第二波最复杂的叶子（⭐⭐⭐），抽完后 ChatTranscript 才能裸装。
+   - **chat-turn JSX 当前位置**：grep `chat-turn` → ~1555 行起（Provider 包裹后行号偏移 +13；每抽一刀再偏移）。
+   - **Context 提供（消费即用）**：`activeNodeId` / `returnToVersionNode` / `restoreVersionNodeParams` / `startVersionFork` / `submitGeneration` / `copyPrompt` / `handleResultAsReference`。
+   - **直接 import 而非走 Context**：`formatVersionNodeTime` + `summarizeNodeParams`（`@/lib/creator/version-graph`）；`Download` + `Copy` + `RotateCcw` + `ImagePlus`（`lucide-react`）。
+   - **Props**：`node: CreatorVersionNode` + `index: number`。
+   - 跑 `pnpm typecheck`，commit "抽出 ChatTurn 子组件 (UI 重构 Phase 4 第十一刀)"。
 
-2. **第 11 刀：抽 `studio/ChatTurn.tsx`** — 第二波最复杂的叶子（⭐⭐⭐），但抽完后 ChatTranscript 才能裸装。Context 让 prop 接口干净。
+2. **第 12 刀：抽 `studio/ChatTranscript.tsx`** — 包裹 ChatEmptyState + `ChatTurn.map` + TaskStatusStrip + PartialPreviewStrip。要么把 `displayedVersionNodes` + `currentTask` + `partialImages` 作为 prop 传，要么后续把它们补进 Context（建议先 prop，等第 13 刀 Composer 也要用时再扩 Context）。
 
 3. 然后按"## 推荐抽取顺序"第三波继续。
 
@@ -151,15 +153,20 @@ pnpm typecheck              # 验证当前状态可编译
 - ✅ BranchMapSection / VersionStreamSection / CommunityPublishPanel / ProjectSidebar
 - ⏳ ChatTurn / ChatTranscript / ReferenceSection / MaskEditor / LibrarySection
 
-**第三波（重头戏，必须先建 Context）**：0/5 未开始
-- ChatTurn → 必须先建 Context（需要 8 个 handler）
-- Composer / ParamsSection / TemplatesSection（每个 5-10 个 state）
-- Inspector wrapper（最后包装）
-- LegacyCreatorWorkspace（最后整段抽，会一次性 -1000 行）
+**第三波（重头戏）**：Context 已建（第 10 刀 ✅），1/6 完成
+- ✅ `studio/CreatorStudioContext.tsx` — 单 Context，暴露 7 个字段（activeNodeId + 3 个 version graph handler + submitGeneration / copyPrompt / handleResultAsReference）
+- ⏳ ChatTurn → 直接消费 Context，第 11 刀
+- ⏳ Composer / ParamsSection / TemplatesSection（每个 5-10 个 state，需扩 Context）
+- ⏳ Inspector wrapper（最后包装）
+- ⏳ LegacyCreatorWorkspace（最后整段抽，会一次性 -1000 行）
 
-**结论**：下一会话第一刀 → 建 `CreatorStudioContext`，然后抽 ChatTurn。
+**结论**：Context 已就位，下一会话第一刀 → 抽 ChatTurn。
 
 ## CreatorStudioContext 设计建议
+
+> **状态**：✅ 已实现 — `components/creator/studio/CreatorStudioContext.tsx`（67 行）。
+> 第一版只暴露 ChatTurn 需要的 7 字段；下文伪代码是**初稿**，留作扩展时参考。
+> 实际签名以源文件为准；新增字段时复制此模板再加。
 
 把以下 state 与 dispatcher 暴露在 Context 中（**不需要一次到位**，按下一个组件需要逐渐添加）：
 
@@ -202,6 +209,7 @@ components/creator/studio/
 ├── ChatEmptyState.tsx            (44 行, ⭐)
 ├── ChatHeader.tsx                (39 行, ⭐)
 ├── CommunityPublishPanel.tsx     (98 行, ⭐⭐)
+├── CreatorStudioContext.tsx      (67 行, infra — Context + Provider + hook)
 ├── NodeInspectorSection.tsx      (44 行, ⭐)
 ├── PartialPreviewStrip.tsx       (42 行, ⭐)
 ├── ProjectSidebar.tsx            (159 行, ⭐⭐)

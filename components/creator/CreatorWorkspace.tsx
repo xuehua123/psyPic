@@ -36,6 +36,7 @@ import BranchMapSection from "@/components/creator/studio/BranchMapSection";
 import ChatEmptyState from "@/components/creator/studio/ChatEmptyState";
 import ChatHeader from "@/components/creator/studio/ChatHeader";
 import CommunityPublishPanel from "@/components/creator/studio/CommunityPublishPanel";
+import { CreatorStudioProvider } from "@/components/creator/studio/CreatorStudioContext";
 import NodeInspectorSection from "@/components/creator/studio/NodeInspectorSection";
 import PartialPreviewStrip from "@/components/creator/studio/PartialPreviewStrip";
 import ProjectSidebar from "@/components/creator/studio/ProjectSidebar";
@@ -1510,6 +1511,17 @@ export default function CreatorWorkspace({
         currentPath="/"
         showAdminLink={showAdminLink}
       >
+        <CreatorStudioProvider
+          value={{
+            activeNodeId,
+            returnToVersionNode,
+            restoreVersionNodeParams,
+            startVersionFork,
+            submitGeneration,
+            copyPrompt,
+            handleResultAsReference
+          }}
+        >
         <main className="chat-studio-shell" data-testid="chat-studio-shell">
         <ProjectSidebar
           activeConversationId={activeConversationId}
@@ -2340,6 +2352,7 @@ export default function CreatorWorkspace({
           </button>
         </div>
         </main>
+        </CreatorStudioProvider>
       </AppShell>
     );
   }
