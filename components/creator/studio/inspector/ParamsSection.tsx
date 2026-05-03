@@ -22,6 +22,13 @@ import { SlidersHorizontal } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import SectionHeading from "@/components/creator/studio/SectionHeading";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
 import { commercialSizePresets } from "@/lib/templates/commercial-size-presets";
@@ -88,44 +95,55 @@ export default function ParamsSection() {
 
         <div className="field">
           <label htmlFor="model">模型</label>
-          <select className="select" id="model" defaultValue="gpt-image-2">
-            <option value="gpt-image-2">gpt-image-2</option>
-          </select>
+          <Select defaultValue="gpt-image-2">
+            <SelectTrigger id="model">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="gpt-image-2">gpt-image-2</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="field">
           <label htmlFor="commercial-size">商业尺寸</label>
-          <select
-            className="select"
-            id="commercial-size"
-            onChange={(event) => selectCommercialSize(event.target.value)}
+          <Select
+            onValueChange={selectCommercialSize}
             value={selectedCommercialSizeId}
           >
-            {commercialSizePresets.map((preset) => (
-              <option key={preset.id} value={preset.id}>
-                {preset.label} · {preset.size}
-              </option>
-            ))}
-            <option value="custom">按尺寸选择</option>
-          </select>
+            <SelectTrigger id="commercial-size">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {commercialSizePresets.map((preset) => (
+                <SelectItem key={preset.id} value={preset.id}>
+                  {preset.label} · {preset.size}
+                </SelectItem>
+              ))}
+              <SelectItem value="custom">按尺寸选择</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="field">
           <label htmlFor="size">尺寸</label>
-          <select
-            className="select"
-            id="size"
-            onChange={(event) =>
-              setSize(event.target.value as ImageGenerationParams["size"])
+          <Select
+            onValueChange={(value) =>
+              setSize(value as ImageGenerationParams["size"])
             }
             value={size}
           >
-            {GENERATION_SIZE_OPTIONS.map((sizeOption) => (
-              <option key={sizeOption} value={sizeOption}>
-                {sizeOption === "auto" ? "自动" : sizeOption}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id="size">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {GENERATION_SIZE_OPTIONS.map((sizeOption) => (
+                <SelectItem key={sizeOption} value={sizeOption}>
+                  {sizeOption === "auto" ? "自动" : sizeOption}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="field">
@@ -148,20 +166,23 @@ export default function ParamsSection() {
 
         <div className="field">
           <label htmlFor="output-format">输出格式</label>
-          <select
-            className="select"
-            id="output-format"
-            onChange={(event) =>
+          <Select
+            onValueChange={(value) =>
               setOutputFormat(
-                event.target.value as ImageGenerationParams["output_format"]
+                value as ImageGenerationParams["output_format"]
               )
             }
             value={outputFormat}
           >
-            <option value="png">PNG</option>
-            <option value="jpeg">JPEG</option>
-            <option value="webp">WebP</option>
-          </select>
+            <SelectTrigger id="output-format">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="png">PNG</SelectItem>
+              <SelectItem value="jpeg">JPEG</SelectItem>
+              <SelectItem value="webp">WebP</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="field">
@@ -189,19 +210,20 @@ export default function ParamsSection() {
         {streamEnabled ? (
           <div className="field">
             <label htmlFor="partial-images">Partial Images</label>
-            <select
-              className="select"
-              id="partial-images"
-              onChange={(event) =>
-                setPartialImageCount(Number(event.target.value))
-              }
-              value={partialImageCount}
+            <Select
+              onValueChange={(value) => setPartialImageCount(Number(value))}
+              value={String(partialImageCount)}
             >
-              <option value={0}>0</option>
-              <option value={1}>1</option>
-              <option value={2}>2</option>
-              <option value={3}>3</option>
-            </select>
+              <SelectTrigger id="partial-images">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="0">0</SelectItem>
+                <SelectItem value="1">1</SelectItem>
+                <SelectItem value="2">2</SelectItem>
+                <SelectItem value="3">3</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         ) : null}
 
@@ -231,19 +253,22 @@ export default function ParamsSection() {
             </div>
             <div className="field">
               <label htmlFor="moderation">Moderation</label>
-              <select
-                className="select"
-                id="moderation"
-                onChange={(event) =>
+              <Select
+                onValueChange={(value) =>
                   setModeration(
-                    event.target.value as ImageGenerationParams["moderation"]
+                    value as ImageGenerationParams["moderation"]
                   )
                 }
                 value={moderation}
               >
-                <option value="auto">auto</option>
-                <option value="low">low</option>
-              </select>
+                <SelectTrigger id="moderation">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="auto">auto</SelectItem>
+                  <SelectItem value="low">low</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         ) : null}

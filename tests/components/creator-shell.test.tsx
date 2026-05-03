@@ -205,7 +205,8 @@ describe("CreatorWorkspace", () => {
     await user.click(screen.getByRole("button", { name: "发布作品" }));
     await user.clear(screen.getByLabelText("作品标题"));
     await user.type(screen.getByLabelText("作品标题"), "社区展示作品");
-    await user.selectOptions(screen.getByLabelText("可见性"), "unlisted");
+    await user.click(screen.getByLabelText("可见性"));
+    await user.click(screen.getByRole("option", { name: "链接可见" }));
     await user.click(screen.getByRole("button", { name: "确认发布" }));
 
     expect(await screen.findByText(/已发布：work_publish_123/)).toBeInTheDocument();
@@ -264,9 +265,9 @@ describe("CreatorWorkspace", () => {
     render(<CreatorWorkspace />);
 
     const user = userEvent.setup();
-    await user.selectOptions(
-      screen.getByLabelText("商业尺寸"),
-      "ad_banner_landscape"
+    await user.click(screen.getByLabelText("商业尺寸"));
+    await user.click(
+      screen.getByRole("option", { name: "广告 Banner · 1536x1024" })
     );
     await user.type(
       screen.getByRole("textbox", { name: "Prompt" }),
@@ -1060,7 +1061,7 @@ describe("CreatorWorkspace", () => {
         "/api/community/works/work_same_query_123/same",
         { method: "POST" }
       );
-      expect(screen.getByLabelText("尺寸")).toHaveValue("1536x1024");
+      expect(screen.getByLabelText("尺寸")).toHaveTextContent("1536x1024");
     } finally {
       window.history.pushState({}, "", "/");
     }
@@ -1252,7 +1253,8 @@ describe("CreatorWorkspace", () => {
 
     await user.clear(promptBox);
     await user.type(promptBox, "Create a wide banner product photo.");
-    await user.selectOptions(screen.getByLabelText("尺寸"), "1536x1024");
+    await user.click(screen.getByLabelText("尺寸"));
+    await user.click(screen.getByRole("option", { name: "1536x1024" }));
     await user.click(screen.getByRole("button", { name: /生成图片/ }));
 
     expect(
@@ -1267,7 +1269,7 @@ describe("CreatorWorkspace", () => {
     expect((promptBox as HTMLTextAreaElement).value).toBe(
       "Create a square hero product photo."
     );
-    expect(screen.getByLabelText("尺寸")).toHaveValue("1024x1024");
+    expect(screen.getByLabelText("尺寸")).toHaveTextContent("1024x1024");
   });
 
   it("creates a non-destructive branch from an older version", async () => {

@@ -18,6 +18,13 @@ import { Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import SectionHeading from "@/components/creator/studio/SectionHeading";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
 import type { CommercialTemplate } from "@/lib/templates/commercial-templates";
@@ -60,21 +67,23 @@ export default function TemplatesSection() {
       return (
         <div className="field template-field" key={field.key}>
           <label htmlFor={fieldId}>{field.label}</label>
-          <select
-            aria-required={field.required}
-            className="select"
-            id={fieldId}
-            onChange={(event) =>
-              updateTemplateFieldValue(field.key, event.target.value)
+          <Select
+            onValueChange={(value) =>
+              updateTemplateFieldValue(field.key, value)
             }
             value={optionValue}
           >
-            {options.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger aria-required={field.required} id={fieldId}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       );
     }

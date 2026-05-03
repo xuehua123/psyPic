@@ -5,6 +5,13 @@ import type { FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import type { LibraryAssetItem } from "@/lib/creator/types";
 
 /**
@@ -45,16 +52,16 @@ export default function CommunityPublishPanel({
       </div>
       <div className="field">
         <label htmlFor={`publish-visibility-${item.asset_id}`}>可见性</label>
-        <select
-          className="select"
-          defaultValue="private"
-          id={`publish-visibility-${item.asset_id}`}
-          name="visibility"
-        >
-          <option value="private">私有</option>
-          <option value="unlisted">链接可见</option>
-          <option value="public">公开社区</option>
-        </select>
+        <Select defaultValue="private" name="visibility">
+          <SelectTrigger id={`publish-visibility-${item.asset_id}`}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="private">私有</SelectItem>
+            <SelectItem value="unlisted">链接可见</SelectItem>
+            <SelectItem value="public">公开社区</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
       <div className="community-publish-options">
         <label className="checkbox-row">
