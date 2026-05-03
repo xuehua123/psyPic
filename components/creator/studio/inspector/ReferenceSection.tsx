@@ -25,6 +25,7 @@
 import { Brush, Eraser, FlipHorizontal, ImagePlus, RotateCcw, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
 
 const maskCanvasSize = 512;
@@ -68,7 +69,7 @@ export default function ReferenceSection() {
         tabIndex={0}
       >
         <label className="reference-upload">
-          <input
+          <Input
             accept="image/png,image/jpeg,image/webp"
             aria-label="参考图"
             multiple

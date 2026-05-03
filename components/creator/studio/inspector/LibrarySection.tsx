@@ -29,6 +29,7 @@ import {
 
 import CommunityPublishPanel from "@/components/creator/studio/CommunityPublishPanel";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import SectionHeading from "@/components/creator/studio/SectionHeading";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
 
@@ -87,7 +88,7 @@ export default function LibrarySection() {
         </label>
         <div className="library-tag-filter">
           <Tags size={14} aria-hidden="true" />
-          <input
+          <Input
             aria-label="素材标签过滤"
             onChange={(event) => setLibraryTagFilter(event.target.value)}
             placeholder="标签"

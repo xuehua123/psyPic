@@ -4,6 +4,7 @@ import { UploadCloud } from "lucide-react";
 import type { FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import type { LibraryAssetItem } from "@/lib/creator/types";
 
 /**
@@ -35,8 +36,7 @@ export default function CommunityPublishPanel({
     <form className="community-publish-panel" onSubmit={onSubmit}>
       <div className="field">
         <label htmlFor={`publish-title-${item.asset_id}`}>作品标题</label>
-        <input
-          className="input"
+        <Input
           defaultValue={defaultTitle}
           id={`publish-title-${item.asset_id}`}
           name="title"

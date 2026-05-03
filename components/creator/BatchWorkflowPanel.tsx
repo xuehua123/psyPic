@@ -4,6 +4,7 @@ import { ListPlus, RotateCcw, Table } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type BatchMode = "prompts" | "csv";
 
@@ -114,9 +115,8 @@ export default function BatchWorkflowPanel({
             </label>
             <label className="field">
               <span>目标尺寸</span>
-              <input
+              <Input
                 aria-label="批量尺寸"
-                className="input"
                 onChange={(event) => setSizeText(event.currentTarget.value)}
                 value={sizeText}
               />

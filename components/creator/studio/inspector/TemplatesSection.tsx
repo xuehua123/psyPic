@@ -17,6 +17,7 @@
 import { Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import SectionHeading from "@/components/creator/studio/SectionHeading";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
 import type { CommercialTemplate } from "@/lib/templates/commercial-templates";
@@ -81,9 +82,8 @@ export default function TemplatesSection() {
     return (
       <div className="field template-field" key={field.key}>
         <label htmlFor={fieldId}>{field.label}</label>
-        <input
+        <Input
           aria-required={field.required}
-          className="input"
           id={fieldId}
           onChange={(event) =>
             updateTemplateFieldValue(field.key, event.target.value)

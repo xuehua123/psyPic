@@ -21,6 +21,7 @@
 import { SlidersHorizontal } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import SectionHeading from "@/components/creator/studio/SectionHeading";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
 import { commercialSizePresets } from "@/lib/templates/commercial-size-presets";
@@ -165,8 +166,7 @@ export default function ParamsSection() {
 
         <div className="field">
           <label htmlFor="count">数量</label>
-          <input
-            className="input"
+          <Input
             id="count"
             min={1}
             max={8}
@@ -219,8 +219,7 @@ export default function ParamsSection() {
           <div className="field-stack">
             <div className="field">
               <label htmlFor="compression">Output Compression</label>
-              <input
-                className="input"
+              <Input
                 id="compression"
                 max={100}
                 min={1}
