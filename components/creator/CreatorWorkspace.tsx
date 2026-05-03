@@ -35,6 +35,7 @@ import BatchWorkflowPanel from "@/components/creator/BatchWorkflowPanel";
 import BranchMapSection from "@/components/creator/studio/BranchMapSection";
 import ChatEmptyState from "@/components/creator/studio/ChatEmptyState";
 import ChatHeader from "@/components/creator/studio/ChatHeader";
+import ChatTurn from "@/components/creator/studio/ChatTurn";
 import CommunityPublishPanel from "@/components/creator/studio/CommunityPublishPanel";
 import { CreatorStudioProvider } from "@/components/creator/studio/CreatorStudioContext";
 import NodeInspectorSection from "@/components/creator/studio/NodeInspectorSection";
@@ -1550,115 +1551,7 @@ export default function CreatorWorkspace({
               />
             ) : (
               displayedVersionNodes.map((node, index) => (
-                <article
-                  className={`chat-turn ${
-                    node.id === activeNodeId ? "active" : ""
-                  }`}
-                  data-testid={node.id === activeNodeId ? "active-gallery" : undefined}
-                  key={node.id}
-                >
-                  <div className="chat-message user-message">
-                    <div className="chat-avatar">你</div>
-                    <div className="chat-bubble">
-                      <div className="chat-message-meta">
-                        <span>{node.branchLabel}</span>
-                        <span>#{index + 1}</span>
-                        <span>{formatVersionNodeTime(node)}</span>
-                      </div>
-                      <p>{node.prompt}</p>
-                    </div>
-                  </div>
-
-                  <div className="chat-message assistant-message">
-                    <div className="chat-avatar assistant-avatar">P</div>
-                    <div className="chat-bubble generation-bubble">
-                      <div className="generation-message-header">
-                        <div>
-                          <strong>
-                            {node.source === "edit" ? "图生图结果" : "文生图结果"}
-                          </strong>
-                          <p>{summarizeNodeParams(node)}</p>
-                        </div>
-                        <div className="history-actions">
-                          <button
-                            className="secondary-button"
-                            onClick={() => returnToVersionNode(node)}
-                            type="button"
-                            aria-label={`回到版本 ${node.prompt}`}
-                          >
-                            回到版本
-                          </button>
-                          <button
-                            className="secondary-button"
-                            onClick={() => restoreVersionNodeParams(node)}
-                            type="button"
-                            aria-label={`恢复参数 ${node.prompt}`}
-                          >
-                            恢复参数
-                          </button>
-                          <button
-                            className="secondary-button"
-                            onClick={() => startVersionFork(node)}
-                            type="button"
-                            aria-label={`从此分叉 ${node.prompt}`}
-                          >
-                            从此分叉
-                          </button>
-                        </div>
-                      </div>
-                      {node.images.length > 0 ? (
-                        <div className="result-grid chat-result-grid">
-                          {node.images.map((image) => (
-                            <article className="result-card" key={image.asset_id}>
-                              <img alt="生成结果" src={image.url} />
-                              <div className="result-card-body">
-                                <strong>{image.asset_id}</strong>
-                                <p>{node.requestId}</p>
-                                <p>{node.usage?.total_tokens ?? 0} tokens</p>
-                                <div className="result-actions">
-                                  <a
-                                    className="secondary-button"
-                                    download
-                                    href={image.url}
-                                  >
-                                    <Download size={16} aria-hidden="true" />
-                                    下载
-                                  </a>
-                                  <button
-                                    className="secondary-button"
-                                    onClick={copyPrompt}
-                                    type="button"
-                                  >
-                                    <Copy size={16} aria-hidden="true" />
-                                    复制 Prompt
-                                  </button>
-                                  <button
-                                    className="secondary-button"
-                                    onClick={submitGeneration}
-                                    type="button"
-                                  >
-                                    <RotateCcw size={16} aria-hidden="true" />
-                                    重试
-                                  </button>
-                                  <button
-                                    className="secondary-button"
-                                    onClick={() => void handleResultAsReference(image)}
-                                    type="button"
-                                  >
-                                    <ImagePlus size={16} aria-hidden="true" />
-                                    作为参考图
-                                  </button>
-                                </div>
-                              </div>
-                            </article>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="inline-hint">该节点暂无图片结果。</p>
-                      )}
-                    </div>
-                  </div>
-                </article>
+                <ChatTurn key={node.id} index={index} node={node} />
               ))
             )}
 
