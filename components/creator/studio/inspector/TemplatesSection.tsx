@@ -16,6 +16,7 @@
 
 import { Sparkles } from "lucide-react";
 
+import SectionHeading from "@/components/creator/studio/SectionHeading";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
 import type { CommercialTemplate } from "@/lib/templates/commercial-templates";
 
@@ -98,10 +99,7 @@ export default function TemplatesSection() {
       className="inspector-section"
       data-testid="commercial-template-list"
     >
-      <div className="section-heading">
-        <Sparkles size={15} aria-hidden="true" />
-        <strong>商业模板</strong>
-      </div>
+      <SectionHeading icon={Sparkles} title="商业模板" />
       {selectedTemplate ? (
         <div className="template-field-editor" aria-label="模板字段">
           <div className="template-editor-header">

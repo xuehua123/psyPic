@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 
 import CommunityPublishPanel from "@/components/creator/studio/CommunityPublishPanel";
+import SectionHeading from "@/components/creator/studio/SectionHeading";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
 
 export default function LibrarySection() {
@@ -55,20 +56,22 @@ export default function LibrarySection() {
 
   return (
     <section className="inspector-section">
-      <div className="section-heading">
-        <History size={15} aria-hidden="true" />
-        <strong>素材与历史</strong>
-        <button
-          aria-label="同步素材库"
-          className="icon-button"
-          disabled={libraryStatus === "loading"}
-          onClick={() => void loadServerLibrary()}
-          title="同步素材库"
-          type="button"
-        >
-          <RefreshCw size={16} aria-hidden="true" />
-        </button>
-      </div>
+      <SectionHeading
+        icon={History}
+        title="素材与历史"
+        action={
+          <button
+            aria-label="同步素材库"
+            className="icon-button"
+            disabled={libraryStatus === "loading"}
+            onClick={() => void loadServerLibrary()}
+            title="同步素材库"
+            type="button"
+          >
+            <RefreshCw size={16} aria-hidden="true" />
+          </button>
+        }
+      />
       <div className="library-toolbar">
         <label className="checkbox-row">
           <input

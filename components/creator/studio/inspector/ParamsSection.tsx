@@ -20,6 +20,7 @@
 
 import { SlidersHorizontal } from "lucide-react";
 
+import SectionHeading from "@/components/creator/studio/SectionHeading";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
 import { commercialSizePresets } from "@/lib/templates/commercial-size-presets";
 import {
@@ -61,10 +62,7 @@ export default function ParamsSection() {
 
   return (
     <section className="inspector-section">
-      <div className="section-heading">
-        <SlidersHorizontal size={15} aria-hidden="true" />
-        <strong>生成参数</strong>
-      </div>
+      <SectionHeading icon={SlidersHorizontal} title="生成参数" />
       <div className="field-stack">
         <div className="field">
           <div className="field-label">模式</div>
