@@ -4,7 +4,7 @@
 
 **当前进度**：**17 / 17** 子组件 ✅ + **1** Context（81 字段） + **0 / 1** legacy fallback。
 `components/creator/CreatorWorkspace.tsx`：3794 → **2694 行** (-1100，-29.0%)。
-分支 `codex/fix-v1-review-findings`，已同步 origin（最新 `400d59a` = 第 17 刀；本刀 commit 即将 push）。
+分支 `codex/fix-v1-review-findings`，已同步 origin（最新 `27d55ee` = 收尾文档；上一抽刀 `4e6556c` = 第 18 刀达成 17/17 milestone）。
 
 ### 复制这一句开局（→ 粘到新 Claude Code 会话）
 
@@ -37,7 +37,7 @@ creatorworkspace-extraction-map.md 顶部"📍 下次会话从这里开始"secti
 
 ```bash
 git status                  # 确认在 codex/fix-v1-review-findings、干净
-git log --oneline -10       # 看最近 10 个 commit（前 9 个是本次 Phase 4）
+git log --oneline -14       # 看最近 14 个 commit（前 12 个是 Phase 4 第 10-18 刀 + 第 19 刀文档收尾）
 ls components/creator/studio/ components/creator/studio/inspector/   # 17 个已抽组件 ✅ + Context
 ls lib/creator/             # 共享 helper 模块
 pnpm typecheck              # 验证当前状态可编译
@@ -45,7 +45,7 @@ pnpm typecheck              # 验证当前状态可编译
 
 ### 铁律（违反这些上一会话死过一次）
 
-- ❌ `Read CreatorWorkspace.tsx` 不带 `offset + limit`（3358 行整读会把后续 turn 推过 32MB request 上限直接挂掉会话）
+- ❌ `Read CreatorWorkspace.tsx` 不带 `offset + limit`（2694 行整读仍会把后续 turn 推过 32MB request 上限直接挂掉会话）
 - ❌ 一个会话内抽 **>3-4 个** ⭐⭐⭐ 组件（transcript 累加爆炸）
 - ❌ 抽出 + 视觉重做混在**同一 commit**（视觉留给 Phase 5）
 - ❌ 跳过 `pnpm typecheck`
