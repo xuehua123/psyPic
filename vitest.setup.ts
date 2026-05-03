@@ -23,3 +23,22 @@ if (typeof globalThis.ResizeObserver === "undefined") {
     disconnect() {}
   } as unknown as typeof ResizeObserver;
 }
+
+// jsdom 不实现 window.matchMedia；ThemeProvider 用它判 prefers-color-scheme，
+// 不 polyfill 会让任何渲染了 ThemeProvider 的测试在 readSystemTheme() 处挂掉。
+if (typeof window !== "undefined" && typeof window.matchMedia === "undefined") {
+  type Listener = (event: MediaQueryListEvent) => void;
+  window.matchMedia = (query: string): MediaQueryList => {
+    const listeners = new Set<Listener>();
+    return {
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: (_event: string, listener: Listener) => listeners.add(listener),
+      removeEventListener: (_event: string, listener: Listener) => listeners.delete(listener),
+      addListener: (listener: Listener) => listeners.add(listener),
+      removeListener: (listener: Listener) => listeners.delete(listener),
+      dispatchEvent: () => false
+    } as unknown as MediaQueryList;
+  };
+}

@@ -15,11 +15,13 @@ import {
  * - `system` 跟随 OS prefers-color-scheme
  *
  * SSR 安全策略：
- * - 服务端始终渲染为「无 .dark 类」初始态（state = "system" + resolved = "light"）
- * - app/layout.tsx 的 <ThemeNoFlashScript /> 在 hydrate 前同步把 localStorage 状态
- *   写到 <html class="dark"> + colorScheme，避免 FOUC
- * - 客户端 mount 后 useEffect 从 localStorage 读真实状态并同步 React state，
- *   DOM .dark 类已就位 → 用户感知不到「闪一下」
+ * - 服务端始终渲染为「无 .dark 类、theme="system"、resolvedTheme="light"」初始态
+ * - app/layout.tsx 的 <ThemeNoFlashScript /> 在 React hydrate 前 inline 注入脚本，
+ *   同步把 localStorage 状态写到 <html class="dark"> + colorScheme，避免 FOUC
+ * - 客户端 mount 后第一个 effect 从 localStorage + matchMedia 读真实状态，
+ *   后续渲染保持 React state 与 DOM 一致
+ * - 用 `hydrated` flag 让 DOM apply effect 只在 hydrate 之后跑，避免与
+ *   no-flash script 抢 documentElement.className
  */
 export type Theme = "light" | "dark" | "system";
 export type ResolvedTheme = "light" | "dark";
@@ -36,7 +38,8 @@ export const THEME_STORAGE_KEY = "psypic-theme";
 
 function readSystemTheme(): ResolvedTheme {
   if (typeof window === "undefined") return "light";
-  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
+  return mq?.matches ? "dark" : "light";
 }
 
 function applyTheme(resolved: ResolvedTheme) {
@@ -46,37 +49,55 @@ function applyTheme(resolved: ResolvedTheme) {
   root.style.colorScheme = resolved;
 }
 
+function readStoredTheme(): Theme {
+  if (typeof window === "undefined") return "system";
+  try {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === "light" || stored === "dark" || stored === "system") return stored;
+  } catch {
+    /* localStorage 可能被 disabled，静默退回 default */
+  }
+  return "system";
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("system");
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("light");
+  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>("light");
+  const [hydrated, setHydrated] = useState(false);
 
-  // mount: 从 localStorage 读取持久化偏好
+  // mount：从外部源（localStorage + matchMedia）同步进 React state
+  // 这是 React 文档推荐的 SSR-safe 「hydrate from external store」标准模式：
+  // 服务端 useState 给 default → 客户端 mount 后 effect 同步真实值。
+  // react-hooks/set-state-in-effect 规则对此模式过于严格，此处显式豁免。
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(THEME_STORAGE_KEY) as Theme | null;
-    if (stored === "light" || stored === "dark" || stored === "system") {
-      setThemeState(stored);
-    }
+    setThemeState(readStoredTheme());
+    setSystemTheme(readSystemTheme());
+    setHydrated(true);
   }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
-  // theme 变化时：算 resolvedTheme + 写到 documentElement
+  // 订阅 OS prefers-color-scheme 变化；setState 只在 change handler 里
   useEffect(() => {
-    const next: ResolvedTheme = theme === "system" ? readSystemTheme() : theme;
-    setResolvedTheme(next);
-    applyTheme(next);
-
-    if (theme !== "system") return;
     if (typeof window === "undefined") return;
     const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
     if (!mq) return;
-    const onChange = () => {
-      const sys = readSystemTheme();
-      setResolvedTheme(sys);
-      applyTheme(sys);
+    const onChange = (event: MediaQueryListEvent) => {
+      setSystemTheme(event.matches ? "dark" : "light");
     };
     mq.addEventListener?.("change", onChange);
     return () => mq.removeEventListener?.("change", onChange);
-  }, [theme]);
+  }, []);
+
+  // resolvedTheme 同步 derived，不用 state，不用 effect
+  const resolvedTheme: ResolvedTheme = theme === "system" ? systemTheme : theme;
+
+  // 把 resolvedTheme 写到 documentElement.classList + style.colorScheme
+  // hydrated 之前不动 DOM，让 no-flash script 的初始 class 留着
+  useEffect(() => {
+    if (!hydrated) return;
+    applyTheme(resolvedTheme);
+  }, [hydrated, resolvedTheme]);
 
   const setTheme = useCallback((next: Theme) => {
     if (typeof window !== "undefined") {
