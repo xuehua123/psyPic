@@ -278,10 +278,6 @@ export default function CreatorWorkspace({
           branch.id === activeConversationId.slice("branch:".length)
       ) ?? null
     : null;
-  const galleryImages = activeVersionNode?.images ?? [];
-  const galleryRequestId = activeVersionNode?.requestId ?? "";
-  const galleryTotalTokens =
-    activeVersionNode?.usage?.total_tokens ?? 0;
 
   useEffect(() => {
     return () => {
@@ -1488,17 +1484,7 @@ export default function CreatorWorkspace({
     toggleLibraryFavorite,
     publishLibraryItem,
     handleHistoryContinueEdit,
-    defaultCommunityTitle,
-    currentTask,
-    cancelCurrentTask,
-    refreshTaskStatus,
-    partialImages,
-    versionNodes,
-    activeVersionNode,
-    selectedTemplateId,
-    galleryImages,
-    galleryRequestId,
-    galleryTotalTokens
+    defaultCommunityTitle
   };
 
   return (
