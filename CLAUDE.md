@@ -7,14 +7,15 @@
 
 **PsyPic UI 全面深度优化**（plan slug `linear-stirring-acorn`）—— 把整站前端调到 Linear / Figma / Codex 风格的专业创作 IDE 水准。
 
-**正在进行**：Phase 5 ✅ **已收尾** + 衍生项 2/4 ✅（① 删 legacy fallback + 移除 useCodexChatStudio flag；② shadcn Input 全站替换 7 处）。下一波 → **Phase 6 暗色模式**（按 spec 规划，CSS var 已预埋 `.dark` token，主要工作是 `dark:` className 覆盖与切换 UI），或剩下 2 个 Phase 5 衍生项（shadcn Select 全站替换 8 处 / shadcn Checkbox 全站替换 12 处 / shadcn Slider 1 处 range / ChatHeader Board onClick）。
+**正在进行**：Phase 5 ✅ **已收尾** + 衍生项 3/4 ✅（① 删 legacy fallback + 移除 useCodexChatStudio flag；② shadcn Input 全站替换 7 处；③ shadcn Select 全站替换 8 处 + Radix polyfills 入 vitest.setup）。下一波 → **Phase 6 暗色模式**（按 spec 规划，CSS var 已预埋 `.dark` token），或剩下 1 个原始衍生项（ChatHeader Board onClick）+ 收尾扫荡（Checkbox 12 处需装 `@radix-ui/react-checkbox` / Slider 1 处需装 `@radix-ui/react-slider` / `globals.css` form rule orphan 清理）。
 
 **进度**：
 - Phase 4 ✅：17 / 17 子组件 + 1 / 1 legacy fallback + Context 91 字段。CreatorWorkspace.tsx **1607 行**（起点 4116 / 3794 抽刀基线）。
 - Phase 5 ✅：6 / 6 视觉打磨刀（chat 区中性白底层级 / SectionHeading 收敛 / Linear 风 active / Empty 4 卡 / chips 单行 / shadcn Button 32 处替换）。
-- 衍生项 1 ✅：2026-05-03 删 LegacyCreatorWorkspace + 移除 useCodexChatStudio flag。CreatorWorkspace.tsx 1607 → ~1593 行；`components/creator/legacy/` 整目录删除；Context 91 → 81 字段。
-- 衍生项 2 ✅：2026-05-03 shadcn Input 全站替换 7 处 (BatchWorkflowPanel / CommunityPublishPanel / LibrarySection / ParamsSection ×2 / ReferenceSection / TemplatesSection)。零测试改动。
-- 下一步 → Phase 6 暗色模式（待 product 排期；可参考 globals.css L60-81 已预埋的 .dark token），或剩下衍生项（shadcn Select 8 处 infra ✅ ready / Checkbox 12 处需装 deps / Slider 1 处需装 deps / ChatHeader Board onClick）。
+- 衍生项 ① ✅：2026-05-03 删 LegacyCreatorWorkspace + 移除 useCodexChatStudio flag。CreatorWorkspace.tsx 1607 → ~1593 行；`components/creator/legacy/` 整目录删除；Context 91 → 81 字段。
+- 衍生项 ② ✅：2026-05-03 shadcn Input 全站替换 7 处 (BatchWorkflowPanel / CommunityPublishPanel / LibrarySection / ParamsSection ×2 / ReferenceSection / TemplatesSection)。零测试改动。
+- 衍生项 ③ ✅：2026-05-04 shadcn Select 全站替换 8 处 (ParamsSection ×6 / CommunityPublishPanel / TemplatesSection) + 5 处测试改造（selectOptions/toHaveValue → click + getByRole + toHaveTextContent 模式）+ vitest.setup.ts 加 Radix popover polyfills。
+- 下一步 → Phase 6 暗色模式（待 product 排期；可参考 globals.css L60-81 已预埋的 .dark token），或收尾扫荡（Checkbox/Slider 都需先装 Radix 依赖再 scaffold ui 组件，ChatHeader Board onClick 是小颗粒可顺手并入）。
 
 ## 接棒读哪一份
 
