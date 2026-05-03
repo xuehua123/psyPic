@@ -2,44 +2,40 @@
 
 ## 📍 下次会话从这里开始（READ ME FIRST）
 
-**当前进度**：**17 / 17** 子组件 ✅ + **1** Context（91 字段） + **1 / 1** legacy fallback ✅ — **Phase 4 全部收尾完成 🎉**。
-`components/creator/CreatorWorkspace.tsx`：3794 → **1607 行** (-2187，**-57.6%**)。
-`components/creator/legacy/LegacyCreatorWorkspace.tsx`：1244 行（整段 legacy 三栏 fallback，全走 Context）。
-分支 `codex/fix-v1-review-findings`，第 19 刀已生成代码（待提交：本次会话 commit "抽出 LegacyCreatorWorkspace 整段 + 清理主壳 dead helper"）。
+**当前进度**：**Phase 4 ✅ + Phase 5 ✅ 全部收尾** 🎉
+- Phase 4：17 / 17 子组件 + 1 / 1 legacy fallback + Context 91 字段
+- Phase 5：6 / 6 视觉打磨刀（详见下面 Phase 5 完成清单）
+
+`components/creator/CreatorWorkspace.tsx`：4116 → **1607 行** (-61%)。
+分支 `codex/fix-v1-review-findings`，最新 `926f71d` = Phase 5 第 6 刀（shadcn Button 全站替换 32 处）✅ Phase 5 收尾。
 
 ### 复制这一句开局（→ 粘到新 Claude Code 会话）
 
 ```
-PsyPic UI 重构 Phase 4 已收尾。下一步进 Phase 5 视觉打磨。先读
-docs/superpowers/plans/2026-05-02-psypic-ui-system-implementation.md
-找 Phase 5 任务清单；视觉改动一组件一 commit，参考
-docs/superpowers/plans/2026-05-03-creatorworkspace-extraction-map.md
-末尾"视觉打磨（Phase 5）插槽"段。
+PsyPic UI 重构 Phase 4 + Phase 5 已全部收尾。下一波是 Phase 6 暗色模式，
+但暗色不在本轮范围（spec 明确说 Phase 6 之前不做）。当前可做：
+- 等 product 提 Phase 6 暗色排期，或
+- 选 Phase 5 衍生项（ChatHeader Board 按钮接 onClick / shadcn Input
+  全站替换 / shadcn Select 全站替换 / 移除 useCodexChatStudio flag
+  彻底删 LegacyCreatorWorkspace）
 ```
 
-### Phase 4 收尾里程碑（第 19 刀）
+### Phase 5 收尾完成清单（6 / 6 ✅）
 
-✅ 完成项：
-1. 扩 Context 11 字段（currentTask / cancelCurrentTask / refreshTaskStatus / partialImages / versionNodes / activeVersionNode / selectedTemplateId / galleryImages / galleryRequestId / galleryTotalTokens + CurrentTask 类型 import）
-2. 主壳 return 重构：`<CreatorStudioProvider value={studioContextValue}>...</CreatorStudioProvider>` 共享给 chat-studio 和 legacy 两个分支
-3. 整段 legacy main JSX (~1009 行) 搬到 `components/creator/legacy/LegacyCreatorWorkspace.tsx`，组件顶层 `useCreatorStudio()` 解构 60+ 字段
-4. 主壳 else 分支精简为 `<CreatorStudioProvider value={...}><LegacyCreatorWorkspace /></CreatorStudioProvider>`
-5. 清主壳 dead code：`qualityOptions` const、`renderTemplateField` (63 行函数)、16 个 legacy-only lucide icons、`Link from "next/link"`、`CSSProperties`、9 个 unused lib helper imports（CommunityPublishPanel / normalizeContentType / isRecord / canRetryTask / taskStatusLabels / taskTypeLabels / formatVersionNodeTime / summarizeNodeParams / GENERATION_SIZE_OPTIONS）
-6. typecheck ✅ + lint ✅ (max-warnings=0) 双绿
+| 刀 | commit | 改动 | 文件 |
+| --- | --- | --- | --- |
+| P5-1 ✅ | `c97135b` | ChatTranscript gradient → var(--surface) 纯白，与左右 muted sidebar 形成层级 | globals.css 1 行 |
+| P5-2 ✅ | `1d51d54` | 抽 SectionHeading 公共组件（`{icon, title, action?}`），3 处 inspector 替换 | +1 文件，72 / -22 行 |
+| P5-3 ✅ | `5949d76` | ProjectSidebar active 删 inset 3px 左竖条 + rgba 边 → 1px accent 实色描边 | globals.css 2 段 |
+| P5-4 ✅ | `3573c7d` | ChatEmptyState 删 dead studio-empty-canvas 装饰 → 4 个 mvpTemplates 快捷卡（点击套模板）；CSS 加网格 + mobile 单列；测试用 within() 限定避免同名按钮冲突 | 3 文件，91 / -26 行 |
+| P5-5 ✅ | `07d3980` | Composer chips 行 flex-wrap → nowrap + overflow-x: auto，紧凑单行展示 | globals.css 1 段 |
+| P5-6 ✅ | `926f71d` | shadcn Button 全站替换 32 处（11 文件），primary→default / secondary→secondary variant；Link / a download 用 asChild 模式；legacy 27 处保留 | 12 文件，109 / -103 行 |
 
-### Phase 5 视觉打磨入口（下一会话）
+### Phase 6 暗色模式入口（如果 product 排期了）
 
-子组件抽完后做（每组件单独 commit）：
-- ChatEmptyState：删 `studio-empty-canvas` 装饰画布；改成 4 个常用模板快捷卡网格
-- ChatTranscript：去掉 22px dotted 背景
-- ProjectSidebar：浅色 + accent 描边 active（spec 要求）
-- Composer：上下文 chips 简化为单行
-- Inspector：所有 section 用 `<SectionHeading icon title action />` 统一
-- 全站 grep `primary-button|secondary-button|ghost-button` → 替换为 shadcn `<Button>`
-
-### 可选：移除 useCodexChatStudio flag
-
-如产品已确认不再需要 legacy fallback，可删 `NEXT_PUBLIC_PSYPIC_LEGACY_CREATOR` env 切换 + 整个 `LegacyCreatorWorkspace.tsx` + 主壳 if-else 分支，主壳收缩至 ~1450 行。需产品确认。
+- `app/globals.css` L60-81 已预埋 `.dark` token（dark mode color scheme）
+- 工作内容：在所有 `bg-*` / `text-*` / `border-*` 处加 `dark:` 覆盖；切换 UI 加在 ProjectSidebar 底部或 settings 页
+- 风险：现有大量 raw className 无法直接 `dark:`，需要 CSS var 替代或额外 `.dark .xxx` 重载
 
 ### 进入项目后第一组动作
 
@@ -210,15 +206,16 @@ type CreatorStudioContextValue = {
 
 是否拆多个 Context（避免 re-render 性能问题）：先单 Context，等 React DevTools 出现明显 wasted render 再拆。
 
-## 视觉打磨（Phase 5）插槽
+## 视觉打磨（Phase 5）已完成清单
 
-子组件抽完后做（每组件单独 commit）：
-- ChatEmptyState：删 `studio-empty-canvas` 装饰画布；改成 4 个常用模板快捷卡网格
-- ChatTranscript：去掉 22px dotted 背景
-- ProjectSidebar：浅色 + accent 描边 active（spec 要求）
-- Composer：上下文 chips 简化为单行
-- Inspector：所有 section 用 `<SectionHeading icon title action />` 统一
-- 全站 grep `primary-button|secondary-button|ghost-button` → 替换为 shadcn `<Button>`
+子组件抽完后的视觉收尾，6 / 6 ✅（每条对应一个 commit）：
+
+- ✅ ChatEmptyState：删 dead `studio-empty-canvas` 装饰画布；改成 4 个常用模板快捷卡网格（P5-4 `3573c7d`）
+- ✅ ChatTranscript：去掉 gradient，改 var(--surface) 纯白底（P5-1 `c97135b`）
+- ✅ ProjectSidebar：删 chunky 左竖条 inset，改细 1px accent 描边（P5-3 `5949d76`）
+- ✅ Composer：上下文 chips 收敛单行（flex-wrap nowrap + overflow-x auto）（P5-5 `07d3980`）
+- ✅ Inspector：抽 SectionHeading 公共组件 `<SectionHeading icon title action />` 统一（P5-2 `1d51d54`）
+- ✅ 全站 `primary-button|secondary-button` → shadcn `<Button>` 替换 32 处（P5-6 `926f71d`，legacy 27 处保留）
 
 ## 已抽组件清单（速查）
 

@@ -7,9 +7,12 @@
 
 **PsyPic UI 全面深度优化**（plan slug `linear-stirring-acorn`）—— 把整站前端调到 Linear / Figma / Codex 风格的专业创作 IDE 水准。
 
-**正在进行**：Phase 4 ✅ **已收尾** — `components/creator/CreatorWorkspace.tsx` 4116 → **1607 行**（-61%）；17 个语义子组件 + 1 个 legacy fallback (LegacyCreatorWorkspace 1244 行) + CreatorStudioContext (200 行 / 91 字段) 全部抽完。下一波 → **Phase 5 视觉打磨**（每组件单独 commit）。
+**正在进行**：Phase 5 ✅ **已收尾** — 视觉打磨 6 刀全部完成（ChatTranscript 纯白底 / SectionHeading 公共组件 / ProjectSidebar 浅色描边 active / ChatEmptyState 4 模板快捷卡 / Composer chips 单行 / shadcn Button 全站替换 32 处）。下一波 → **Phase 6 暗色模式**（按 spec 规划，CSS var 已预埋 `.dark` token，主要工作是 `dark:` className 覆盖与切换 UI）。
 
-**进度**：17 / 17 子组件 ✅ + 1 / 1 legacy fallback ✅ + Context 91 字段。CreatorWorkspace.tsx **1607 行**（起点 4116 / 3794 抽刀基线）。下一步 → 进 Phase 5（参考 implementation plan）。
+**进度**：
+- Phase 4 ✅：17 / 17 子组件 + 1 / 1 legacy fallback + Context 91 字段。CreatorWorkspace.tsx **1607 行**（起点 4116 / 3794 抽刀基线）。
+- Phase 5 ✅：6 / 6 视觉打磨刀（chat 区中性白底层级 / SectionHeading 收敛 / Linear 风 active / Empty 4 卡 / chips 单行 / shadcn Button 32 处替换）。
+- 下一步 → Phase 6 暗色模式（待 product 排期；可参考 globals.css L60-81 已预埋的 .dark token）。
 
 ## 接棒读哪一份
 
