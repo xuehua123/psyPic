@@ -673,7 +673,7 @@ a {
   align-content: start;
   gap: 18px;
   padding: 24px 28px 34px;
-  background: linear-gradient(180deg, #f7fafc 0%, #f3f6fa 100%);
+  background: var(--surface);
 }
 
 .chat-empty-state {
