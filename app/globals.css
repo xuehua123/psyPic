@@ -710,13 +710,52 @@ a {
   line-height: 1.65;
 }
 
-.studio-empty-canvas,
-.studio-empty-toolbar,
-.studio-empty-toolbar span,
-.studio-empty-grid,
-.studio-empty-frame,
-.studio-empty-frame-main {
-  display: none;
+.studio-empty-templates {
+  display: grid;
+  gap: 10px;
+}
+
+.studio-empty-template-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.studio-empty-template-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.studio-empty-template-card:hover {
+  background: #f8fafc;
+  border-color: var(--accent);
+  box-shadow: var(--shadow-soft);
+}
+
+.studio-empty-template-card strong {
+  font-size: 13px;
+  color: var(--ink);
+  letter-spacing: -0.005em;
+}
+
+.studio-empty-template-card .studio-empty-template-desc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.studio-empty-template-card .template-pill {
+  justify-self: start;
 }
 
 .chat-turn {
@@ -2712,8 +2751,8 @@ a {
     padding-left: 14px;
   }
 
-  .studio-empty-grid {
-    grid-template-rows: repeat(2, minmax(66px, 1fr));
+  .studio-empty-template-grid {
+    grid-template-columns: 1fr;
   }
 
   .chat-message {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { vi } from "vitest";
@@ -547,7 +547,10 @@ describe("CreatorWorkspace", () => {
     render(<CreatorWorkspace />);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /广告 Banner/ }));
+    const templatesPanel = screen.getByTestId("commercial-template-list");
+    await user.click(
+      within(templatesPanel).getByRole("button", { name: /广告 Banner/ })
+    );
     await user.clear(screen.getByLabelText("活动主题"));
     await user.type(screen.getByLabelText("活动主题"), "618 新品首发");
     await user.clear(screen.getByLabelText("产品类型"));
