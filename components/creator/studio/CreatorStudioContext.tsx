@@ -36,9 +36,12 @@ import {
 import type {
   CreatorMode,
   GenerationImage,
-  MaskMode
+  MaskMode,
+  TemplateFieldValue,
+  TemplateFieldValues
 } from "@/lib/creator/types";
 import type { CreatorVersionNode } from "@/lib/creator/version-graph";
+import type { CommercialTemplate } from "@/lib/templates/commercial-templates";
 import type { ImageGenerationParams } from "@/lib/validation/image-params";
 
 export type CreatorStudioContextValue = {
@@ -112,6 +115,15 @@ export type CreatorStudioContextValue = {
   startMaskStroke: (event: ReactPointerEvent<HTMLCanvasElement>) => void;
   continueMaskStroke: (event: ReactPointerEvent<HTMLCanvasElement>) => void;
   stopMaskStroke: (event: ReactPointerEvent<HTMLCanvasElement>) => void;
+
+  // TemplatesSection 所需（第 17 刀扩）：商业模板列表 + 当前选中
+  // 模板 + 字段值表 + 4 个 handler
+  mvpTemplates: CommercialTemplate[];
+  selectedTemplate: CommercialTemplate | undefined;
+  templateFieldValues: TemplateFieldValues;
+  updateTemplateFieldValue: (key: string, value: TemplateFieldValue) => void;
+  selectCommercialTemplate: (templateId: string) => void;
+  applySelectedTemplate: () => void;
 };
 
 const CreatorStudioContext = createContext<CreatorStudioContextValue | null>(

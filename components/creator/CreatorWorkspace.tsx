@@ -41,6 +41,7 @@ import { CreatorStudioProvider } from "@/components/creator/studio/CreatorStudio
 import Inspector from "@/components/creator/studio/inspector/Inspector";
 import ParamsSection from "@/components/creator/studio/inspector/ParamsSection";
 import ReferenceSection from "@/components/creator/studio/inspector/ReferenceSection";
+import TemplatesSection from "@/components/creator/studio/inspector/TemplatesSection";
 import NodeInspectorSection from "@/components/creator/studio/NodeInspectorSection";
 import ProjectSidebar from "@/components/creator/studio/ProjectSidebar";
 import VersionStreamSection from "@/components/creator/studio/VersionStreamSection";
@@ -1570,7 +1571,13 @@ export default function CreatorWorkspace({
             invertMaskCanvas,
             startMaskStroke,
             continueMaskStroke,
-            stopMaskStroke
+            stopMaskStroke,
+            mvpTemplates,
+            selectedTemplate,
+            templateFieldValues,
+            updateTemplateFieldValue,
+            selectCommercialTemplate,
+            applySelectedTemplate
           }}
         >
         <main className="chat-studio-shell" data-testid="chat-studio-shell">
@@ -1609,52 +1616,7 @@ export default function CreatorWorkspace({
 
             <ReferenceSection />
 
-            <section
-              className="inspector-section"
-              data-testid="commercial-template-list"
-            >
-              <div className="section-heading">
-                <Sparkles size={15} aria-hidden="true" />
-                <strong>商业模板</strong>
-              </div>
-              {selectedTemplate ? (
-                <div className="template-field-editor" aria-label="模板字段">
-                  <div className="template-editor-header">
-                    <strong>{selectedTemplate.name}</strong>
-                    <span>{selectedTemplate.description}</span>
-                  </div>
-                  <div className="template-field-grid">
-                    {selectedTemplate.fields.map(renderTemplateField)}
-                  </div>
-                  <button
-                    className="primary-button"
-                    onClick={applySelectedTemplate}
-                    type="button"
-                  >
-                    <Sparkles size={16} aria-hidden="true" />
-                    应用模板
-                  </button>
-                </div>
-              ) : null}
-              <div className="template-list">
-                {mvpTemplates.map((template) => (
-                  <button
-                    className="template-button"
-                    key={template.id}
-                    onClick={() => selectCommercialTemplate(template.id)}
-                    type="button"
-                  >
-                    <span>
-                      <strong>{template.name}</strong>
-                      <span>{template.description}</span>
-                    </span>
-                    <span className="template-pill">
-                      {template.requiresImage ? "需参考图" : "文生图"}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </section>
+            <TemplatesSection />
 
             <VersionStreamSection
               activeNodeId={activeNodeId}

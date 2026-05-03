@@ -2,9 +2,9 @@
 
 ## 📍 下次会话从这里开始（READ ME FIRST）
 
-**当前进度**：**15 / 17** 子组件 + **1** Context（56 字段） + **0 / 1** legacy fallback。
-`components/creator/CreatorWorkspace.tsx`：3794 → **2901 行** (-893，-23.5%)。
-分支 `codex/fix-v1-review-findings`，已同步 origin（最新 `9dec3e8` = 第 15 刀-B；本刀 commit 即将 push）。
+**当前进度**：**16 / 17** 子组件 + **1** Context（62 字段） + **0 / 1** legacy fallback。
+`components/creator/CreatorWorkspace.tsx`：3794 → **2863 行** (-931，-24.5%)。
+分支 `codex/fix-v1-review-findings`，已同步 origin（最新 `06331ef` = 第 16 刀；本刀 commit 即将 push）。
 
 ### 复制这一句开局（→ 粘到新 Claude Code 会话）
 
@@ -30,7 +30,7 @@ creatorworkspace-extraction-map.md 顶部"📍 下次会话从这里开始"secti
 ```bash
 git status                  # 确认在 codex/fix-v1-review-findings、干净
 git log --oneline -10       # 看最近 10 个 commit（前 9 个是本次 Phase 4）
-ls components/creator/studio/ components/creator/studio/inspector/   # 15 个已抽组件 + Context
+ls components/creator/studio/ components/creator/studio/inspector/   # 16 个已抽组件 + Context
 ls lib/creator/             # 共享 helper 模块
 pnpm typecheck              # 验证当前状态可编译
 ```
@@ -139,7 +139,7 @@ pnpm typecheck              # 验证当前状态可编译
 | ✅ | `studio/inspector/ParamsSection.tsx` | (已抽) | 全部走 Context（22 字段：mode/size/quality/n/format/streamEnabled 6 read+6 write + 8 advanced 字段 + selectedCommercialSizeId + selectCommercialSize） | ⭐⭐⭐ | 255 |
 | ✅ | `studio/inspector/ReferenceSection.tsx` | (已抽，含 mask-editor inline) | 全部走 Context（19 字段：referenceImages/Previews/Image + 4 input handler + maskEnabled/Mode/BrushSize + 6 mask handler + maskCanvasRef） | ⭐⭐⭐ | 198 |
 | ➖ | ~~`studio/inspector/MaskEditor.tsx`~~ | (合并入 ReferenceSection) | mask-editor 强依赖 referenceImage 条件，独立组件价值不大 → 跳过原计划第 17 刀 | — | — |
-| 8 | `studio/inspector/TemplatesSection.tsx` | 用 grep `commercial-template-list` 找 | `selectedTemplateId`, `mvpTemplates`, template field handlers, `renderTemplateField` | ⭐⭐⭐ | ~250 |
+| ✅ | `studio/inspector/TemplatesSection.tsx` | (已抽，含 renderTemplateField inline) | 全部走 Context（6 字段：mvpTemplates / selectedTemplate / templateFieldValues / updateTemplateFieldValue / selectCommercialTemplate / applySelectedTemplate） | ⭐⭐⭐ | 144 |
 | 9 | `studio/inspector/LibrarySection.tsx` | 用 grep `素材与历史` 找 | `libraryItems`, `libraryStatus`, `libraryFavoriteOnly`, `libraryTagFilter`, `historyItems`, `promptFavorites`, 9+ handler | ⭐⭐ | ~190 |
 | - | `legacy/LegacyCreatorWorkspace.tsx` | grep `legacy-workbench-shell`，整段往下到文件末 | 整段 legacy JSX + 重复 inspector sections；接口同主壳 | ⭐⭐ | ~1000 |
 
@@ -159,7 +159,7 @@ pnpm typecheck              # 验证当前状态可编译
 - ✅ ParamsSection — 消费 Context 22 字段（第 15 刀-B）
 - ⏳ LegacyCreatorWorkspace（最后整段抽，会一次性 -1000 行）
 
-**结论**：ReferenceSection 已抽（含 mask-editor inline，跳过原 17 刀），下一会话第一刀 → 抽 TemplatesSection（⭐⭐⭐ 重头戏）。
+**结论**：TemplatesSection 已抽（16/17），下一刀 → 抽 LibrarySection（⭐⭐ 收尾），再做 LegacyCreatorWorkspace（最后整段抽）。
 
 ## CreatorStudioContext 设计建议
 
@@ -220,7 +220,8 @@ components/creator/studio/
 └── inspector/
     ├── Inspector.tsx             (29 行, ⭐⭐ — children pattern 外壳)
     ├── ParamsSection.tsx         (255 行, ⭐⭐⭐ — 消费 Context 22 字段)
-    └── ReferenceSection.tsx      (198 行, ⭐⭐⭐ — 消费 Context 19 字段，含 mask-editor inline)
+    ├── ReferenceSection.tsx      (198 行, ⭐⭐⭐ — 消费 Context 19 字段，含 mask-editor inline)
+    └── TemplatesSection.tsx      (144 行, ⭐⭐⭐ — 消费 Context 6 字段，含 renderTemplateField inline)
 
 lib/creator/
 ├── api-error.ts
