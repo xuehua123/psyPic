@@ -21,6 +21,7 @@
 import { SlidersHorizontal } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -198,11 +199,10 @@ export default function ParamsSection() {
         </div>
 
         <label className="toggle-row">
-          <input
+          <Checkbox
             aria-label="流式预览"
             checked={streamEnabled}
-            onChange={(event) => setStreamEnabled(event.target.checked)}
-            type="checkbox"
+            onCheckedChange={(checked) => setStreamEnabled(checked === true)}
           />
           <span>流式预览</span>
         </label>

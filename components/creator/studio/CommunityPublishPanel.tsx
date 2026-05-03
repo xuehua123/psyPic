@@ -4,6 +4,7 @@ import { UploadCloud } from "lucide-react";
 import type { FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -65,31 +66,27 @@ export default function CommunityPublishPanel({
       </div>
       <div className="community-publish-options">
         <label className="checkbox-row">
-          <input name="disclose_prompt" type="checkbox" />
+          <Checkbox name="disclose_prompt" />
           公开 Prompt
         </label>
         <label className="checkbox-row">
-          <input name="disclose_params" type="checkbox" />
+          <Checkbox name="disclose_params" />
           公开参数
         </label>
         <label className="checkbox-row">
-          <input name="disclose_reference_images" type="checkbox" />
+          <Checkbox name="disclose_reference_images" />
           公开参考图
         </label>
         <label className="checkbox-row">
-          <input
-            defaultChecked
-            name="allow_same_generation"
-            type="checkbox"
-          />
+          <Checkbox defaultChecked name="allow_same_generation" />
           允许同款生成
         </label>
         <label className="checkbox-row">
-          <input name="allow_reference_reuse" type="checkbox" />
+          <Checkbox name="allow_reference_reuse" />
           允许参考复用
         </label>
         <label className="checkbox-row">
-          <input name="public_confirmed" type="checkbox" />
+          <Checkbox name="public_confirmed" />
           确认公开发布
         </label>
       </div>

@@ -17,6 +17,7 @@
 import { Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -46,13 +47,12 @@ export default function TemplatesSection() {
     if (field.type === "boolean") {
       return (
         <label className="checkbox-row template-checkbox-field" key={field.key}>
-          <input
+          <Checkbox
             aria-label={field.label}
             checked={Boolean(value)}
-            onChange={(event) =>
-              updateTemplateFieldValue(field.key, event.currentTarget.checked)
+            onCheckedChange={(checked) =>
+              updateTemplateFieldValue(field.key, checked === true)
             }
-            type="checkbox"
           />
           {field.label}
         </label>

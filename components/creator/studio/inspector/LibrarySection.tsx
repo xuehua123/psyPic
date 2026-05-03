@@ -29,6 +29,7 @@ import {
 
 import CommunityPublishPanel from "@/components/creator/studio/CommunityPublishPanel";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import SectionHeading from "@/components/creator/studio/SectionHeading";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
@@ -76,13 +77,12 @@ export default function LibrarySection() {
       />
       <div className="library-toolbar">
         <label className="checkbox-row">
-          <input
+          <Checkbox
             aria-label="仅收藏素材"
             checked={libraryFavoriteOnly}
-            onChange={(event) =>
-              setLibraryFavoriteOnly(event.currentTarget.checked)
+            onCheckedChange={(checked) =>
+              setLibraryFavoriteOnly(checked === true)
             }
-            type="checkbox"
           />
           仅收藏
         </label>

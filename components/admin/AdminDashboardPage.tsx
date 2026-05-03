@@ -15,6 +15,7 @@ import AppShell from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -381,12 +382,11 @@ function ToggleField({
   return (
     <label className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-2 text-[13px] font-medium text-foreground transition-colors hover:bg-muted/50">
       <span>{label}</span>
-      <input
+      <Checkbox
         aria-label={label}
         checked={checked}
-        className="size-4 cursor-pointer accent-accent"
-        onChange={(event) => onChange(event.currentTarget.checked)}
-        type="checkbox"
+        className="cursor-pointer"
+        onCheckedChange={(value) => onChange(value === true)}
       />
     </label>
   );

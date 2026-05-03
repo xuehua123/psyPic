@@ -25,6 +25,7 @@
 import { Brush, Eraser, FlipHorizontal, ImagePlus, RotateCcw, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
 
@@ -116,11 +117,10 @@ export default function ReferenceSection() {
       {referenceImage ? (
         <section className="mask-editor" aria-label="遮罩编辑器">
           <label className="toggle-row">
-            <input
+            <Checkbox
               aria-label="遮罩编辑"
               checked={maskEnabled}
-              onChange={(event) => setMaskEnabled(event.target.checked)}
-              type="checkbox"
+              onCheckedChange={(checked) => setMaskEnabled(checked === true)}
             />
             <span>遮罩编辑</span>
           </label>
