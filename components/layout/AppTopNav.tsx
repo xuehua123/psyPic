@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Compass, LayoutDashboard, Settings, Shield } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { cn } from "@/lib/utils";
 
 type AppTopNavProps = {
@@ -121,6 +122,7 @@ function UtilityNav({
         icon={Settings}
         label="设置"
       />
+      <ThemeToggle />
     </div>
   );
 }
