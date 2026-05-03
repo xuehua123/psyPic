@@ -2,9 +2,9 @@
 
 ## 📍 下次会话从这里开始（READ ME FIRST）
 
-**当前进度**：**13 / 17** 子组件 + **1** Context（21 字段） + **0 / 1** legacy fallback。
-`components/creator/CreatorWorkspace.tsx`：3794 → **3194 行** (-600，-15.8%)。
-分支 `codex/fix-v1-review-findings`，已同步 origin（最新 `7de0737` = 第 13 刀-B；本刀 commit 即将 push）。
+**当前进度**：**14 / 17** 子组件 + **1** Context（37 字段） + **0 / 1** legacy fallback。
+`components/creator/CreatorWorkspace.tsx`：3794 → **3019 行** (-775，-20.4%)。
+分支 `codex/fix-v1-review-findings`，已同步 origin（最新 `604abc8` = 第 15 刀-A；本刀 commit 即将 push）。
 
 ### 复制这一句开局（→ 粘到新 Claude Code 会话）
 
@@ -38,7 +38,7 @@ creatorworkspace-extraction-map.md 顶部"📍 下次会话从这里开始"secti
 ```bash
 git status                  # 确认在 codex/fix-v1-review-findings、干净
 git log --oneline -10       # 看最近 10 个 commit（前 9 个是本次 Phase 4）
-ls components/creator/studio/ components/creator/studio/inspector/   # 13 个已抽组件 + Context
+ls components/creator/studio/ components/creator/studio/inspector/   # 14 个已抽组件 + Context
 ls lib/creator/             # 共享 helper 模块
 pnpm typecheck              # 验证当前状态可编译
 ```
@@ -144,7 +144,7 @@ pnpm typecheck              # 验证当前状态可编译
 | ✅ | `studio/ChatTranscript.tsx` | (已抽) | 包裹 ChatEmptyState + ChatTurn + TaskStatusStrip 编排 | ⭐⭐ | 78 |
 | ✅ | `studio/Composer.tsx` | (已抽) | 全部走 Context（消费 14 个扩展字段：prompt/setPrompt/mode/size/quality/outputFormat/n/streamEnabled/forkParentId/errorMessage/isAssistingPrompt/isGenerating/optimizePrompt/saveCurrentPromptFavorite + submitGeneration） | ⭐⭐⭐ | 107 |
 | ✅ | `studio/inspector/Inspector.tsx` | (已抽) | children pattern 容器，无 state/handler 依赖 | ⭐⭐ | 29 |
-| 5 | `studio/inspector/ParamsSection.tsx` | 用 grep `<section className="inspector-section">` 第 1 处 | `mode`, `n`, `selectedTemplate`, `outputCompression`, `streamEnabled`, `partialImageCount`, `advancedOpen` | ⭐⭐⭐ | ~250 |
+| ✅ | `studio/inspector/ParamsSection.tsx` | (已抽) | 全部走 Context（22 字段：mode/size/quality/n/format/streamEnabled 6 read+6 write + 8 advanced 字段 + selectedCommercialSizeId + selectCommercialSize） | ⭐⭐⭐ | 255 |
 | 6 | `studio/inspector/ReferenceSection.tsx` | 用 grep `reference-dropzone` 找 | `referenceImages`, `referencePreviews`, ref handlers；包嵌 MaskEditor | ⭐⭐ | ~150 |
 | 7 | `studio/inspector/MaskEditor.tsx` | 用 grep `mask-editor` 找（有 2 处，新版在前） | `maskEnabled`, `maskMode`, `maskBrushSize`, mask ref & 6 个 stroke handler | ⭐⭐⭐ | ~200 |
 | 8 | `studio/inspector/TemplatesSection.tsx` | 用 grep `commercial-template-list` 找 | `selectedTemplateId`, `mvpTemplates`, template field handlers, `renderTemplateField` | ⭐⭐⭐ | ~250 |
@@ -159,15 +159,15 @@ pnpm typecheck              # 验证当前状态可编译
 - ✅ BranchMapSection / VersionStreamSection / CommunityPublishPanel / ProjectSidebar / ChatTurn / ChatTranscript
 - ⏳ ReferenceSection / MaskEditor / LibrarySection
 
-**第三波（重头戏）**：Context 已建（第 10 刀 ✅）+ 扩 14 字段（第 13 刀-A ✅），4/6 完成
-- ✅ `studio/CreatorStudioContext.tsx` — 单 Context，21 个字段（7 初始 + 14 Composer 扩展）
+**第三波（重头戏）**：Context 已建（第 10 刀 ✅）+ 扩展（13-A、15-A ✅），5/6 完成
+- ✅ `studio/CreatorStudioContext.tsx` — 单 Context，37 个字段
 - ✅ ChatTurn — 消费 Context 7 字段（第 11 刀）
 - ✅ Composer — 消费 Context 14 字段（第 13 刀-B）
 - ✅ Inspector — children pattern 容器壳（第 14 刀）
-- ⏳ ParamsSection / TemplatesSection（每个 5-10 个 state，可能还要扩 Context）
+- ✅ ParamsSection — 消费 Context 22 字段（第 15 刀-B）
 - ⏳ LegacyCreatorWorkspace（最后整段抽，会一次性 -1000 行）
 
-**结论**：Inspector 容器壳已抽（4/6），下一会话第一刀 → 抽 ParamsSection（⭐⭐⭐ 重头戏，可能再分 Step A/B）。
+**结论**：ParamsSection 已抽（5/6），下一会话第一刀 → 抽 ReferenceSection（⭐⭐ 中等，含 nested MaskEditor 区段）。
 
 ## CreatorStudioContext 设计建议
 
@@ -226,7 +226,8 @@ components/creator/studio/
 ├── TaskStatusStrip.tsx           (105 行, ⭐⭐)
 ├── VersionStreamSection.tsx      (113 行, ⭐⭐)
 └── inspector/
-    └── Inspector.tsx             (29 行, ⭐⭐ — children pattern 外壳)
+    ├── Inspector.tsx             (29 行, ⭐⭐ — children pattern 外壳)
+    └── ParamsSection.tsx         (255 行, ⭐⭐⭐ — 消费 Context 22 字段)
 
 lib/creator/
 ├── api-error.ts
