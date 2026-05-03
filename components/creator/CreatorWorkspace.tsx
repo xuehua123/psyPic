@@ -36,6 +36,7 @@ import type {
 } from "react";
 
 import BatchWorkflowPanel from "@/components/creator/BatchWorkflowPanel";
+import BranchMapSection from "@/components/creator/studio/BranchMapSection";
 import ChatEmptyState from "@/components/creator/studio/ChatEmptyState";
 import ChatHeader from "@/components/creator/studio/ChatHeader";
 import NodeInspectorSection from "@/components/creator/studio/NodeInspectorSection";
@@ -2348,36 +2349,10 @@ export default function CreatorWorkspace({
               )}
             </section>
 
-            <section
-              aria-label="分支图"
-              className="branch-map inspector-section"
-              data-testid="branch-map"
-            >
-              <div className="version-stream-header">
-                <strong>分支图</strong>
-                <p>Board 模式前置预览。</p>
-              </div>
-              {projectVersionNodes.length === 0 ? (
-                <p className="inline-hint">生成后显示节点关系。</p>
-              ) : (
-                <div className="branch-node-list">
-                  {projectVersionNodes.map((node) => (
-                    <div
-                      className={`branch-node ${
-                        node.id === activeNodeId ? "active" : ""
-                      }`}
-                      data-depth={node.depth}
-                      key={node.id}
-                      style={{ "--node-depth": node.depth } as CSSProperties}
-                    >
-                      <span>{node.parentId ? "↳" : "●"}</span>
-                      <strong>路径：{node.branchLabel}</strong>
-                      <p>{node.prompt}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
+            <BranchMapSection
+              activeNodeId={activeNodeId}
+              projectVersionNodes={projectVersionNodes}
+            />
 
             <NodeInspectorSection activeVersionNode={activeVersionNode} />
 
