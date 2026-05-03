@@ -39,6 +39,7 @@ import BatchWorkflowPanel from "@/components/creator/BatchWorkflowPanel";
 import BranchMapSection from "@/components/creator/studio/BranchMapSection";
 import ChatEmptyState from "@/components/creator/studio/ChatEmptyState";
 import ChatHeader from "@/components/creator/studio/ChatHeader";
+import CommunityPublishPanel from "@/components/creator/studio/CommunityPublishPanel";
 import NodeInspectorSection from "@/components/creator/studio/NodeInspectorSection";
 import PartialPreviewStrip from "@/components/creator/studio/PartialPreviewStrip";
 import TaskStatusStrip from "@/components/creator/studio/TaskStatusStrip";
@@ -2427,88 +2428,14 @@ export default function CreatorWorkspace({
                           </Link>
                         </div>
                         {publishAssetId === item.asset_id ? (
-                          <form
-                            className="community-publish-panel"
+                          <CommunityPublishPanel
+                            defaultTitle={defaultCommunityTitle(item)}
+                            isPublishing={publishingAssetId === item.asset_id}
+                            item={item}
                             onSubmit={(event) =>
                               void publishLibraryItem(event, item)
                             }
-                          >
-                            <div className="field">
-                              <label htmlFor={`publish-title-${item.asset_id}`}>
-                                作品标题
-                              </label>
-                              <input
-                                className="input"
-                                defaultValue={defaultCommunityTitle(item)}
-                                id={`publish-title-${item.asset_id}`}
-                                name="title"
-                                type="text"
-                              />
-                            </div>
-                            <div className="field">
-                              <label
-                                htmlFor={`publish-visibility-${item.asset_id}`}
-                              >
-                                可见性
-                              </label>
-                              <select
-                                className="select"
-                                defaultValue="private"
-                                id={`publish-visibility-${item.asset_id}`}
-                                name="visibility"
-                              >
-                                <option value="private">私有</option>
-                                <option value="unlisted">链接可见</option>
-                                <option value="public">公开社区</option>
-                              </select>
-                            </div>
-                            <div className="community-publish-options">
-                              <label className="checkbox-row">
-                                <input name="disclose_prompt" type="checkbox" />
-                                公开 Prompt
-                              </label>
-                              <label className="checkbox-row">
-                                <input name="disclose_params" type="checkbox" />
-                                公开参数
-                              </label>
-                              <label className="checkbox-row">
-                                <input
-                                  name="disclose_reference_images"
-                                  type="checkbox"
-                                />
-                                公开参考图
-                              </label>
-                              <label className="checkbox-row">
-                                <input
-                                  defaultChecked
-                                  name="allow_same_generation"
-                                  type="checkbox"
-                                />
-                                允许同款生成
-                              </label>
-                              <label className="checkbox-row">
-                                <input
-                                  name="allow_reference_reuse"
-                                  type="checkbox"
-                                />
-                                允许参考复用
-                              </label>
-                              <label className="checkbox-row">
-                                <input name="public_confirmed" type="checkbox" />
-                                确认公开发布
-                              </label>
-                            </div>
-                            <button
-                              className="primary-button"
-                              disabled={publishingAssetId === item.asset_id}
-                              type="submit"
-                            >
-                              <UploadCloud size={16} aria-hidden="true" />
-                              {publishingAssetId === item.asset_id
-                                ? "发布中"
-                                : "确认发布"}
-                            </button>
-                          </form>
+                          />
                         ) : null}
                         {publishMessages[item.asset_id] ? (
                           <p className="inline-hint">
