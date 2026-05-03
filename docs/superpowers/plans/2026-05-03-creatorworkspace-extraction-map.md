@@ -51,7 +51,7 @@
 | ✅ | `studio/TaskStatusStrip.tsx` | (已抽) | `currentTask`, `isGenerating`, refresh/cancel/retry handlers | ⭐⭐ | 105 |
 | 3 | `studio/ChatTurn.tsx` | ~L1700-1815 | `displayedVersionNodes`(item), `activeNodeId`, `formatVersionNodeTime`, `summarizeNodeParams`, `returnToVersionNode`, `restoreVersionNodeParams`, `startVersionFork`, `copyPrompt`, `submitGeneration`, `handleResultAsReference` | ⭐⭐⭐ | ~200 |
 | 4 | `studio/ChatTranscript.tsx` | ~L1693-1881 | 包裹 ChatEmptyState + ChatTurn + TaskStatusStrip 编排 | ⭐⭐ | ~50 |
-| 5 | `studio/ChatHeader.tsx` | ~L1684-1693 | `currentConversationTitle`, Board 按钮 callback | ⭐ | ~80 |
+| ✅ | `studio/ChatHeader.tsx` | (已抽) | `currentConversationTitle`, `forkParentId` | ⭐ | 39 |
 | 6 | `studio/Composer.tsx` | ~L1898-1967 | `prompt`, `setPrompt`, `mode`, `referenceImages`, `n`, `submitGeneration`, `applyPromptFavorite`, etc. | ⭐⭐⭐ | ~200 |
 | 7 | `studio/ProjectSidebar.tsx` | ~L1561-1683 | `sidebarProjects`, `activeProjectId`, `activeConversationId`, `selectProject`, `selectConversation` | ⭐⭐ | ~250 |
 | 8 | `studio/inspector/Inspector.tsx` | ~L1968-2768 | 容器 + section 编排 | ⭐⭐ | ~80 |
@@ -72,7 +72,7 @@
 1. ✅ ChatEmptyState
 2. ✅ PartialPreviewStrip
 3. ✅ TaskStatusStrip
-4. ChatHeader ⭐
+4. ✅ ChatHeader
 5. NodeInspectorSection ⭐
 
 **第二波：中等（在抽前先建 Context 共享 state）**

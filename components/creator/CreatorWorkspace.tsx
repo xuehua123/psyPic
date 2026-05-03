@@ -37,6 +37,7 @@ import type {
 
 import BatchWorkflowPanel from "@/components/creator/BatchWorkflowPanel";
 import ChatEmptyState from "@/components/creator/studio/ChatEmptyState";
+import ChatHeader from "@/components/creator/studio/ChatHeader";
 import PartialPreviewStrip from "@/components/creator/studio/PartialPreviewStrip";
 import TaskStatusStrip from "@/components/creator/studio/TaskStatusStrip";
 import AppShell from "@/components/layout/AppShell";
@@ -1677,20 +1678,10 @@ export default function CreatorWorkspace({
         </aside>
 
         <section className="chat-workspace" data-testid="center-workspace">
-          <header className="chat-workspace-header">
-            <div>
-              <span className="sidebar-section-title">当前对话</span>
-              <h1>{currentConversationTitle}</h1>
-            </div>
-            <div className="chat-header-actions">
-              {forkParentId ? (
-                <span className="version-context-pill">分叉生成中</span>
-              ) : null}
-              <button className="secondary-button" type="button">
-                Board
-              </button>
-            </div>
-          </header>
+          <ChatHeader
+            conversationTitle={currentConversationTitle}
+            forkParentId={forkParentId}
+          />
 
           <div
             className="chat-transcript"
