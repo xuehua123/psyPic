@@ -11,7 +11,6 @@ import type {
 } from "react";
 
 import BatchWorkflowPanel from "@/components/creator/BatchWorkflowPanel";
-import LegacyCreatorWorkspace from "@/components/creator/legacy/LegacyCreatorWorkspace";
 import BranchMapSection from "@/components/creator/studio/BranchMapSection";
 import ChatHeader from "@/components/creator/studio/ChatHeader";
 import ChatTranscript from "@/components/creator/studio/ChatTranscript";
@@ -1399,8 +1398,6 @@ export default function CreatorWorkspace({
     setErrorMessage("");
   }
 
-  const useCodexChatStudio =
-    process.env.NEXT_PUBLIC_PSYPIC_LEGACY_CREATOR !== "1";
   const currentConversationTitle =
     activeConversationId === "new"
       ? activeProject.emptyTitle
@@ -1504,93 +1501,6 @@ export default function CreatorWorkspace({
     galleryTotalTokens
   };
 
-  if (useCodexChatStudio) {
-    return (
-      <AppShell
-        bodyClassName="product-workbench-body"
-        currentPath="/"
-        showAdminLink={showAdminLink}
-      >
-        <CreatorStudioProvider value={studioContextValue}>
-        <main className="chat-studio-shell" data-testid="chat-studio-shell">
-        <ProjectSidebar
-          activeConversationId={activeConversationId}
-          activeProjectId={activeProjectId}
-          activeProjectTitle={activeProject.title}
-          onSelectConversation={selectConversation}
-          onSelectProject={selectProject}
-          sidebarProjects={sidebarProjects}
-        />
-
-        <section className="chat-workspace" data-testid="center-workspace">
-          <ChatHeader
-            conversationTitle={currentConversationTitle}
-            forkParentId={forkParentId}
-          />
-
-          <ChatTranscript
-            currentTask={currentTask}
-            displayedVersionNodes={displayedVersionNodes}
-            emptyDescription={activeProject.emptyDescription}
-            emptyTitle={activeProject.emptyTitle}
-            isGenerating={isGenerating}
-            onCancelTask={() => void cancelCurrentTask()}
-            onRefreshTask={(taskId) => void refreshTaskStatus(taskId)}
-            onRetryGeneration={submitGeneration}
-            partialImages={partialImages}
-          />
-
-          <Composer />
-        </section>
-
-        <Inspector>
-            <ParamsSection />
-
-            <ReferenceSection />
-
-            <TemplatesSection />
-
-            <VersionStreamSection
-              activeNodeId={activeNodeId}
-              forkParentId={forkParentId}
-              onRestoreNodeParams={restoreVersionNodeParams}
-              onReturnToNode={returnToVersionNode}
-              onStartFork={startVersionFork}
-              projectVersionNodes={projectVersionNodes}
-            />
-
-            <BranchMapSection
-              activeNodeId={activeNodeId}
-              projectVersionNodes={projectVersionNodes}
-            />
-
-            <NodeInspectorSection activeVersionNode={activeVersionNode} />
-
-            <BatchWorkflowPanel defaultSize={size} />
-
-            <LibrarySection />
-        </Inspector>
-
-        <div className="mobile-bottom-bar">
-          <Button variant="secondary" type="button">
-            <PanelBottom size={16} aria-hidden="true" />
-            打开参数面板
-          </Button>
-          <Button
-            disabled={isGenerating}
-            onClick={submitGeneration}
-            type="button"
-          >
-            <Play size={16} aria-hidden="true" />
-            {isGenerating ? "生成中" : "生成"}
-          </Button>
-        </div>
-        </main>
-        </CreatorStudioProvider>
-      </AppShell>
-    );
-  }
-
   return (
     <AppShell
       bodyClassName="product-workbench-body"
@@ -1598,7 +1508,80 @@ export default function CreatorWorkspace({
       showAdminLink={showAdminLink}
     >
       <CreatorStudioProvider value={studioContextValue}>
-        <LegacyCreatorWorkspace />
+      <main className="chat-studio-shell" data-testid="chat-studio-shell">
+      <ProjectSidebar
+        activeConversationId={activeConversationId}
+        activeProjectId={activeProjectId}
+        activeProjectTitle={activeProject.title}
+        onSelectConversation={selectConversation}
+        onSelectProject={selectProject}
+        sidebarProjects={sidebarProjects}
+      />
+
+      <section className="chat-workspace" data-testid="center-workspace">
+        <ChatHeader
+          conversationTitle={currentConversationTitle}
+          forkParentId={forkParentId}
+        />
+
+        <ChatTranscript
+          currentTask={currentTask}
+          displayedVersionNodes={displayedVersionNodes}
+          emptyDescription={activeProject.emptyDescription}
+          emptyTitle={activeProject.emptyTitle}
+          isGenerating={isGenerating}
+          onCancelTask={() => void cancelCurrentTask()}
+          onRefreshTask={(taskId) => void refreshTaskStatus(taskId)}
+          onRetryGeneration={submitGeneration}
+          partialImages={partialImages}
+        />
+
+        <Composer />
+      </section>
+
+      <Inspector>
+          <ParamsSection />
+
+          <ReferenceSection />
+
+          <TemplatesSection />
+
+          <VersionStreamSection
+            activeNodeId={activeNodeId}
+            forkParentId={forkParentId}
+            onRestoreNodeParams={restoreVersionNodeParams}
+            onReturnToNode={returnToVersionNode}
+            onStartFork={startVersionFork}
+            projectVersionNodes={projectVersionNodes}
+          />
+
+          <BranchMapSection
+            activeNodeId={activeNodeId}
+            projectVersionNodes={projectVersionNodes}
+          />
+
+          <NodeInspectorSection activeVersionNode={activeVersionNode} />
+
+          <BatchWorkflowPanel defaultSize={size} />
+
+          <LibrarySection />
+      </Inspector>
+
+      <div className="mobile-bottom-bar">
+        <Button variant="secondary" type="button">
+          <PanelBottom size={16} aria-hidden="true" />
+          打开参数面板
+        </Button>
+        <Button
+          disabled={isGenerating}
+          onClick={submitGeneration}
+          type="button"
+        >
+          <Play size={16} aria-hidden="true" />
+          {isGenerating ? "生成中" : "生成"}
+        </Button>
+      </div>
+      </main>
       </CreatorStudioProvider>
     </AppShell>
   );

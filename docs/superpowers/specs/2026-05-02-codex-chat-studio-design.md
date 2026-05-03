@@ -40,4 +40,3 @@ PsyPic Chat Studio
 - 移动端 Composer 底边贴住视口底部。
 - 生成结果以对话消息形式出现，并包含图片、参数摘要、request id、usage。
 - 版本流、分支图、Inspector 仍可查看和操作。
-- 旧版画廊工作台可通过 `NEXT_PUBLIC_PSYPIC_LEGACY_CREATOR=1` 临时回退。

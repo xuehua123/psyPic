@@ -2,22 +2,23 @@
 
 ## 📍 下次会话从这里开始（READ ME FIRST）
 
-**当前进度**：**Phase 4 ✅ + Phase 5 ✅ 全部收尾** 🎉
+**当前进度**：**Phase 4 ✅ + Phase 5 ✅ + 衍生项 1/4 ✅** 🎉
 - Phase 4：17 / 17 子组件 + 1 / 1 legacy fallback + Context 91 字段
 - Phase 5：6 / 6 视觉打磨刀（详见下面 Phase 5 完成清单）
+- Phase 5 衍生项 1/4 ✅：2026-05-03 删除 LegacyCreatorWorkspace + 移除 useCodexChatStudio flag（1244 行 dead code 出库，CreatorWorkspace.tsx 单一返回路径）
 
-`components/creator/CreatorWorkspace.tsx`：4116 → **1607 行** (-61%)。
-分支 `codex/fix-v1-review-findings`，最新 `926f71d` = Phase 5 第 6 刀（shadcn Button 全站替换 32 处）✅ Phase 5 收尾。
+`components/creator/CreatorWorkspace.tsx`：4116 → **~1593 行** (-61%)；`components/creator/legacy/` 已整目录删除。
+分支 `codex/fix-v1-review-findings`，最新进度：删除 legacy fallback + 移除 flag。
 
 ### 复制这一句开局（→ 粘到新 Claude Code 会话）
 
 ```
-PsyPic UI 重构 Phase 4 + Phase 5 已全部收尾。下一波是 Phase 6 暗色模式，
-但暗色不在本轮范围（spec 明确说 Phase 6 之前不做）。当前可做：
+PsyPic UI 重构 Phase 4 + Phase 5 已全部收尾，衍生项第 1 刀（删 legacy
+fallback + 移除 useCodexChatStudio flag）✅ 也已完成。下一波是 Phase 6
+暗色模式，但暗色不在本轮范围（spec 明确说 Phase 6 之前不做）。当前可做：
 - 等 product 提 Phase 6 暗色排期，或
-- 选 Phase 5 衍生项（ChatHeader Board 按钮接 onClick / shadcn Input
-  全站替换 / shadcn Select 全站替换 / 移除 useCodexChatStudio flag
-  彻底删 LegacyCreatorWorkspace）
+- 选剩下的 Phase 5 衍生项（ChatHeader Board 按钮接 onClick / shadcn
+  Input 全站替换 / shadcn Select 全站替换）
 ```
 
 ### Phase 5 收尾完成清单（6 / 6 ✅）
@@ -79,9 +80,7 @@ pnpm typecheck              # 验证当前状态可编译
 | State + useMemo + useRef | L133-310 | ~30 useState + 2 useRef + 7 useMemo | 主壳保留；子组件经 props 或 Context 读取 |
 | useEffect | L316-518 | 6 个 effect（生命周期、SSE、轮询） | 主壳保留 |
 | Helper functions | L739-~1493 | 内联函数（事件处理 / 业务逻辑） | 已部分抽到 `lib/creator/*.ts`；剩下的随子组件迁出 |
-| `useCodexChatStudio` 判定 | L1495-1506 | env 切换新旧 JSX | 主壳保留 |
-| **New chat-studio JSX** | **L1506-~2350** | 新版三栏渲染（ChatHeader / ProjectSidebar / VersionStream / Branch / NodeInspector / CommunityPublish 已抽出） | 仍是主子组件源 |
-| Legacy JSX | (已抽) | 旧三栏 fallback | ✅ 整段抽到 `legacy/LegacyCreatorWorkspace.tsx` (1244 行)，主壳 else 分支仅剩 `<CreatorStudioProvider><LegacyCreatorWorkspace /></CreatorStudioProvider>` |
+| **chat-studio JSX** | 主壳唯一 return | 三栏渲染（ChatHeader / ProjectSidebar / VersionStream / Branch / NodeInspector / CommunityPublish 已抽出）；2026-05-03 衍生项第 1 刀已删 `useCodexChatStudio` flag + legacy else 分支 | 仍是主子组件源 |
 
 > 行号每抽一刀都会移位。要查最新位置：`Grep pattern="<className-anchor>" path="components/creator/CreatorWorkspace.tsx"`
 
@@ -153,7 +152,8 @@ pnpm typecheck              # 验证当前状态可编译
 | ➖ | ~~`studio/inspector/MaskEditor.tsx`~~ | (合并入 ReferenceSection) | mask-editor 强依赖 referenceImage 条件，独立组件价值不大 → 跳过原计划第 17 刀 | — | — |
 | ✅ | `studio/inspector/TemplatesSection.tsx` | (已抽，含 renderTemplateField inline) | 全部走 Context（6 字段：mvpTemplates / selectedTemplate / templateFieldValues / updateTemplateFieldValue / selectCommercialTemplate / applySelectedTemplate） | ⭐⭐⭐ | 144 |
 | ✅ | `studio/inspector/LibrarySection.tsx` | (已抽) | 全部走 Context（19 字段：libraryItems/Status/FavoriteOnly/TagFilter/promptFavorites/historyItems/publish 状态 4 字段 + 7 个 handler） | ⭐⭐⭐ | 246 |
-| - | `legacy/LegacyCreatorWorkspace.tsx` | (已抽，第 19 刀) | 整段 legacy 三栏 JSX；全部走 useCreatorStudio() 消费 Context | ⭐⭐ | 1244 |
+
+> `legacy/LegacyCreatorWorkspace.tsx`（Phase 4 第 19 刀曾抽出 1244 行）已于 2026-05-03 衍生项第 1 刀整目录删除。
 
 ## 推荐抽取顺序
 
@@ -240,9 +240,6 @@ components/creator/studio/
     ├── ParamsSection.tsx         (255 行, ⭐⭐⭐ — 消费 Context 22 字段)
     ├── ReferenceSection.tsx      (198 行, ⭐⭐⭐ — 消费 Context 19 字段，含 mask-editor inline)
     └── TemplatesSection.tsx      (144 行, ⭐⭐⭐ — 消费 Context 6 字段，含 renderTemplateField inline)
-
-components/creator/legacy/
-└── LegacyCreatorWorkspace.tsx    (1244 行, ⭐⭐ — 整段 legacy 三栏 fallback，全走 useCreatorStudio())
 
 lib/creator/
 ├── api-error.ts

@@ -7,11 +7,12 @@
 
 **PsyPic UI 全面深度优化**（plan slug `linear-stirring-acorn`）—— 把整站前端调到 Linear / Figma / Codex 风格的专业创作 IDE 水准。
 
-**正在进行**：Phase 5 ✅ **已收尾** — 视觉打磨 6 刀全部完成（ChatTranscript 纯白底 / SectionHeading 公共组件 / ProjectSidebar 浅色描边 active / ChatEmptyState 4 模板快捷卡 / Composer chips 单行 / shadcn Button 全站替换 32 处）。下一波 → **Phase 6 暗色模式**（按 spec 规划，CSS var 已预埋 `.dark` token，主要工作是 `dark:` className 覆盖与切换 UI）。
+**正在进行**：Phase 5 ✅ **已收尾** + 衍生项 1/4 ✅（删 legacy fallback + 移除 useCodexChatStudio flag，1244 行 dead code 出库，CreatorWorkspace.tsx 单一返回路径）。下一波 → **Phase 6 暗色模式**（按 spec 规划，CSS var 已预埋 `.dark` token，主要工作是 `dark:` className 覆盖与切换 UI），或剩下 3 个 Phase 5 衍生项（ChatHeader Board onClick / shadcn Input / shadcn Select 全站替换）。
 
 **进度**：
 - Phase 4 ✅：17 / 17 子组件 + 1 / 1 legacy fallback + Context 91 字段。CreatorWorkspace.tsx **1607 行**（起点 4116 / 3794 抽刀基线）。
 - Phase 5 ✅：6 / 6 视觉打磨刀（chat 区中性白底层级 / SectionHeading 收敛 / Linear 风 active / Empty 4 卡 / chips 单行 / shadcn Button 32 处替换）。
+- 衍生项 1/4 ✅：2026-05-03 删 LegacyCreatorWorkspace + 移除 useCodexChatStudio flag。CreatorWorkspace.tsx 1607 → ~1593 行；`components/creator/legacy/` 整目录删除。
 - 下一步 → Phase 6 暗色模式（待 product 排期；可参考 globals.css L60-81 已预埋的 .dark token）。
 
 ## 接棒读哪一份
@@ -35,7 +36,7 @@
 
 ## 与 CreatorWorkspace.tsx 打交道时
 
-⚠️ **绝对不要 `Read` 整个文件** —— 当前 1607 行整读会让 transcript 单 turn 体积过大；Phase 4 期间 3358 行版本曾让上一会话死过一次（突破 32MB 单 request 上限）。
+⚠️ **绝对不要 `Read` 整个文件** —— 当前 ~1593 行整读会让 transcript 单 turn 体积过大；Phase 4 期间 3358 行版本曾让上一会话死过一次（突破 32MB 单 request 上限）。
 
 正确套路：
 1. `Grep` 找 className anchor 拿当前行号
