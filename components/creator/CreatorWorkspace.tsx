@@ -33,15 +33,12 @@ import type {
 
 import BatchWorkflowPanel from "@/components/creator/BatchWorkflowPanel";
 import BranchMapSection from "@/components/creator/studio/BranchMapSection";
-import ChatEmptyState from "@/components/creator/studio/ChatEmptyState";
 import ChatHeader from "@/components/creator/studio/ChatHeader";
-import ChatTurn from "@/components/creator/studio/ChatTurn";
+import ChatTranscript from "@/components/creator/studio/ChatTranscript";
 import CommunityPublishPanel from "@/components/creator/studio/CommunityPublishPanel";
 import { CreatorStudioProvider } from "@/components/creator/studio/CreatorStudioContext";
 import NodeInspectorSection from "@/components/creator/studio/NodeInspectorSection";
-import PartialPreviewStrip from "@/components/creator/studio/PartialPreviewStrip";
 import ProjectSidebar from "@/components/creator/studio/ProjectSidebar";
-import TaskStatusStrip from "@/components/creator/studio/TaskStatusStrip";
 import VersionStreamSection from "@/components/creator/studio/VersionStreamSection";
 import AppShell from "@/components/layout/AppShell";
 
@@ -1539,32 +1536,17 @@ export default function CreatorWorkspace({
             forkParentId={forkParentId}
           />
 
-          <div
-            className="chat-transcript"
-            data-testid="chat-transcript"
-            aria-label="创作对话流"
-          >
-            {displayedVersionNodes.length === 0 ? (
-              <ChatEmptyState
-                emptyDescription={activeProject.emptyDescription}
-                emptyTitle={activeProject.emptyTitle}
-              />
-            ) : (
-              displayedVersionNodes.map((node, index) => (
-                <ChatTurn key={node.id} index={index} node={node} />
-              ))
-            )}
-
-            <TaskStatusStrip
-              currentTask={currentTask}
-              isGenerating={isGenerating}
-              onCancelTask={() => void cancelCurrentTask()}
-              onRefreshTask={(taskId) => void refreshTaskStatus(taskId)}
-              onRetryGeneration={submitGeneration}
-            />
-
-            <PartialPreviewStrip partialImages={partialImages} />
-          </div>
+          <ChatTranscript
+            currentTask={currentTask}
+            displayedVersionNodes={displayedVersionNodes}
+            emptyDescription={activeProject.emptyDescription}
+            emptyTitle={activeProject.emptyTitle}
+            isGenerating={isGenerating}
+            onCancelTask={() => void cancelCurrentTask()}
+            onRefreshTask={(taskId) => void refreshTaskStatus(taskId)}
+            onRetryGeneration={submitGeneration}
+            partialImages={partialImages}
+          />
 
           <div className="chat-composer" data-testid="prompt-composer">
             <div className="composer-inner">
