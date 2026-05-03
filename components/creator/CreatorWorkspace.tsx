@@ -38,6 +38,7 @@ import ChatTranscript from "@/components/creator/studio/ChatTranscript";
 import CommunityPublishPanel from "@/components/creator/studio/CommunityPublishPanel";
 import Composer from "@/components/creator/studio/Composer";
 import { CreatorStudioProvider } from "@/components/creator/studio/CreatorStudioContext";
+import Inspector from "@/components/creator/studio/inspector/Inspector";
 import NodeInspectorSection from "@/components/creator/studio/NodeInspectorSection";
 import ProjectSidebar from "@/components/creator/studio/ProjectSidebar";
 import VersionStreamSection from "@/components/creator/studio/VersionStreamSection";
@@ -1566,12 +1567,7 @@ export default function CreatorWorkspace({
           <Composer />
         </section>
 
-        <aside
-          className="studio-inspector"
-          data-testid="right-history-panel"
-          aria-label="参数、素材与 Inspector"
-        >
-          <div className="inspector-scroll">
+        <Inspector>
             <section className="inspector-section">
               <div className="section-heading">
                 <SlidersHorizontal size={15} aria-hidden="true" />
@@ -2161,8 +2157,7 @@ export default function CreatorWorkspace({
                 ))
               )}
             </section>
-          </div>
-        </aside>
+        </Inspector>
 
         <div className="mobile-bottom-bar">
           <button className="secondary-button" type="button">
