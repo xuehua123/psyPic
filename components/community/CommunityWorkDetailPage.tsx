@@ -111,7 +111,7 @@ export default function CommunityWorkDetailPage({
                   </Badge>
                 ) : null}
                 {work.scene ? (
-                  <Badge className="bg-white/85 backdrop-blur" variant="outline">
+                  <Badge className="bg-card/85 backdrop-blur" variant="outline">
                     {work.scene}
                   </Badge>
                 ) : null}

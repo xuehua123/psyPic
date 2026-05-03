@@ -57,8 +57,17 @@
   --font-mono: "JetBrains Mono", "Fira Code", "SF Mono", Menlo, monospace;
 }
 
-/* 暗色模式 token（Phase 8 才默认启用，目前为预留）。 */
+/*
+ * 暗色模式 token —— Phase 6 启用。
+ * 包含两套：① Tailwind v4 @theme 系新 tokens（--color-*）；② 历史 :root
+ * 老变量（--surface / --ink / --muted / 等）。两套都覆盖才能让 globals.css
+ * 中现有 161 处 var() 引用 + 全部走 semantic class 的 shadcn 元件 一次性翻
+ * 暗色，无需 grep-replace。
+ */
 .dark {
+  color-scheme: dark;
+
+  /* —— Tailwind v4 @theme 系 token —— */
   --color-background: #0b1117;
   --color-foreground: #e6edf3;
   --color-card: #11171f;
@@ -78,6 +87,25 @@
   --color-input: #1f2a37;
   --color-ring: #2dd4bf;
   --color-destructive: #f87171;
+
+  /* —— 历史 :root 老变量（globals.css 中 161 处 var() 引用走这套） —— */
+  --bg: #0b1117;
+  --surface: #11171f;
+  --surface-muted: #161d27;
+  --ink: #e6edf3;
+  --muted: #8b97a8;
+  --line: #1f2a37;
+  --line-strong: #344253;
+  --accent: #2dd4bf;
+  --accent-strong: #14b8a6;
+  --accent-soft: rgba(45, 212, 191, 0.15);
+  --accent-alt: #60a5fa;
+  --control: #1a2230;
+  --control-hover: #232d3d;
+  --danger: #f87171;
+  --shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
+  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-panel: 0 12px 30px rgba(0, 0, 0, 0.45);
 }
 
 :root {
@@ -402,7 +430,7 @@ a {
   min-height: 680px;
   display: grid;
   grid-template-columns: 282px minmax(0, 1fr) 380px;
-  background: #e8eef5;
+  background: var(--bg);
   color: var(--ink);
   overflow: hidden;
   border: 1px solid rgba(192, 202, 215, 0.9);
@@ -419,7 +447,7 @@ a {
   min-width: 0;
   min-height: 0;
   border-right: 1px solid var(--line);
-  background: #f8fafc;
+  background: var(--control);
 }
 
 .project-sidebar {
@@ -637,7 +665,7 @@ a {
   min-height: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  background: #f8fafc;
+  background: var(--control);
 }
 
 .chat-workspace-header {
@@ -737,7 +765,7 @@ a {
 }
 
 .studio-empty-template-card:hover {
-  background: #f8fafc;
+  background: var(--control);
   border-color: var(--accent);
   box-shadow: var(--shadow-soft);
 }
@@ -786,7 +814,7 @@ a {
   display: grid;
   place-items: center;
   background: #e6ebf1;
-  color: #334155;
+  color: var(--ink);
   font-size: 12px;
   font-weight: 800;
 }
@@ -800,7 +828,7 @@ a {
   max-width: 980px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface);
   padding: 13px;
   box-shadow: var(--shadow-soft);
 }
@@ -865,9 +893,9 @@ a {
 .composer-inner {
   width: min(100%, 1040px);
   margin: 0 auto;
-  border: 1px solid #cfd8e5;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface);
   padding: 8px;
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
 }
@@ -888,10 +916,10 @@ a {
   min-height: 20px;
   display: inline-flex;
   align-items: center;
-  border: 1px solid #d7e0eb;
+  border: 1px solid var(--line);
   border-radius: 999px;
   background: #f6f8fb;
-  color: #536176;
+  color: var(--muted);
   font-size: 12px;
   padding: 0 7px;
 }
@@ -903,7 +931,7 @@ a {
   resize: none;
   border: 0;
   border-radius: 6px;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--ink);
   outline: 0;
   padding: 10px 8px;
@@ -922,14 +950,14 @@ a {
   justify-content: space-between;
   gap: 12px;
   margin-top: 4px;
-  border-top: 1px solid #e6ecf3;
+  border-top: 1px solid var(--line);
   padding-top: 8px;
 }
 
 .studio-inspector {
   border-right: 0;
   border-left: 1px solid var(--line);
-  background: #ffffff;
+  background: var(--surface);
 }
 
 .inspector-scroll {
@@ -946,9 +974,9 @@ a {
   display: grid;
   gap: 12px;
   border: 0;
-  border-bottom: 1px solid #e3e9f1;
+  border-bottom: 1px solid var(--line);
   border-radius: 0;
-  background: #ffffff;
+  background: var(--surface);
   padding: 16px 14px;
   box-shadow: none;
 }
@@ -958,7 +986,7 @@ a {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #172033;
+  color: var(--ink);
   font-size: 13px;
 }
 
@@ -972,7 +1000,7 @@ a {
 .ghost-button {
   min-height: 34px;
   border-radius: 7px;
-  border: 1px solid #d3dce8;
+  border: 1px solid var(--line);
   background: var(--control);
   color: var(--ink);
   display: inline-flex;
@@ -1100,9 +1128,9 @@ a {
 
 .textarea {
   width: 100%;
-  border: 1px solid #cdd7e4;
+  border: 1px solid var(--line);
   border-radius: 7px;
-  background: #ffffff;
+  background: var(--surface);
   color: var(--ink);
   min-height: 38px;
   padding: 8px 11px;
@@ -1125,9 +1153,9 @@ a {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 3px;
-  border: 1px solid #d6dee8;
+  border: 1px solid var(--line);
   border-radius: 8px;
-  background: #eef3f8;
+  background: var(--control-hover);
   padding: 3px;
 }
 
@@ -1150,8 +1178,8 @@ a {
 }
 
 .segment.active {
-  background: #ffffff;
-  color: #075f57;
+  background: var(--surface);
+  color: var(--accent-strong);
   font-weight: 700;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.11);
 }
@@ -1162,9 +1190,9 @@ a {
 
 .toggle-row {
   min-height: 36px;
-  border: 1px solid #d6dee8;
+  border: 1px solid var(--line);
   border-radius: 7px;
-  background: #f8fafc;
+  background: var(--control);
   color: var(--ink);
   display: flex;
   align-items: center;
@@ -1189,8 +1217,8 @@ a {
   width: 100%;
   min-height: 42px;
   border-radius: 7px;
-  border: 1px solid #d7e0eb;
-  background: #ffffff;
+  border: 1px solid var(--line);
+  background: var(--surface);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1204,7 +1232,7 @@ a {
 }
 
 .template-button:hover {
-  background: #f8fafc;
+  background: var(--control);
   border-color: var(--line-strong);
   box-shadow: var(--shadow-soft);
 }
@@ -1221,8 +1249,8 @@ a {
 
 .template-pill {
   border-radius: 999px;
-  background: #e8eef5;
-  color: #48566a;
+  background: var(--bg);
+  color: var(--muted);
   padding: 3px 7px;
   font-size: 11px;
   white-space: nowrap;
@@ -1238,7 +1266,7 @@ a {
   margin-top: 10px;
   border: 1px solid var(--line);
   border-radius: 7px;
-  background: #ffffff;
+  background: var(--surface);
   padding: 10px;
   display: grid;
   gap: 10px;
@@ -1364,7 +1392,7 @@ a {
   gap: 6px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface);
   padding: 6px;
   min-width: 0;
 }
@@ -1533,7 +1561,7 @@ a {
 .task-status-pill {
   border-radius: 999px;
   background: #e8edf3;
-  color: #415064;
+  color: var(--ink);
   font-size: 12px;
   padding: 4px 8px;
   white-space: nowrap;
@@ -1552,7 +1580,7 @@ a {
 }
 
 .task-status-canceled {
-  border-color: #c8d1dc;
+  border-color: var(--line);
   background: #f3f6f9;
 }
 
@@ -1575,7 +1603,7 @@ a {
 .partial-preview-strip {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface);
   display: grid;
   gap: 10px;
   padding: 12px;
@@ -1599,7 +1627,7 @@ a {
   aspect-ratio: 1;
   display: block;
   object-fit: cover;
-  background: #edf1f5;
+  background: var(--surface-muted);
 }
 
 .partial-preview-item div {
@@ -1652,7 +1680,7 @@ a {
   aspect-ratio: 1;
   display: block;
   object-fit: contain;
-  background: #edf1f5;
+  background: var(--surface-muted);
 }
 
 .prompt-composer {
@@ -1702,7 +1730,7 @@ a {
   gap: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface);
   padding: 12px;
 }
 
@@ -1788,7 +1816,7 @@ a {
   aspect-ratio: 1;
   border-radius: 6px;
   object-fit: cover;
-  background: #edf1f5;
+  background: var(--surface-muted);
 }
 
 .branch-node {
@@ -1863,7 +1891,7 @@ a {
   aspect-ratio: 1;
   border-radius: 8px;
   object-fit: cover;
-  background: #edf1f5;
+  background: var(--surface-muted);
   border: 1px solid var(--line);
 }
 
@@ -1908,7 +1936,7 @@ a {
   gap: 9px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface);
   padding: 10px;
 }
 
@@ -1924,7 +1952,7 @@ a {
 .batch-panel {
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--surface);
   overflow: hidden;
 }
 
@@ -2054,7 +2082,7 @@ a {
   aspect-ratio: 1;
   display: block;
   object-fit: cover;
-  background: #edf1f5;
+  background: var(--surface-muted);
 }
 
 .library-page-card-body {
@@ -2091,7 +2119,7 @@ a {
   align-items: center;
   border-radius: 999px;
   background: #eef4f8;
-  color: #536176;
+  color: var(--muted);
   font-size: 11px;
   font-weight: 700;
   padding: 0 7px;
@@ -2123,7 +2151,7 @@ a {
 .tasks-workflow-panel {
   border: 1px solid rgba(208, 217, 228, 0.9);
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--surface);
   box-shadow: 0 16px 32px rgba(15, 23, 42, 0.05);
 }
 
@@ -2168,10 +2196,10 @@ a {
   min-height: 24px;
   display: inline-flex;
   align-items: center;
-  border: 1px solid #d8e1ec;
+  border: 1px solid var(--line);
   border-radius: 999px;
   background: #f4f7fa;
-  color: #4e5d72;
+  color: var(--muted);
   font-size: 12px;
   font-weight: 700;
   padding: 0 8px;
@@ -2258,7 +2286,7 @@ a {
   border: 1px solid var(--line);
   border-radius: 7px;
   padding: 0 10px;
-  background: #fff;
+  background: var(--surface);
   color: var(--muted);
   font-size: 0.84rem;
 }
@@ -2266,7 +2294,7 @@ a {
 .filter-chip-row a[aria-current="page"] {
   border-color: #85c7be;
   background: #e6f4f1;
-  color: #064e48;
+  color: var(--accent-strong);
 }
 
 .community-grid {
@@ -2290,7 +2318,7 @@ a {
   aspect-ratio: 1;
   display: block;
   object-fit: cover;
-  background: #edf1f5;
+  background: var(--surface-muted);
 }
 
 .community-work-body {
@@ -2314,7 +2342,7 @@ a {
 .community-work-title-row span {
   border-radius: 999px;
   background: #e8edf3;
-  color: #415064;
+  color: var(--ink);
   font-size: 12px;
   padding: 4px 8px;
   white-space: nowrap;
@@ -2366,7 +2394,7 @@ a {
   max-height: calc(100vh - 38px);
   object-fit: contain;
   display: block;
-  background: #edf1f5;
+  background: var(--surface-muted);
 }
 
 .community-detail-panel {
@@ -2536,7 +2564,7 @@ a {
   max-height: calc(100vh - 130px);
   object-fit: contain;
   display: block;
-  background: #edf1f5;
+  background: var(--surface-muted);
 }
 
 .library-detail-panel {
@@ -2595,9 +2623,9 @@ a {
 .studio-inspector .branch-map,
 .studio-inspector .node-inspector {
   border: 0;
-  border-bottom: 1px solid #e3e9f1;
+  border-bottom: 1px solid var(--line);
   border-radius: 0;
-  background: #ffffff;
+  background: var(--surface);
   padding: 16px 14px;
 }
 
@@ -2611,8 +2639,8 @@ a {
 .studio-inspector .history-item,
 .studio-inspector .version-node,
 .studio-inspector .branch-node {
-  border-color: #dce4ee;
-  background: #f8fafc;
+  border-color: var(--line);
+  background: var(--control);
   box-shadow: none;
 }
 

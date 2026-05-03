@@ -99,7 +99,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
   if (!ctx) {
-    throw new Error("useTheme 必须在 <ThemeProvider> 内调用");
+    // 测试环境或独立预览组件可能没有 <ThemeProvider> 包裹；
+    // 返回 noop 默认值（亮色 + setTheme 静默丢弃），避免抛错让组件树挂掉。
+    return {
+      theme: "light",
+      resolvedTheme: "light",
+      setTheme: () => {}
+    };
   }
   return ctx;
 }

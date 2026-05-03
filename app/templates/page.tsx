@@ -129,7 +129,7 @@ function TemplateCard({
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(255,255,255,0.6),transparent_55%)]" />
         <Icon className="size-12 text-foreground/40" strokeWidth={1.4} />
         <Badge
-          className="absolute left-3 top-3 bg-white/80 text-foreground backdrop-blur"
+          className="absolute left-3 top-3 bg-card/80 text-foreground backdrop-blur"
           variant="outline"
         >
           {scene}
