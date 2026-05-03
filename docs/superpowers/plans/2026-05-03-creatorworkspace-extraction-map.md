@@ -2,30 +2,36 @@
 
 ## 📍 下次会话从这里开始（READ ME FIRST）
 
-**当前进度**：**Phase 4 ✅ + Phase 5 ✅ + 衍生项 3/4 ✅** 🎉
+**当前进度**：**Phase 4 ✅ + Phase 5 ✅ + 衍生项 5/5 ✅ + 收尾扫荡 ✅** 🎉🎉🎉
 - Phase 4：17 / 17 子组件 + 1 / 1 legacy fallback + Context 91 字段
 - Phase 5：6 / 6 视觉打磨刀（详见下面 Phase 5 完成清单）
-- Phase 5 衍生项 ①：2026-05-03 删除 LegacyCreatorWorkspace + 移除 useCodexChatStudio flag（1244 行 dead code 出库，CreatorWorkspace.tsx 单一返回路径，Context 91→81 字段）
-- Phase 5 衍生项 ②：2026-05-03 shadcn Input 全站替换 7 处（6 文件：BatchWorkflowPanel / CommunityPublishPanel / LibrarySection / ParamsSection ×2 / ReferenceSection / TemplatesSection）
-- Phase 5 衍生项 ③：2026-05-04 shadcn Select 全站替换 8 处（3 文件：ParamsSection ×6 / CommunityPublishPanel / TemplatesSection）+ 5 处测试改造（selectOptions/toHaveValue 不适用于 shadcn Select 的 button trigger，全部切到 user.click + getByRole + toHaveTextContent 模式）+ vitest.setup.ts 加 Radix popover polyfills（hasPointerCapture / releasePointerCapture / scrollIntoView，jsdom 默认未实现）
+- Phase 5 衍生项 ①（`60a6b97` `49ef672`）：2026-05-03 删除 LegacyCreatorWorkspace + 移除 useCodexChatStudio flag（1244 行 dead code 出库，CreatorWorkspace.tsx 单一返回路径，Context 91→81 字段）
+- Phase 5 衍生项 ②（`85c3fed`）：2026-05-03 shadcn Input 全站替换 7 处（6 文件：BatchWorkflowPanel / CommunityPublishPanel / LibrarySection / ParamsSection ×2 / ReferenceSection / TemplatesSection）
+- Phase 5 衍生项 ③（`9cb79fb`）：2026-05-04 shadcn Select 全站替换 8 处（3 文件：ParamsSection ×6 / CommunityPublishPanel / TemplatesSection）+ 5 处测试改造（selectOptions/toHaveValue 不适用于 shadcn Select 的 button trigger，全部切到 user.click + getByRole + toHaveTextContent 模式）+ vitest.setup.ts 加 Radix popover polyfills（hasPointerCapture / releasePointerCapture / scrollIntoView，jsdom 默认未实现）
+- Phase 5 衍生项 ④（`a866ce9`）：2026-05-04 shadcn Checkbox 全站替换 12 处（6 文件：AdminDashboard / CommunityPublishPanel / LibrarySection / ParamsSection / ReferenceSection / TemplatesSection），新增 `components/ui/checkbox.tsx`（36 行），装 `@radix-ui/react-checkbox`，vitest.setup.ts 补 polyfill
+- Phase 5 衍生项 ⑤（`781dce6`）：2026-05-04 shadcn Slider 替换 1 处（ReferenceSection mask brush size），新增 `components/ui/slider.tsx`（75 行），装 `@radix-ui/react-slider`
+- 收尾扫荡 ①（`e5716fc`）：ChatHeader Board 按钮接 onClick → useRef 抓 BranchMapSection 容器，scrollIntoView 平滑滚动（原始衍生项第 4 件）
+- 收尾扫荡 ②（`1ab3f1f`）：globals.css 旧 `.input` / `.select` 孤儿规则清理（-6/+2 行；shadcn 元件接管后 raw className 全无引用）
 
 `components/creator/CreatorWorkspace.tsx`：4116 → **~1593 行** (-61%)；`components/creator/legacy/` 已整目录删除。
-分支 `codex/fix-v1-review-findings`，最新进度：shadcn Select 全站替换。
+分支 `codex/fix-v1-review-findings`，最新进度：Phase 5 全闭环出库。
 
 ### 复制这一句开局（→ 粘到新 Claude Code 会话）
 
 ```
-PsyPic UI 重构 Phase 4 + Phase 5 已全部收尾，衍生项 3/4 ✅
-（① 删 legacy fallback + 移除 useCodexChatStudio flag；② shadcn Input
-替换 7 处；③ shadcn Select 替换 8 处 + Radix polyfills 入 vitest.setup）。
-下一波是 Phase 6 暗色模式，但暗色不在本轮范围（spec 明确说 Phase 6
-之前不做）。当前可做：
-- 等 product 提 Phase 6 暗色排期，或
-- 选剩下衍生项 / 收尾扫荡：
-  • ChatHeader Board 按钮接 onClick（小颗粒，原始衍生项第 4 件）
-  • shadcn Checkbox 全站替换 12 处（需装 @radix-ui/react-checkbox + scaffold）
-  • shadcn Slider 替换 1 处 range（需装 @radix-ui/react-slider + scaffold）
-  • globals.css L1101 `.input + .textarea + .select` 形态 rule 拆分清理（可与 Checkbox 收尾合并）
+PsyPic UI 重构 Phase 4 + Phase 5 全部收尾，衍生项 5/5 ✅ + 收尾扫荡 ✅
+（① 删 legacy fallback + 移除 useCodexChatStudio flag；② shadcn Input ×7；
+③ shadcn Select ×8 + Radix polyfills 入 vitest.setup；④ shadcn Checkbox ×12；
+⑤ shadcn Slider ×1；+ ChatHeader Board onClick 接通；+ globals.css 孤儿规则清理）。
+下一波候选三选一：
+- Phase 6 暗色模式（globals.css L60-81 .dark token 已预埋；工作量是 raw
+  bg-*/text-*/border-* 改 CSS var 或加 .dark 重载 + ProjectSidebar 底加切换 UI；
+  spec 明确说 Phase 6 之前不做暗色，意味着 Phase 6 就是入口，但需 product 排期）
+- Plan Task 6 移动端结构重排（左对话抽屉化 / Inspector 底抽屉化 / Composer 固底
+  + 社区/详情移动端首屏 CTA 优化；plan 里待办大任务）
+- Plan Task 7 文档收尾 + 全套验收（更新 docs/14 / docs/17 / docs/文档索引 +
+  README，跑 git diff --check / lint / typecheck / test / build，桌面+移动端
+  6 路由人工走查）
 ```
 
 ### Phase 5 收尾完成清单（6 / 6 ✅）
