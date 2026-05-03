@@ -2,9 +2,9 @@
 
 ## 📍 下次会话从这里开始（READ ME FIRST）
 
-**当前进度**：**11 / 17** 子组件 + **1** Context skeleton + **0 / 1** legacy fallback。
-`components/creator/CreatorWorkspace.tsx`：3794 → **3246 行** (-548，-14.4%)。
-分支 `codex/fix-v1-review-findings`，已同步 origin（最新 `38adce0` = 第 11 刀；本刀 commit 即将 push）。
+**当前进度**：**12 / 17** 子组件 + **1** Context（扩 21 字段） + **0 / 1** legacy fallback。
+`components/creator/CreatorWorkspace.tsx`：3794 → **3199 行** (-595，-15.7%)。
+分支 `codex/fix-v1-review-findings`，已同步 origin（最新 `7605282` = 第 13 刀-A；本刀 commit 即将 push）。
 
 ### 复制这一句开局（→ 粘到新 Claude Code 会话）
 
@@ -16,20 +16,24 @@ creatorworkspace-extraction-map.md 顶部"📍 下次会话从这里开始"secti
 
 ### 下一刀（按依赖顺序）
 
-1. **第 13 刀：抽 `components/creator/studio/Composer.tsx`** — Phase 4 重头戏之一（⭐⭐⭐）。**两步走，分两 commit**：
-   - **Step A：扩 CreatorStudioContext** — 把 Composer 需要的字段加到 `CreatorStudioContextValue`，主壳 Provider value 同步加。建议字段（按现状 grep 验证）：`prompt` + `setPrompt`、`mode`、`size`、`quality`、`outputFormat`、`n`、`outputCompression`、`streamEnabled`、`forkParentId`、`errorMessage`、`isAssistingPrompt`、`isGenerating`、`optimizePrompt`、`saveCurrentPromptFavorite`。Step A 单独 commit "扩 CreatorStudioContext (Phase 4 第十三刀-A)"。
-   - **Step B：抽 Composer.tsx** — 消费 Step A 扩展后的 Context，渲染 composer-context-row + textarea + 3 个按钮（优化 / 收藏 / 生成）+ 可选 errorMessage。grep `chat-composer` 找入口。Step B commit "抽出 Composer 子组件 (Phase 4 第十三刀-B)"。
+1. **第 14 刀：抽 `components/creator/studio/inspector/Inspector.tsx`** 容器壳 — ⭐⭐ 难度，主要做编排。
+   - **inspector-scroll 容器当前位置**：grep `inspector-scroll` → 找到入口（每抽一刀偏移）。
+   - **本刀只抽外壳** —— 把 `<aside className="studio-inspector"> ... <div className="inspector-scroll"> ...4 个 section... </div></aside>` 整段当作 `<Inspector>` 容器，但内部 4 个 section（ParamsSection / ReferenceSection / MaskEditor / TemplatesSection / LibrarySection）继续作为 children 留在主壳里 inline，等第三波后续再逐个抽。
+   - **Props 选项 A（推荐）**：直接 children pattern — `<Inspector>{...4 个 section...}</Inspector>`，让外壳只负责 aside + scroll 容器和 aria，section 待后续抽出。
+   - **Props 选项 B**：让 Inspector 内部 import 4 个 section（但 section 还没抽出，所以 A 更稳）。
+   - 跑 `pnpm typecheck`，commit "抽出 Inspector 容器壳 (UI 重构 Phase 4 第十四刀)"。
 
-2. **第 14 刀：抽 `studio/inspector/Inspector.tsx`** 容器壳（⭐⭐），grep `inspector-scroll` 找入口。容器只做编排，section 内容下一波再抽。
+2. **第 15 刀：抽 `studio/inspector/ParamsSection.tsx`** — ⭐⭐⭐ 重头戏，10+ 个 state（mode/size/quality/n/format/streamEnabled/partialImageCount/outputCompression/moderation/advancedOpen）+ 各种 setter。Composer 已经吃掉 mode/size/quality/n/format/streamEnabled，但 ParamsSection 也要写它们 —— 检查 setter 是否需要扩 Context（很可能要扩 setMode/setSize/setQuality/setOutputFormat/setN/setStreamEnabled/setPartialImageCount/setOutputCompression/setModeration/setAdvancedOpen + advancedOpen / partialImageCount / moderation / outputCompression）。
+   - **可能 Step A 扩 Context、Step B 抽组件**，按第 13 刀套路。
 
-3. 然后按"## 推荐抽取顺序"第三波继续：ParamsSection / ReferenceSection / MaskEditor / TemplatesSection / LibrarySection。
+3. 然后按"## 推荐抽取顺序"第三波继续 ReferenceSection / MaskEditor / TemplatesSection / LibrarySection。
 
 ### 进入项目后第一组动作
 
 ```bash
 git status                  # 确认在 codex/fix-v1-review-findings、干净
 git log --oneline -10       # 看最近 10 个 commit（前 9 个是本次 Phase 4）
-ls components/creator/studio/   # 11 个已抽组件 + Context
+ls components/creator/studio/   # 12 个已抽组件 + Context
 ls lib/creator/             # 共享 helper 模块
 pnpm typecheck              # 验证当前状态可编译
 ```
@@ -133,7 +137,7 @@ pnpm typecheck              # 验证当前状态可编译
 | ✅ | `studio/ProjectSidebar.tsx` | (已抽) | `sidebarProjects`, `activeProjectId`, `activeConversationId`, `activeProjectTitle`, select handlers | ⭐⭐ | 159 |
 | ✅ | `studio/ChatTurn.tsx` | (已抽) | `displayedVersionNodes`(item), `activeNodeId`, `formatVersionNodeTime`, `summarizeNodeParams`, `returnToVersionNode`, `restoreVersionNodeParams`, `startVersionFork`, `copyPrompt`, `submitGeneration`, `handleResultAsReference` | ⭐⭐⭐ | 153 |
 | ✅ | `studio/ChatTranscript.tsx` | (已抽) | 包裹 ChatEmptyState + ChatTurn + TaskStatusStrip 编排 | ⭐⭐ | 78 |
-| 3 | `studio/Composer.tsx` | 用 grep `chat-composer` 找 | `prompt`, `setPrompt`, `mode`, `referenceImages`, `n`, `submitGeneration`, `applyPromptFavorite`, etc. | ⭐⭐⭐ | ~200 |
+| ✅ | `studio/Composer.tsx` | (已抽) | 全部走 Context（消费 14 个扩展字段：prompt/setPrompt/mode/size/quality/outputFormat/n/streamEnabled/forkParentId/errorMessage/isAssistingPrompt/isGenerating/optimizePrompt/saveCurrentPromptFavorite + submitGeneration） | ⭐⭐⭐ | 107 |
 | 4 | `studio/inspector/Inspector.tsx` | 用 grep `inspector-scroll` 找 | 容器 + section 编排 | ⭐⭐ | ~80 |
 | 5 | `studio/inspector/ParamsSection.tsx` | 用 grep `<section className="inspector-section">` 第 1 处 | `mode`, `n`, `selectedTemplate`, `outputCompression`, `streamEnabled`, `partialImageCount`, `advancedOpen` | ⭐⭐⭐ | ~250 |
 | 6 | `studio/inspector/ReferenceSection.tsx` | 用 grep `reference-dropzone` 找 | `referenceImages`, `referencePreviews`, ref handlers；包嵌 MaskEditor | ⭐⭐ | ~150 |
@@ -150,14 +154,15 @@ pnpm typecheck              # 验证当前状态可编译
 - ✅ BranchMapSection / VersionStreamSection / CommunityPublishPanel / ProjectSidebar / ChatTurn / ChatTranscript
 - ⏳ ReferenceSection / MaskEditor / LibrarySection
 
-**第三波（重头戏）**：Context 已建（第 10 刀 ✅），2/6 完成
-- ✅ `studio/CreatorStudioContext.tsx` — 单 Context，暴露 7 个字段（activeNodeId + 3 个 version graph handler + submitGeneration / copyPrompt / handleResultAsReference）
+**第三波（重头戏）**：Context 已建（第 10 刀 ✅）+ 扩 14 字段（第 13 刀-A ✅），3/6 完成
+- ✅ `studio/CreatorStudioContext.tsx` — 单 Context，21 个字段（7 初始 + 14 Composer 扩展）
 - ✅ ChatTurn — 消费 Context 7 字段（第 11 刀）
-- ⏳ Composer / ParamsSection / TemplatesSection（每个 5-10 个 state，需扩 Context）
+- ✅ Composer — 消费 Context 14 字段（第 13 刀-B）
+- ⏳ ParamsSection / TemplatesSection（每个 5-10 个 state，可能还要扩 Context）
 - ⏳ Inspector wrapper（最后包装）
 - ⏳ LegacyCreatorWorkspace（最后整段抽，会一次性 -1000 行）
 
-**结论**：第二波只剩 4 个，下一会话第一刀 → 抽 ChatTranscript（编排叶子，难度 ⭐⭐）。
+**结论**：Composer 已抽（重头戏 1/3），下一会话第一刀 → 抽 Inspector wrapper（⭐⭐ 容器壳）。
 
 ## CreatorStudioContext 设计建议
 
@@ -208,7 +213,8 @@ components/creator/studio/
 ├── ChatTranscript.tsx            (78 行, ⭐⭐ — 编排 ChatEmpty + ChatTurn.map + TaskStatus + PartialPreview)
 ├── ChatTurn.tsx                  (153 行, ⭐⭐⭐ — 消费 Context 7 字段)
 ├── CommunityPublishPanel.tsx     (98 行, ⭐⭐)
-├── CreatorStudioContext.tsx      (67 行, infra — Context + Provider + hook)
+├── Composer.tsx                  (107 行, ⭐⭐⭐ — 消费 Context 14 字段)
+├── CreatorStudioContext.tsx      (91 行, infra — 21 字段 = 7 初始 + 14 Composer 扩展)
 ├── NodeInspectorSection.tsx      (44 行, ⭐)
 ├── PartialPreviewStrip.tsx       (42 行, ⭐)
 ├── ProjectSidebar.tsx            (159 行, ⭐⭐)

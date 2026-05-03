@@ -36,6 +36,7 @@ import BranchMapSection from "@/components/creator/studio/BranchMapSection";
 import ChatHeader from "@/components/creator/studio/ChatHeader";
 import ChatTranscript from "@/components/creator/studio/ChatTranscript";
 import CommunityPublishPanel from "@/components/creator/studio/CommunityPublishPanel";
+import Composer from "@/components/creator/studio/Composer";
 import { CreatorStudioProvider } from "@/components/creator/studio/CreatorStudioContext";
 import NodeInspectorSection from "@/components/creator/studio/NodeInspectorSection";
 import ProjectSidebar from "@/components/creator/studio/ProjectSidebar";
@@ -1562,69 +1563,7 @@ export default function CreatorWorkspace({
             partialImages={partialImages}
           />
 
-          <div className="chat-composer" data-testid="prompt-composer">
-            <div className="composer-inner">
-              <div className="composer-context-row">
-                <span>{mode === "image" ? "图生图" : "文生图"}</span>
-                <span>{size}</span>
-                <span>{quality}</span>
-                <span>{n} 张</span>
-                <span>{outputFormat}</span>
-                {streamEnabled ? <span>stream</span> : null}
-              </div>
-              <label className="sr-only" htmlFor="prompt">
-                Prompt
-              </label>
-              <textarea
-                className="chat-prompt-input"
-                id="prompt"
-                onChange={(event) => setPrompt(event.target.value)}
-                placeholder="描述你要生成的商业图片"
-                value={prompt}
-              />
-              <div className="composer-actions">
-                <span className="inline-hint">
-                  {forkParentId
-                    ? "当前上下文：独立分支。"
-                    : "默认不生成文字，不改变参考图主体。"}
-                </span>
-                <div className="prompt-action-buttons">
-                  <button
-                    className="secondary-button"
-                    disabled={isAssistingPrompt || isGenerating}
-                    onClick={optimizePrompt}
-                    type="button"
-                  >
-                    <Sparkles size={16} aria-hidden="true" />
-                    {isAssistingPrompt ? "优化中" : "优化 Prompt"}
-                  </button>
-                  <button
-                    className="secondary-button"
-                    disabled={isGenerating}
-                    onClick={() => void saveCurrentPromptFavorite()}
-                    type="button"
-                  >
-                    <Star size={16} aria-hidden="true" />
-                    收藏 Prompt
-                  </button>
-                  <button
-                    className="primary-button"
-                    disabled={isGenerating}
-                    onClick={submitGeneration}
-                    type="button"
-                  >
-                    <Play size={16} aria-hidden="true" />
-                    {isGenerating ? "生成中" : "生成图片"}
-                  </button>
-                </div>
-              </div>
-              {errorMessage ? (
-                <p className="error-message" role="alert">
-                  {errorMessage}
-                </p>
-              ) : null}
-            </div>
-          </div>
+          <Composer />
         </section>
 
         <aside
