@@ -2,6 +2,7 @@
 
 import { RotateCcw, X } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import {
   canCancelTask,
   canRetryTask,
@@ -69,35 +70,35 @@ export default function TaskStatusStrip({
       </div>
       <div className="task-status-actions">
         {currentTask.id ? (
-          <button
-            className="secondary-button"
+          <Button
+            variant="secondary"
             onClick={() => onRefreshTask(currentTask.id ?? "")}
             type="button"
           >
             <RotateCcw size={16} aria-hidden="true" />
             刷新状态
-          </button>
+          </Button>
         ) : null}
         {canCancelTask(currentTask) ? (
-          <button
-            className="secondary-button"
+          <Button
+            variant="secondary"
             onClick={onCancelTask}
             type="button"
           >
             <X size={16} aria-hidden="true" />
             取消任务
-          </button>
+          </Button>
         ) : null}
         {canRetryTask(currentTask) ? (
-          <button
-            className="secondary-button"
+          <Button
+            variant="secondary"
             disabled={isGenerating}
             onClick={onRetryGeneration}
             type="button"
           >
             <RotateCcw size={16} aria-hidden="true" />
             重新生成
-          </button>
+          </Button>
         ) : null}
       </div>
     </section>

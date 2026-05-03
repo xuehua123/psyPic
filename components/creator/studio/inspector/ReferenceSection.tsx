@@ -24,6 +24,7 @@
 
 import { Brush, Eraser, FlipHorizontal, ImagePlus, RotateCcw, X } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
 
 const maskCanvasSize = 512;
@@ -160,22 +161,22 @@ export default function ReferenceSection() {
                     value={maskBrushSize}
                   />
                 </label>
-                <button
-                  className="secondary-button"
+                <Button
+                  variant="secondary"
                   onClick={resetMaskCanvas}
                   type="button"
                 >
                   <RotateCcw size={16} aria-hidden="true" />
                   清空遮罩
-                </button>
-                <button
-                  className="secondary-button"
+                </Button>
+                <Button
+                  variant="secondary"
                   onClick={invertMaskCanvas}
                   type="button"
                 >
                   <FlipHorizontal size={16} aria-hidden="true" />
                   反选遮罩
-                </button>
+                </Button>
               </div>
               <canvas
                 aria-label="遮罩画布"

@@ -3,6 +3,7 @@
 import { UploadCloud } from "lucide-react";
 import type { FormEvent } from "react";
 
+import { Button } from "@/components/ui/button";
 import type { LibraryAssetItem } from "@/lib/creator/types";
 
 /**
@@ -85,14 +86,13 @@ export default function CommunityPublishPanel({
           确认公开发布
         </label>
       </div>
-      <button
-        className="primary-button"
+      <Button
         disabled={isPublishing}
         type="submit"
       >
         <UploadCloud size={16} aria-hidden="true" />
         {isPublishing ? "发布中" : "确认发布"}
-      </button>
+      </Button>
     </form>
   );
 }

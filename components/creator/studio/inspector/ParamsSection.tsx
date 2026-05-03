@@ -20,6 +20,7 @@
 
 import { SlidersHorizontal } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import SectionHeading from "@/components/creator/studio/SectionHeading";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
 import { commercialSizePresets } from "@/lib/templates/commercial-size-presets";
@@ -204,15 +205,15 @@ export default function ParamsSection() {
           </div>
         ) : null}
 
-        <button
+        <Button
           aria-expanded={advancedOpen}
-          className="secondary-button"
+          variant="secondary"
           onClick={() => setAdvancedOpen((open) => !open)}
           type="button"
         >
           <SlidersHorizontal size={16} aria-hidden="true" />
           高级参数
-        </button>
+        </Button>
 
         {advancedOpen ? (
           <div className="field-stack">

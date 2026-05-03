@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 
 import CommunityPublishPanel from "@/components/creator/studio/CommunityPublishPanel";
+import { Button } from "@/components/ui/button";
 import SectionHeading from "@/components/creator/studio/SectionHeading";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
 
@@ -117,14 +118,14 @@ export default function LibrarySection() {
               <p>{item.prompt}</p>
               <p>{item.mode === "image" ? "图生图" : "文生图"}</p>
               <div className="history-actions">
-                <button
-                  className="secondary-button"
+                <Button
+                  variant="secondary"
                   onClick={() => applyPromptFavorite(item)}
                   type="button"
                 >
                   <Copy size={16} aria-hidden="true" />
                   套用 Prompt
-                </button>
+                </Button>
               </div>
             </div>
           ))}
@@ -158,16 +159,16 @@ export default function LibrarySection() {
                   </div>
                 ) : null}
                 <div className="history-actions">
-                  <button
-                    className="secondary-button"
+                  <Button
+                    variant="secondary"
                     onClick={() => void handleLibraryContinueEdit(item)}
                     type="button"
                   >
                     <ImagePlus size={16} aria-hidden="true" />
                     继续编辑
-                  </button>
-                  <button
-                    className="secondary-button"
+                  </Button>
+                  <Button
+                    variant="secondary"
                     onClick={() => void toggleLibraryFavorite(item)}
                     type="button"
                   >
@@ -177,9 +178,9 @@ export default function LibrarySection() {
                       aria-hidden="true"
                     />
                     {item.favorite ? "取消收藏" : "收藏素材"}
-                  </button>
-                  <button
-                    className="secondary-button"
+                  </Button>
+                  <Button
+                    variant="secondary"
                     onClick={() =>
                       setPublishAssetId((current) =>
                         current === item.asset_id ? null : item.asset_id
@@ -189,14 +190,13 @@ export default function LibrarySection() {
                   >
                     <UploadCloud size={16} aria-hidden="true" />
                     发布作品
-                  </button>
-                  <Link
-                    className="secondary-button"
-                    href={`/library/${item.asset_id}`}
-                  >
-                    <ExternalLink size={16} aria-hidden="true" />
-                    详情
-                  </Link>
+                  </Button>
+                  <Button asChild variant="secondary">
+                    <Link href={`/library/${item.asset_id}`}>
+                      <ExternalLink size={16} aria-hidden="true" />
+                      详情
+                    </Link>
+                  </Button>
                 </div>
                 {publishAssetId === item.asset_id ? (
                   <CommunityPublishPanel
@@ -232,14 +232,14 @@ export default function LibrarySection() {
             <p>{item.requestId}</p>
             <p>{item.totalTokens} tokens · {item.durationMs}ms</p>
             <div className="history-actions">
-              <button
-                className="secondary-button"
+              <Button
+                variant="secondary"
                 onClick={() => void handleHistoryContinueEdit(item)}
                 type="button"
               >
                 <ImagePlus size={16} aria-hidden="true" />
                 继续编辑
-              </button>
+              </Button>
             </div>
           </div>
         ))

@@ -16,6 +16,7 @@
 
 import { Sparkles } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import SectionHeading from "@/components/creator/studio/SectionHeading";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
 import type { CommercialTemplate } from "@/lib/templates/commercial-templates";
@@ -109,14 +110,13 @@ export default function TemplatesSection() {
           <div className="template-field-grid">
             {selectedTemplate.fields.map(renderTemplateField)}
           </div>
-          <button
-            className="primary-button"
+          <Button
             onClick={applySelectedTemplate}
             type="button"
           >
             <Sparkles size={16} aria-hidden="true" />
             应用模板
-          </button>
+          </Button>
         </div>
       ) : null}
       <div className="template-list">

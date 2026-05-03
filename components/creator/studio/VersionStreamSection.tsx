@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import {
   formatVersionNodeTime,
   summarizeNodeParams,
@@ -79,30 +80,30 @@ export default function VersionStreamSection({
                 </div>
               ) : null}
               <div className="history-actions">
-                <button
+                <Button
                   aria-label={`回到版本 ${node.prompt}`}
-                  className="secondary-button"
+                  variant="secondary"
                   onClick={() => onReturnToNode(node)}
                   type="button"
                 >
                   回到版本
-                </button>
-                <button
+                </Button>
+                <Button
                   aria-label={`版本流恢复参数 ${node.prompt}`}
-                  className="secondary-button"
+                  variant="secondary"
                   onClick={() => onRestoreNodeParams(node)}
                   type="button"
                 >
                   恢复参数
-                </button>
-                <button
+                </Button>
+                <Button
                   aria-label={`版本流从此分叉 ${node.prompt}`}
-                  className="secondary-button"
+                  variant="secondary"
                   onClick={() => onStartFork(node)}
                   type="button"
                 >
                   从此分叉
-                </button>
+                </Button>
               </div>
             </article>
           ))}

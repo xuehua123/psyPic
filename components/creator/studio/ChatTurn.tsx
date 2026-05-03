@@ -18,6 +18,7 @@
 
 import { Copy, Download, ImagePlus, RotateCcw } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
 import {
   formatVersionNodeTime,
@@ -70,30 +71,30 @@ export default function ChatTurn({
               <p>{summarizeNodeParams(node)}</p>
             </div>
             <div className="history-actions">
-              <button
-                className="secondary-button"
+              <Button
+                variant="secondary"
                 onClick={() => returnToVersionNode(node)}
                 type="button"
                 aria-label={`回到版本 ${node.prompt}`}
               >
                 回到版本
-              </button>
-              <button
-                className="secondary-button"
+              </Button>
+              <Button
+                variant="secondary"
                 onClick={() => restoreVersionNodeParams(node)}
                 type="button"
                 aria-label={`恢复参数 ${node.prompt}`}
               >
                 恢复参数
-              </button>
-              <button
-                className="secondary-button"
+              </Button>
+              <Button
+                variant="secondary"
                 onClick={() => startVersionFork(node)}
                 type="button"
                 aria-label={`从此分叉 ${node.prompt}`}
               >
                 从此分叉
-              </button>
+              </Button>
             </div>
           </div>
           {node.images.length > 0 ? (
@@ -106,38 +107,36 @@ export default function ChatTurn({
                     <p>{node.requestId}</p>
                     <p>{node.usage?.total_tokens ?? 0} tokens</p>
                     <div className="result-actions">
-                      <a
-                        className="secondary-button"
-                        download
-                        href={image.url}
-                      >
-                        <Download size={16} aria-hidden="true" />
-                        下载
-                      </a>
-                      <button
-                        className="secondary-button"
+                      <Button asChild variant="secondary">
+                        <a download href={image.url}>
+                          <Download size={16} aria-hidden="true" />
+                          下载
+                        </a>
+                      </Button>
+                      <Button
+                        variant="secondary"
                         onClick={copyPrompt}
                         type="button"
                       >
                         <Copy size={16} aria-hidden="true" />
                         复制 Prompt
-                      </button>
-                      <button
-                        className="secondary-button"
+                      </Button>
+                      <Button
+                        variant="secondary"
                         onClick={submitGeneration}
                         type="button"
                       >
                         <RotateCcw size={16} aria-hidden="true" />
                         重试
-                      </button>
-                      <button
-                        className="secondary-button"
+                      </Button>
+                      <Button
+                        variant="secondary"
                         onClick={() => void handleResultAsReference(image)}
                         type="button"
                       >
                         <ImagePlus size={16} aria-hidden="true" />
                         作为参考图
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 </article>

@@ -18,6 +18,7 @@
 
 import { Play, Sparkles, Star } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
 
 export default function Composer() {
@@ -67,33 +68,32 @@ export default function Composer() {
               : "默认不生成文字，不改变参考图主体。"}
           </span>
           <div className="prompt-action-buttons">
-            <button
-              className="secondary-button"
+            <Button
+              variant="secondary"
               disabled={isAssistingPrompt || isGenerating}
               onClick={optimizePrompt}
               type="button"
             >
               <Sparkles size={16} aria-hidden="true" />
               {isAssistingPrompt ? "优化中" : "优化 Prompt"}
-            </button>
-            <button
-              className="secondary-button"
+            </Button>
+            <Button
+              variant="secondary"
               disabled={isGenerating}
               onClick={() => void saveCurrentPromptFavorite()}
               type="button"
             >
               <Star size={16} aria-hidden="true" />
               收藏 Prompt
-            </button>
-            <button
-              className="primary-button"
+            </Button>
+            <Button
               disabled={isGenerating}
               onClick={submitGeneration}
               type="button"
             >
               <Play size={16} aria-hidden="true" />
               {isGenerating ? "生成中" : "生成图片"}
-            </button>
+            </Button>
           </div>
         </div>
         {errorMessage ? (

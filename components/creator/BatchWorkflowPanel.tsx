@@ -3,6 +3,8 @@
 import { ListPlus, RotateCcw, Table } from "lucide-react";
 import { useEffect, useState } from "react";
 
+import { Button } from "@/components/ui/button";
+
 type BatchMode = "prompts" | "csv";
 
 type BatchItem = {
@@ -133,15 +135,14 @@ export default function BatchWorkflowPanel({
           </label>
         )}
 
-        <button
-          className="primary-button"
+        <Button
           disabled={loading}
           onClick={() => void submitBatch()}
           type="button"
         >
           <Table size={16} aria-hidden="true" />
           创建批量任务
-        </button>
+        </Button>
         {error ? <p className="error-message">{error}</p> : null}
         {batch ? (
           <section className="batch-result">
@@ -158,14 +159,14 @@ export default function BatchWorkflowPanel({
                   </div>
                   <span>{item.status}</span>
                   {item.status === "failed" ? (
-                    <button
-                      className="secondary-button"
+                    <Button
+                      variant="secondary"
                       onClick={() => void retryItem(item.item_id)}
                       type="button"
                     >
                       <RotateCcw size={15} aria-hidden="true" />
                       重试
-                    </button>
+                    </Button>
                   ) : null}
                 </article>
               ))}

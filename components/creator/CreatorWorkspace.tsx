@@ -26,6 +26,7 @@ import NodeInspectorSection from "@/components/creator/studio/NodeInspectorSecti
 import ProjectSidebar from "@/components/creator/studio/ProjectSidebar";
 import VersionStreamSection from "@/components/creator/studio/VersionStreamSection";
 import AppShell from "@/components/layout/AppShell";
+import { Button } from "@/components/ui/button";
 
 import { formatApiError, formatTaskError } from "@/lib/creator/api-error";
 import {
@@ -1571,19 +1572,18 @@ export default function CreatorWorkspace({
         </Inspector>
 
         <div className="mobile-bottom-bar">
-          <button className="secondary-button" type="button">
+          <Button variant="secondary" type="button">
             <PanelBottom size={16} aria-hidden="true" />
             打开参数面板
-          </button>
-          <button
-            className="primary-button"
+          </Button>
+          <Button
             disabled={isGenerating}
             onClick={submitGeneration}
             type="button"
           >
             <Play size={16} aria-hidden="true" />
             {isGenerating ? "生成中" : "生成"}
-          </button>
+          </Button>
         </div>
         </main>
         </CreatorStudioProvider>

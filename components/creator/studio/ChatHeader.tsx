@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+
 /**
  * 中栏对话工作区的顶部 header：当前对话标题 + 工具按钮（含 Board
  * 入口与分叉提示 pill）。
@@ -30,9 +32,9 @@ export default function ChatHeader({
         {forkParentId ? (
           <span className="version-context-pill">分叉生成中</span>
         ) : null}
-        <button className="secondary-button" type="button">
+        <Button variant="secondary" type="button">
           Board
-        </button>
+        </Button>
       </div>
     </header>
   );
