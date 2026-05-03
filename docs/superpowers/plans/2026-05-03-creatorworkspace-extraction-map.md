@@ -54,6 +54,7 @@
 | ✅ | `studio/ChatHeader.tsx` | (已抽) | `currentConversationTitle`, `forkParentId` | ⭐ | 39 |
 | ✅ | `studio/NodeInspectorSection.tsx` | (已抽) | `activeVersionNode` | ⭐ | 44 |
 | ✅ | `studio/BranchMapSection.tsx` | (已抽) | `projectVersionNodes`, `activeNodeId` | ⭐⭐ | 56 |
+| ✅ | `studio/VersionStreamSection.tsx` | (已抽) | `projectVersionNodes`, `activeNodeId`, `forkParentId`, return/restore/fork handlers | ⭐⭐ | 113 |
 | 6 | `studio/Composer.tsx` | ~L1898-1967 | `prompt`, `setPrompt`, `mode`, `referenceImages`, `n`, `submitGeneration`, `applyPromptFavorite`, etc. | ⭐⭐⭐ | ~200 |
 | 7 | `studio/ProjectSidebar.tsx` | ~L1561-1683 | `sidebarProjects`, `activeProjectId`, `activeConversationId`, `selectProject`, `selectConversation` | ⭐⭐ | ~250 |
 | 8 | `studio/inspector/Inspector.tsx` | ~L1968-2768 | 容器 + section 编排 | ⭐⭐ | ~80 |
@@ -61,10 +62,9 @@
 | 10 | `studio/inspector/ReferenceSection.tsx` | ~L2163-2218 | `referenceImages`, `referencePreviews`, ref handlers | ⭐⭐ | ~150 |
 | 11 | `studio/inspector/MaskEditor.tsx` | ~L2218-~2270 (mask sub-block) | `maskEnabled`, `maskMode`, `maskBrushSize`, mask ref & 6 个 stroke handler | ⭐⭐⭐ | ~200 |
 | 12 | `studio/inspector/TemplatesSection.tsx` | ~L2270-2351 | `selectedTemplateId`, `mvpTemplates`, template field handlers, `renderTemplateField` (L1184) | ⭐⭐⭐ | ~250 |
-| 13 | `studio/inspector/VersionStreamSection.tsx` | L2352-2428 | `versionNodes`, `displayedVersionNodes`, `activeVersionNode`, version handlers | ⭐⭐ | ~150 |
-| 14 | `studio/inspector/LibrarySection.tsx` | L2533-2622 | `libraryItems`, `libraryStatus`, `libraryFavoriteOnly`, `libraryTagFilter`, `historyItems` | ⭐⭐ | ~150 |
-| 15 | `studio/inspector/CommunityPublishPanel.tsx` | L2623-~2710 | `publishAssetId`, `publishingAssetId`, `publishMessages`, publish handlers | ⭐⭐ | ~120 |
-| 16 | `legacy/LegacyCreatorWorkspace.tsx` | L2773-3794 | 整段 legacy JSX + 重复 inspector sections；接口同主壳 | ⭐⭐ | ~1100 |
+| 13 | `studio/inspector/LibrarySection.tsx` | L2533-2622 | `libraryItems`, `libraryStatus`, `libraryFavoriteOnly`, `libraryTagFilter`, `historyItems` | ⭐⭐ | ~150 |
+| 14 | `studio/inspector/CommunityPublishPanel.tsx` | L2623-~2710 | `publishAssetId`, `publishingAssetId`, `publishMessages`, publish handlers | ⭐⭐ | ~120 |
+| 15 | `legacy/LegacyCreatorWorkspace.tsx` | L2773-3794 | 整段 legacy JSX + 重复 inspector sections；接口同主壳 | ⭐⭐ | ~1100 |
 
 ## 推荐抽取顺序
 

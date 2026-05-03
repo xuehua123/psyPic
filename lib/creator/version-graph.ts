@@ -144,6 +144,13 @@ export function summarizeNodeParams(node: CreatorVersionNode) {
   ].join(" · ");
 }
 
+export function formatVersionNodeTime(node: CreatorVersionNode) {
+  return new Date(node.createdAt).toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
 function createNodeId(seed?: string) {
   const suffix =
     seed ??

@@ -42,6 +42,7 @@ import ChatHeader from "@/components/creator/studio/ChatHeader";
 import NodeInspectorSection from "@/components/creator/studio/NodeInspectorSection";
 import PartialPreviewStrip from "@/components/creator/studio/PartialPreviewStrip";
 import TaskStatusStrip from "@/components/creator/studio/TaskStatusStrip";
+import VersionStreamSection from "@/components/creator/studio/VersionStreamSection";
 import AppShell from "@/components/layout/AppShell";
 
 import { formatApiError, formatTaskError } from "@/lib/creator/api-error";
@@ -97,6 +98,7 @@ import {
 import {
   createNodeFromHistory,
   createVersionNode,
+  formatVersionNodeTime,
   summarizeNodeParams,
   type CreatorVersionNode
 } from "@/lib/creator/version-graph";
@@ -1494,13 +1496,6 @@ export default function CreatorWorkspace({
     restoreVersionNodeParams(node);
   }
 
-  function formatVersionNodeTime(node: CreatorVersionNode) {
-    return new Date(node.createdAt).toLocaleTimeString("zh-CN", {
-      hour: "2-digit",
-      minute: "2-digit"
-    });
-  }
-
   function selectProject(projectId: CreatorProjectId) {
     const nextProjectNodes = versionNodes.filter(
       (node) => (nodeProjectIds[node.id] ?? "commercial") === projectId
@@ -2272,82 +2267,14 @@ export default function CreatorWorkspace({
               </div>
             </section>
 
-            <section
-              aria-label="版本流"
-              className="version-stream inspector-section"
-              data-testid="version-stream"
-            >
-              <div className="version-stream-header">
-                <div>
-                  <strong>对话式版本流</strong>
-                  <p>回溯参数，或从任意节点分叉生成。</p>
-                </div>
-                {forkParentId ? (
-                  <span className="version-context-pill">分叉中</span>
-                ) : null}
-              </div>
-              {projectVersionNodes.length === 0 ? (
-                <div className="version-empty">
-                  <strong>暂无版本节点</strong>
-                  <p>首次生成后会自动记录 prompt、参数和结果。</p>
-                </div>
-              ) : (
-                <div className="version-node-list">
-                  {projectVersionNodes.map((node, index) => (
-                    <article
-                      className={`version-node ${
-                        node.id === activeNodeId ? "active" : ""
-                      }`}
-                      key={node.id}
-                    >
-                      <div className="version-node-meta">
-                        <span className="version-branch-badge">
-                          {node.branchLabel}
-                        </span>
-                        <span>#{index + 1}</span>
-                        <span>{formatVersionNodeTime(node)}</span>
-                      </div>
-                      <strong>{node.source === "edit" ? "图生图" : "文生图"}</strong>
-                      <p>Prompt: {node.prompt}</p>
-                      <p>{summarizeNodeParams(node)}</p>
-                      {node.images.length > 0 ? (
-                        <div className="version-thumb-strip">
-                          {node.images.slice(0, 4).map((image) => (
-                            <img alt="" key={image.asset_id} src={image.url} />
-                          ))}
-                        </div>
-                      ) : null}
-                      <div className="history-actions">
-                        <button
-                          className="secondary-button"
-                          onClick={() => returnToVersionNode(node)}
-                          type="button"
-                          aria-label={`回到版本 ${node.prompt}`}
-                        >
-                          回到版本
-                        </button>
-                        <button
-                          className="secondary-button"
-                          onClick={() => restoreVersionNodeParams(node)}
-                          type="button"
-                          aria-label={`版本流恢复参数 ${node.prompt}`}
-                        >
-                          恢复参数
-                        </button>
-                        <button
-                          className="secondary-button"
-                          onClick={() => startVersionFork(node)}
-                          type="button"
-                          aria-label={`版本流从此分叉 ${node.prompt}`}
-                        >
-                          从此分叉
-                        </button>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              )}
-            </section>
+            <VersionStreamSection
+              activeNodeId={activeNodeId}
+              forkParentId={forkParentId}
+              onRestoreNodeParams={restoreVersionNodeParams}
+              onReturnToNode={returnToVersionNode}
+              onStartFork={startVersionFork}
+              projectVersionNodes={projectVersionNodes}
+            />
 
             <BranchMapSection
               activeNodeId={activeNodeId}
