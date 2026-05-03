@@ -1098,9 +1098,7 @@ a {
   font-weight: 700;
 }
 
-.input,
-.textarea,
-.select {
+.textarea {
   width: 100%;
   border: 1px solid #cdd7e4;
   border-radius: 7px;
@@ -1118,9 +1116,7 @@ a {
   line-height: 1.55;
 }
 
-.input:focus,
-.textarea:focus,
-.select:focus {
+.textarea:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(12, 122, 111, 0.13);
 }
