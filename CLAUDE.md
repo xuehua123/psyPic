@@ -7,9 +7,9 @@
 
 **PsyPic UI 全面深度优化**（plan slug `linear-stirring-acorn`）—— 把整站前端调到 Linear / Figma / Codex 风格的专业创作 IDE 水准。
 
-**正在进行**：Phase 4 — 把 4116 行的 `components/creator/CreatorWorkspace.tsx` 拆为 1 个 ≤300 行主壳 + 17 个语义子组件 + 1 个 legacy fallback。
+**正在进行**：Phase 4 ✅ **已收尾** — `components/creator/CreatorWorkspace.tsx` 4116 → **1607 行**（-61%）；17 个语义子组件 + 1 个 legacy fallback (LegacyCreatorWorkspace 1244 行) + CreatorStudioContext (200 行 / 91 字段) 全部抽完。下一波 → **Phase 5 视觉打磨**（每组件单独 commit）。
 
-**进度**：9 / 17 子组件完成，CreatorWorkspace.tsx **3358 行**（起点 3794）。下一刀 → 建 `CreatorStudioContext`，再抽 ChatTurn。
+**进度**：17 / 17 子组件 ✅ + 1 / 1 legacy fallback ✅ + Context 91 字段。CreatorWorkspace.tsx **1607 行**（起点 4116 / 3794 抽刀基线）。下一步 → 进 Phase 5（参考 implementation plan）。
 
 ## 接棒读哪一份
 
@@ -32,13 +32,13 @@
 
 ## 与 CreatorWorkspace.tsx 打交道时
 
-⚠️ **绝对不要 `Read` 整个文件** —— 3358 行整读会让 transcript 突破 32MB request 上限直接挂掉会话（上一会话因此死过一次）。
+⚠️ **绝对不要 `Read` 整个文件** —— 当前 1607 行整读会让 transcript 单 turn 体积过大；Phase 4 期间 3358 行版本曾让上一会话死过一次（突破 32MB 单 request 上限）。
 
 正确套路：
 1. `Grep` 找 className anchor 拿当前行号
 2. `Read` 带 `offset + limit` 只读相关区段（30-100 行）
-3. 一个子组件 = 一个 commit
-4. 改完跑 `pnpm typecheck`，再 commit
+3. 一个改动 = 一个 commit
+4. 改完跑 `pnpm typecheck`（建议加 `pnpm lint`），再 commit
 
 ## 不动的边界
 

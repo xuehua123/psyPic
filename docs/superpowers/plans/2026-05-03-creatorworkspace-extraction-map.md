@@ -2,36 +2,44 @@
 
 ## 📍 下次会话从这里开始（READ ME FIRST）
 
-**当前进度**：**17 / 17** 子组件 ✅ + **1** Context（81 字段） + **0 / 1** legacy fallback。
-`components/creator/CreatorWorkspace.tsx`：3794 → **2694 行** (-1100，-29.0%)。
-分支 `codex/fix-v1-review-findings`，已同步 origin（最新 `27d55ee` = 收尾文档；上一抽刀 `4e6556c` = 第 18 刀达成 17/17 milestone）。
+**当前进度**：**17 / 17** 子组件 ✅ + **1** Context（91 字段） + **1 / 1** legacy fallback ✅ — **Phase 4 全部收尾完成 🎉**。
+`components/creator/CreatorWorkspace.tsx`：3794 → **1607 行** (-2187，**-57.6%**)。
+`components/creator/legacy/LegacyCreatorWorkspace.tsx`：1244 行（整段 legacy 三栏 fallback，全走 Context）。
+分支 `codex/fix-v1-review-findings`，第 19 刀已生成代码（待提交：本次会话 commit "抽出 LegacyCreatorWorkspace 整段 + 清理主壳 dead helper"）。
 
 ### 复制这一句开局（→ 粘到新 Claude Code 会话）
 
 ```
-接着推 PsyPic UI 重构 Phase 4。先读 docs/superpowers/plans/2026-05-03-
-creatorworkspace-extraction-map.md 顶部"📍 下次会话从这里开始"section
-按指示走；不要整读 components/creator/CreatorWorkspace.tsx。
+PsyPic UI 重构 Phase 4 已收尾。下一步进 Phase 5 视觉打磨。先读
+docs/superpowers/plans/2026-05-02-psypic-ui-system-implementation.md
+找 Phase 5 任务清单；视觉改动一组件一 commit，参考
+docs/superpowers/plans/2026-05-03-creatorworkspace-extraction-map.md
+末尾"视觉打磨（Phase 5）插槽"段。
 ```
 
-### 下一刀（按依赖顺序）
+### Phase 4 收尾里程碑（第 19 刀）
 
-1. **第 19 刀：抽 `components/creator/legacy/LegacyCreatorWorkspace.tsx`** — Phase 4 收尾刀。整段 legacy main JSX (~1009 行) 一次性搬到独立 .tsx，主壳从 2694 → ~1700 行（预计 -1000 行）。
-   - **入口**：grep `legacy-workbench-shell` → ~1689 行（每抽一刀偏移）。范围 1683-2691（含 return + AppShell + main + 内部 JSX + 闭合）。
-   - **关键挑战**：legacy 段 inline 引用大约 60+ 个 state / handler / 派生值。**两个方案二选一**：
-     - **方案 A（推荐）**：把 `<CreatorStudioProvider>` 提到主壳 return 顶层（包整个 if-else），LegacyCreatorWorkspace 用 `useCreatorStudio()` 消费 Context。**前置工作**：grep legacy 段引用，确认 Context 是否覆盖；不覆盖的字段（候选：`cancelCurrentTask` / `refreshTaskStatus` / `activeProject` / `activeBranchSummary` / `nodeProjectIds` / `versionNodes` / `setSelectedTemplateId` / `defaultTemplateId` / `currentConversationTitle` / `qualityOptions` 等）需先扩 Context。
-     - **方案 B**：LegacyCreatorWorkspace 接收一个超大 props bag（60+ 字段），主壳传 `<LegacyCreatorWorkspace {...allFields} />`。优点：legacy 完全独立可删；缺点：60 个 prop 接口噪声大。
-   - **执行步骤（方案 A）**：
-     1. grep 主壳 legacy 段（1683-2691）所有 inline 引用，对照 Context 81 字段清单，列出"需补 Context"列表。
-     2. 扩 Context 补这些字段（独立 commit "扩 Context for Legacy"）。
-     3. 重构主壳 return：`<CreatorStudioProvider value={...}>{useCodexChatStudio ? <chat-studio> : <legacy>}</CreatorStudioProvider>`。
-     4. 把 legacy main 整段 1009 行剪切到 `components/creator/legacy/LegacyCreatorWorkspace.tsx`，组件顶层 `useCreatorStudio()` 解构所有需要字段。
-     5. 主壳 legacy return 替换为 `<LegacyCreatorWorkspace />`。
-     6. 顺手清理主壳 dead helper：`renderTemplateField` (现仅 legacy 用 → 也搬到 LegacyCreatorWorkspace) + `qualityOptions` const 等。
-     7. typecheck + 把所有 legacy 专用 lucide icon 从主壳 import 删除（主壳清爽到只 import top-of-file 的 imports）。
-     8. commit "抽出 LegacyCreatorWorkspace 整段 (UI 重构 Phase 4 第十九刀) ✅ Phase 4 收尾" + push。
+✅ 完成项：
+1. 扩 Context 11 字段（currentTask / cancelCurrentTask / refreshTaskStatus / partialImages / versionNodes / activeVersionNode / selectedTemplateId / galleryImages / galleryRequestId / galleryTotalTokens + CurrentTask 类型 import）
+2. 主壳 return 重构：`<CreatorStudioProvider value={studioContextValue}>...</CreatorStudioProvider>` 共享给 chat-studio 和 legacy 两个分支
+3. 整段 legacy main JSX (~1009 行) 搬到 `components/creator/legacy/LegacyCreatorWorkspace.tsx`，组件顶层 `useCreatorStudio()` 解构 60+ 字段
+4. 主壳 else 分支精简为 `<CreatorStudioProvider value={...}><LegacyCreatorWorkspace /></CreatorStudioProvider>`
+5. 清主壳 dead code：`qualityOptions` const、`renderTemplateField` (63 行函数)、16 个 legacy-only lucide icons、`Link from "next/link"`、`CSSProperties`、9 个 unused lib helper imports（CommunityPublishPanel / normalizeContentType / isRecord / canRetryTask / taskStatusLabels / taskTypeLabels / formatVersionNodeTime / summarizeNodeParams / GENERATION_SIZE_OPTIONS）
+6. typecheck ✅ + lint ✅ (max-warnings=0) 双绿
 
-2. **可选简化：移除 `useCodexChatStudio` flag** — 如果产品已确认不再需要 legacy fallback，直接 grep `NEXT_PUBLIC_PSYPIC_LEGACY_CREATOR` 看用法，把 flag + legacy 整段删掉，主壳只剩 chat-studio 一个分支。这一步可作为 Phase 4 完美收尾。需要产品确认。
+### Phase 5 视觉打磨入口（下一会话）
+
+子组件抽完后做（每组件单独 commit）：
+- ChatEmptyState：删 `studio-empty-canvas` 装饰画布；改成 4 个常用模板快捷卡网格
+- ChatTranscript：去掉 22px dotted 背景
+- ProjectSidebar：浅色 + accent 描边 active（spec 要求）
+- Composer：上下文 chips 简化为单行
+- Inspector：所有 section 用 `<SectionHeading icon title action />` 统一
+- 全站 grep `primary-button|secondary-button|ghost-button` → 替换为 shadcn `<Button>`
+
+### 可选：移除 useCodexChatStudio flag
+
+如产品已确认不再需要 legacy fallback，可删 `NEXT_PUBLIC_PSYPIC_LEGACY_CREATOR` env 切换 + 整个 `LegacyCreatorWorkspace.tsx` + 主壳 if-else 分支，主壳收缩至 ~1450 行。需产品确认。
 
 ### 进入项目后第一组动作
 
@@ -77,7 +85,7 @@ pnpm typecheck              # 验证当前状态可编译
 | Helper functions | L739-~1493 | 内联函数（事件处理 / 业务逻辑） | 已部分抽到 `lib/creator/*.ts`；剩下的随子组件迁出 |
 | `useCodexChatStudio` 判定 | L1495-1506 | env 切换新旧 JSX | 主壳保留 |
 | **New chat-studio JSX** | **L1506-~2350** | 新版三栏渲染（ChatHeader / ProjectSidebar / VersionStream / Branch / NodeInspector / CommunityPublish 已抽出） | 仍是主子组件源 |
-| Legacy JSX | L2353-3358 | 旧三栏 fallback | 整段抽到 `legacy/LegacyCreatorWorkspace.tsx`（地图最后一刀） |
+| Legacy JSX | (已抽) | 旧三栏 fallback | ✅ 整段抽到 `legacy/LegacyCreatorWorkspace.tsx` (1244 行)，主壳 else 分支仅剩 `<CreatorStudioProvider><LegacyCreatorWorkspace /></CreatorStudioProvider>` |
 
 > 行号每抽一刀都会移位。要查最新位置：`Grep pattern="<className-anchor>" path="components/creator/CreatorWorkspace.tsx"`
 
@@ -149,7 +157,7 @@ pnpm typecheck              # 验证当前状态可编译
 | ➖ | ~~`studio/inspector/MaskEditor.tsx`~~ | (合并入 ReferenceSection) | mask-editor 强依赖 referenceImage 条件，独立组件价值不大 → 跳过原计划第 17 刀 | — | — |
 | ✅ | `studio/inspector/TemplatesSection.tsx` | (已抽，含 renderTemplateField inline) | 全部走 Context（6 字段：mvpTemplates / selectedTemplate / templateFieldValues / updateTemplateFieldValue / selectCommercialTemplate / applySelectedTemplate） | ⭐⭐⭐ | 144 |
 | ✅ | `studio/inspector/LibrarySection.tsx` | (已抽) | 全部走 Context（19 字段：libraryItems/Status/FavoriteOnly/TagFilter/promptFavorites/historyItems/publish 状态 4 字段 + 7 个 handler） | ⭐⭐⭐ | 246 |
-| - | `legacy/LegacyCreatorWorkspace.tsx` | grep `legacy-workbench-shell`，整段往下到文件末 | 整段 legacy JSX + 重复 inspector sections；接口同主壳 | ⭐⭐ | ~1000 |
+| - | `legacy/LegacyCreatorWorkspace.tsx` | (已抽，第 19 刀) | 整段 legacy 三栏 JSX；全部走 useCreatorStudio() 消费 Context | ⭐⭐ | 1244 |
 
 ## 推荐抽取顺序
 
@@ -169,9 +177,9 @@ pnpm typecheck              # 验证当前状态可编译
 - ✅ TemplatesSection — 消费 Context 6 字段（第 17 刀，含 renderTemplateField inline）
 - ✅ LibrarySection — 消费 Context 19 字段（第 18 刀）
 
-**结论**：17 / 17 子组件全部抽完 ✅。下一刀（第 19 刀）→ 抽 LegacyCreatorWorkspace 整段（~900 行 legacy JSX 一次性搬到独立 .tsx），Phase 4 收尾。
+**结论**：17 / 17 子组件全部抽完 ✅ + 1 / 1 legacy fallback ✅ + Context 91 字段。**Phase 4 整体收尾完成 🎉**，主壳 3794 → 1607 行（-57.6%）。下一波 → Phase 5 视觉打磨（每组件单独 commit，参考末尾"视觉打磨（Phase 5）插槽"段）。
 
-**结论**：**17 / 17 子组件全部抽完 ✅** 下一刀 → 抽 LegacyCreatorWorkspace 收尾（最后整段抽，~900 行）。
+**结论**：**Phase 4 全部完成 ✅** — 17 / 17 子组件 + 1 / 1 legacy fallback。下一波是 Phase 5 视觉打磨。
 
 ## CreatorStudioContext 设计建议
 
@@ -223,18 +231,21 @@ components/creator/studio/
 ├── ChatTurn.tsx                  (153 行, ⭐⭐⭐ — 消费 Context 7 字段)
 ├── CommunityPublishPanel.tsx     (98 行, ⭐⭐)
 ├── Composer.tsx                  (107 行, ⭐⭐⭐ — 消费 Context 14 字段)
-├── CreatorStudioContext.tsx      (91 行, infra — 21 字段 = 7 初始 + 14 Composer 扩展)
+├── CreatorStudioContext.tsx      (200 行, infra — 91 字段，含第 19 刀新加 11 字段)
 ├── NodeInspectorSection.tsx      (44 行, ⭐)
 ├── PartialPreviewStrip.tsx       (42 行, ⭐)
 ├── ProjectSidebar.tsx            (159 行, ⭐⭐)
 ├── TaskStatusStrip.tsx           (105 行, ⭐⭐)
-├── VersionStreamSection.tsx      (113 行, ⭐⭐)
+├── VersionStreamSection.tsx     (113 行, ⭐⭐)
 └── inspector/
     ├── Inspector.tsx             (29 行, ⭐⭐ — children pattern 外壳)
     ├── LibrarySection.tsx        (246 行, ⭐⭐⭐ — 消费 Context 19 字段)
     ├── ParamsSection.tsx         (255 行, ⭐⭐⭐ — 消费 Context 22 字段)
     ├── ReferenceSection.tsx      (198 行, ⭐⭐⭐ — 消费 Context 19 字段，含 mask-editor inline)
     └── TemplatesSection.tsx      (144 行, ⭐⭐⭐ — 消费 Context 6 字段，含 renderTemplateField inline)
+
+components/creator/legacy/
+└── LegacyCreatorWorkspace.tsx    (1244 行, ⭐⭐ — 整段 legacy 三栏 fallback，全走 useCreatorStudio())
 
 lib/creator/
 ├── api-error.ts

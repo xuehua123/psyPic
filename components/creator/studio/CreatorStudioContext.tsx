@@ -36,6 +36,7 @@ import {
 
 import type {
   CreatorMode,
+  CurrentTask,
   GenerationImage,
   LibraryAssetItem,
   MaskMode,
@@ -155,6 +156,19 @@ export type CreatorStudioContextValue = {
     item: LocalHistoryItem
   ) => Promise<void> | void;
   defaultCommunityTitle: (item: LibraryAssetItem) => string;
+
+  // LegacyCreatorWorkspace 所需（第 19 刀扩）：legacy 段独有 + 任务
+  // 状态条 + 流式预览 + 版本流 + gallery 派生
+  currentTask: CurrentTask | null;
+  cancelCurrentTask: () => Promise<void> | void;
+  refreshTaskStatus: (taskId: string) => Promise<void> | void;
+  partialImages: GenerationImage[];
+  versionNodes: CreatorVersionNode[];
+  activeVersionNode: CreatorVersionNode | null;
+  selectedTemplateId: string;
+  galleryImages: GenerationImage[];
+  galleryRequestId: string;
+  galleryTotalTokens: number;
 };
 
 const CreatorStudioContext = createContext<CreatorStudioContextValue | null>(
