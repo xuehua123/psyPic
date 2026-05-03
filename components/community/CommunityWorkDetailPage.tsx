@@ -100,7 +100,7 @@ export default function CommunityWorkDetailPage({
             <div className="relative bg-muted">
               <img
                 alt={work.title}
-                className="block max-h-[calc(100vh-220px)] w-full object-contain"
+                className="block max-h-[55vh] w-full object-contain md:max-h-[calc(100vh-220px)]"
                 src={work.image_url}
               />
               <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">

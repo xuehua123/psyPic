@@ -128,11 +128,16 @@ function FilterBar({
 }: {
   filters: NonNullable<CommunityFeedPageProps["filters"]>;
 }) {
+  // Plan Task 6 移动端：单行 chip 横向滚动，避免 sort/scene/tag 三行 wrap
+  // 把首屏吃掉；md 以上恢复 wrap 多行 chip 展开
+  const chipRowClass =
+    "flex flex-nowrap items-center gap-1.5 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0";
+
   return (
     <Card className="flex flex-col gap-3 px-4 py-3.5">
       {/* 排序 */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-[12px] font-semibold text-muted-foreground">
+      <div className={chipRowClass}>
+        <span className="mr-1 shrink-0 text-[12px] font-semibold text-muted-foreground">
           排序
         </span>
         {(["latest", "popular", "featured"] as const).map((value) => {
@@ -142,7 +147,7 @@ function FilterBar({
             <Link
               aria-current={active ? "page" : undefined}
               className={cn(
-                "inline-flex h-7 items-center rounded-full border px-3 text-[12.5px] font-medium transition-colors",
+                "inline-flex h-7 shrink-0 items-center rounded-full border px-3 text-[12.5px] font-medium transition-colors",
                 active
                   ? "border-accent/30 bg-accent/10 text-accent"
                   : "border-border bg-card text-muted-foreground hover:bg-muted"
@@ -158,14 +163,14 @@ function FilterBar({
 
       {/* 场景 */}
       {filters.scenes.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-1.5" aria-label="场景筛选">
-          <span className="mr-1 text-[12px] font-semibold text-muted-foreground">
+        <div className={chipRowClass} aria-label="场景筛选">
+          <span className="mr-1 shrink-0 text-[12px] font-semibold text-muted-foreground">
             场景
           </span>
           <Link
             aria-current={filters.scene ? undefined : "page"}
             className={cn(
-              "inline-flex h-7 items-center rounded-full border px-3 text-[12.5px] transition-colors",
+              "inline-flex h-7 shrink-0 items-center rounded-full border px-3 text-[12.5px] transition-colors",
               !filters.scene
                 ? "border-accent/30 bg-accent/10 text-accent"
                 : "border-border bg-card text-muted-foreground hover:bg-muted"
@@ -180,7 +185,7 @@ function FilterBar({
               <Link
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "inline-flex h-7 items-center rounded-full border px-3 text-[12.5px] transition-colors",
+                  "inline-flex h-7 shrink-0 items-center rounded-full border px-3 text-[12.5px] transition-colors",
                   active
                     ? "border-accent/30 bg-accent/10 text-accent"
                     : "border-border bg-card text-muted-foreground hover:bg-muted"
@@ -197,14 +202,14 @@ function FilterBar({
 
       {/* 标签 */}
       {filters.tags.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-1.5" aria-label="标签筛选">
-          <span className="mr-1 text-[12px] font-semibold text-muted-foreground">
+        <div className={chipRowClass} aria-label="标签筛选">
+          <span className="mr-1 shrink-0 text-[12px] font-semibold text-muted-foreground">
             标签
           </span>
           <Link
             aria-current={filters.tag ? undefined : "page"}
             className={cn(
-              "inline-flex h-7 items-center rounded-full border px-3 text-[12.5px] transition-colors",
+              "inline-flex h-7 shrink-0 items-center rounded-full border px-3 text-[12.5px] transition-colors",
               !filters.tag
                 ? "border-accent/30 bg-accent/10 text-accent"
                 : "border-border bg-card text-muted-foreground hover:bg-muted"
@@ -219,7 +224,7 @@ function FilterBar({
               <Link
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "inline-flex h-7 items-center rounded-full border px-3 text-[12.5px] transition-colors",
+                  "inline-flex h-7 shrink-0 items-center rounded-full border px-3 text-[12.5px] transition-colors",
                   active
                     ? "border-accent/30 bg-accent/10 text-accent"
                     : "border-border bg-card text-muted-foreground hover:bg-muted"

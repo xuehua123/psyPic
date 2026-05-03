@@ -64,7 +64,7 @@ export default function LibraryAssetDetailPage({
                 <div className="relative bg-muted">
                   <img
                     alt={`素材 ${item.asset_id}`}
-                    className="block max-h-[calc(100vh-220px)] w-full object-contain"
+                    className="block max-h-[55vh] w-full object-contain md:max-h-[calc(100vh-220px)]"
                     src={item.thumbnail_url}
                   />
                   {item.favorite ? (
