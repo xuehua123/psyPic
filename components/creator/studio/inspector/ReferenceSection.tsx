@@ -27,6 +27,7 @@ import { Brush, Eraser, FlipHorizontal, ImagePlus, RotateCcw, X } from "lucide-r
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Slider } from "@/components/ui/slider";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
 
 const maskCanvasSize = 512;
@@ -151,15 +152,14 @@ export default function ReferenceSection() {
                 </div>
                 <label className="mask-size-control">
                   <span>画笔大小</span>
-                  <input
+                  <Slider
                     aria-label="画笔大小"
                     max={120}
                     min={8}
-                    onChange={(event) =>
-                      setMaskBrushSize(Number(event.target.value))
+                    onValueChange={(values) =>
+                      setMaskBrushSize(values[0] ?? 0)
                     }
-                    type="range"
-                    value={maskBrushSize}
+                    value={[maskBrushSize]}
                   />
                 </label>
                 <Button
