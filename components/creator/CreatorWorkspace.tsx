@@ -38,6 +38,7 @@ import type {
 import BatchWorkflowPanel from "@/components/creator/BatchWorkflowPanel";
 import ChatEmptyState from "@/components/creator/studio/ChatEmptyState";
 import PartialPreviewStrip from "@/components/creator/studio/PartialPreviewStrip";
+import TaskStatusStrip from "@/components/creator/studio/TaskStatusStrip";
 import AppShell from "@/components/layout/AppShell";
 
 import { formatApiError, formatTaskError } from "@/lib/creator/api-error";
@@ -1815,68 +1816,13 @@ export default function CreatorWorkspace({
               ))
             )}
 
-            {currentTask ? (
-              <section
-                aria-label="任务状态"
-                className={`task-status-strip task-status-${currentTask.status}`}
-                role="status"
-              >
-                <div className="task-status-main">
-                  <div>
-                    <span className="field-label">任务状态</span>
-                    <strong>{taskStatusLabels[currentTask.status]}</strong>
-                  </div>
-                  <span className="task-status-pill">
-                    {currentTask.type ? taskTypeLabels[currentTask.type] : "任务"}
-                  </span>
-                </div>
-                <div className="task-status-meta">
-                  <span>{currentTask.id ?? "等待任务 ID"}</span>
-                  {currentTask.duration_ms ? (
-                    <span>{currentTask.duration_ms}ms</span>
-                  ) : null}
-                  {currentTask.upstream_request_id ? (
-                    <span>{currentTask.upstream_request_id}</span>
-                  ) : null}
-                  {currentTask.error?.message ? (
-                    <span>{currentTask.error.message}</span>
-                  ) : null}
-                </div>
-                <div className="task-status-actions">
-                  {currentTask.id ? (
-                    <button
-                      className="secondary-button"
-                      onClick={() => void refreshTaskStatus(currentTask.id ?? "")}
-                      type="button"
-                    >
-                      <RotateCcw size={16} aria-hidden="true" />
-                      刷新状态
-                    </button>
-                  ) : null}
-                  {canCancelTask(currentTask) ? (
-                    <button
-                      className="secondary-button"
-                      onClick={() => void cancelCurrentTask()}
-                      type="button"
-                    >
-                      <X size={16} aria-hidden="true" />
-                      取消任务
-                    </button>
-                  ) : null}
-                  {canRetryTask(currentTask) ? (
-                    <button
-                      className="secondary-button"
-                      disabled={isGenerating}
-                      onClick={submitGeneration}
-                      type="button"
-                    >
-                      <RotateCcw size={16} aria-hidden="true" />
-                      重新生成
-                    </button>
-                  ) : null}
-                </div>
-              </section>
-            ) : null}
+            <TaskStatusStrip
+              currentTask={currentTask}
+              isGenerating={isGenerating}
+              onCancelTask={() => void cancelCurrentTask()}
+              onRefreshTask={(taskId) => void refreshTaskStatus(taskId)}
+              onRetryGeneration={submitGeneration}
+            />
 
             <PartialPreviewStrip partialImages={partialImages} />
           </div>
