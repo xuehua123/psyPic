@@ -2685,6 +2685,39 @@ a {
   }
 }
 
+/*
+ * Plan Task 6 移动端抽屉 — Sheet 内部需要让 .project-sidebar / .studio-inspector
+ * 即使在 max-width 760px 下也保持可见（外层桌面布局的 display:none 不能传染进
+ * 抽屉），并把它们调整成贴合 Sheet 容器的宽度。
+ */
+[data-mobile-drawer="sidebar"] .project-sidebar,
+[data-mobile-drawer="sidebar"] .project-sidebar * {
+  border-right: 0;
+}
+
+[data-mobile-drawer="sidebar"] .project-sidebar {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  padding: 16px 14px 16px;
+  background: transparent;
+  border: 0;
+}
+
+[data-mobile-drawer="inspector"] .studio-inspector {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 4px 0 16px;
+  background: transparent;
+  border: 0;
+}
+
+[data-mobile-drawer="inspector"] .inspector-scroll {
+  padding: 0 14px;
+  overflow: visible;
+}
+
 @media (max-width: 760px) {
   .product-shell {
     flex-direction: column;

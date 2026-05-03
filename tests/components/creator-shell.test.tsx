@@ -64,6 +64,39 @@ describe("CreatorWorkspace", () => {
     ).toBeInTheDocument();
   });
 
+  it("opens the inspector bottom sheet when 打开参数面板 is clicked", async () => {
+    const user = userEvent.setup();
+    render(<CreatorWorkspace />);
+
+    // 默认底部抽屉关闭，title 不可见
+    expect(
+      screen.queryByRole("dialog", { name: "参数与素材" })
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "打开参数面板" }));
+
+    expect(
+      await screen.findByRole("dialog", { name: "参数与素材" })
+    ).toBeInTheDocument();
+  });
+
+  it("opens the project sidebar drawer when the mobile hamburger is clicked", async () => {
+    const user = userEvent.setup();
+    render(<CreatorWorkspace />);
+
+    expect(
+      screen.queryByRole("dialog", { name: "项目 / 对话" })
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "打开项目侧边栏" })
+    );
+
+    expect(
+      await screen.findByRole("dialog", { name: "项目 / 对话" })
+    ).toBeInTheDocument();
+  });
+
   it("switches projects and branch conversations from the sidebar", async () => {
     const fetchSpy = vi
       .fn()

@@ -26,6 +26,13 @@ import ProjectSidebar from "@/components/creator/studio/ProjectSidebar";
 import VersionStreamSection from "@/components/creator/studio/VersionStreamSection";
 import AppShell from "@/components/layout/AppShell";
 import { Button } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle
+} from "@/components/ui/sheet";
 
 import { formatApiError, formatTaskError } from "@/lib/creator/api-error";
 import {
@@ -105,6 +112,10 @@ export default function CreatorWorkspace({
 }: {
   showAdminLink?: boolean;
 } = {}) {
+  // Plan Task 6 移动端抽屉：左 ProjectSidebar / 底 Inspector 弹 Sheet
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
+
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [mode, setMode] = useState<CreatorMode>("text");
   const [selectedTemplateId, setSelectedTemplateId] = useState(defaultTemplateId);
@@ -1508,6 +1519,7 @@ export default function CreatorWorkspace({
         <ChatHeader
           conversationTitle={currentConversationTitle}
           forkParentId={forkParentId}
+          onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
         />
 
         <ChatTranscript
@@ -1554,7 +1566,11 @@ export default function CreatorWorkspace({
       </Inspector>
 
       <div className="mobile-bottom-bar">
-        <Button variant="secondary" type="button">
+        <Button
+          onClick={() => setMobileInspectorOpen(true)}
+          type="button"
+          variant="secondary"
+        >
           <PanelBottom size={16} aria-hidden="true" />
           打开参数面板
         </Button>
@@ -1567,6 +1583,79 @@ export default function CreatorWorkspace({
           {isGenerating ? "生成中" : "生成"}
         </Button>
       </div>
+
+      {/* Plan Task 6 移动端：左侧项目/对话抽屉，由 ChatHeader 汉堡按钮触发 */}
+      <Sheet onOpenChange={setMobileSidebarOpen} open={mobileSidebarOpen}>
+        <SheetContent
+          className="w-[300px] overflow-y-auto p-0 sm:max-w-[320px]"
+          side="left"
+        >
+          <SheetHeader className="border-b border-border pb-3">
+            <SheetTitle>项目 / 对话</SheetTitle>
+            <SheetDescription className="sr-only">
+              选择项目或对话切换工作台上下文
+            </SheetDescription>
+          </SheetHeader>
+          <div data-mobile-drawer="sidebar">
+            <ProjectSidebar
+              activeConversationId={activeConversationId}
+              activeProjectId={activeProjectId}
+              activeProjectTitle={activeProject.title}
+              onSelectConversation={(conversationId) => {
+                selectConversation(conversationId);
+                setMobileSidebarOpen(false);
+              }}
+              onSelectProject={(projectId) => {
+                selectProject(projectId);
+                setMobileSidebarOpen(false);
+              }}
+              sidebarProjects={sidebarProjects}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Plan Task 6 移动端：底部 Inspector 抽屉，由 mobile-bottom-bar 触发 */}
+      <Sheet onOpenChange={setMobileInspectorOpen} open={mobileInspectorOpen}>
+        <SheetContent
+          className="max-h-[85vh] overflow-y-auto p-0"
+          side="bottom"
+        >
+          <SheetHeader className="border-b border-border pb-3">
+            <SheetTitle>参数与素材</SheetTitle>
+            <SheetDescription className="sr-only">
+              查看与编辑当前对话的生成参数、参考图、模板与素材
+            </SheetDescription>
+          </SheetHeader>
+          <div data-mobile-drawer="inspector">
+            <Inspector>
+              <ParamsSection />
+
+              <ReferenceSection />
+
+              <TemplatesSection />
+
+              <VersionStreamSection
+                activeNodeId={activeNodeId}
+                forkParentId={forkParentId}
+                onRestoreNodeParams={restoreVersionNodeParams}
+                onReturnToNode={returnToVersionNode}
+                onStartFork={startVersionFork}
+                projectVersionNodes={projectVersionNodes}
+              />
+
+              <BranchMapSection
+                activeNodeId={activeNodeId}
+                projectVersionNodes={projectVersionNodes}
+              />
+
+              <NodeInspectorSection activeVersionNode={activeVersionNode} />
+
+              <LibrarySection />
+            </Inspector>
+          </div>
+        </SheetContent>
+      </Sheet>
       </main>
       </CreatorStudioProvider>
     </AppShell>
