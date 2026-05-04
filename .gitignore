@@ -11,3 +11,6 @@ output/
 *.log
 pnpm-debug.log*
 *.tsbuildinfo
+
+# Next.js 自动生成的类型引用，dev/build 会改路径，不需要 track
+next-env.d.ts
