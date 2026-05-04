@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Folder, MessageSquarePlus, Plus } from "lucide-react";
+import { MessageSquarePlus, Plus } from "lucide-react";
 
 import type {
   CreatorConversationId,
@@ -9,38 +9,38 @@ import type {
 } from "@/lib/creator/types";
 import type {
   CreatorProjectMeta,
-  SidebarProjectBranchSummary,
   SidebarProjectGroup
 } from "@/lib/creator/projects";
-import { bucketByActivity } from "@/lib/creator/session-buckets";
-import { formatVersionNodeTime } from "@/lib/creator/version-graph";
+import { useCollapsedProjects } from "@/lib/creator/use-collapsed-projects";
 import { cn } from "@/lib/utils";
 
 import NewProjectDialog from "./NewProjectDialog";
+import ProjectCard from "./ProjectCard";
 import ProjectDeleteAlert from "./ProjectDeleteAlert";
-import ProjectKebabMenu from "./ProjectKebabMenu";
 import ProjectRenameDialog from "./ProjectRenameDialog";
-import {
-  SessionContextMenu,
-  SessionDropdownTrigger
-} from "./SessionRowMenu";
 import {
   SidebarToastProvider,
   useSidebarToast
 } from "./SidebarToast";
 
 /**
- * 工作台左侧栏：Codex 风 Session List。
+ * 工作台左侧栏 · 平铺折叠卡版（plan slug clever-swimming-pumpkin）。
  *
  * 结构：
  *   顶部条       创作台 + 新建对话
- *   项目头       icon + 项目名 + kebab（DropdownMenu）
- *   项目切换    其他项目 row 列表 + [+ 新建项目]
- *   session 列  按 today / yesterday / thisWeek / earlier 分组
+ *   ProjectCardList  所有项目按 sortOrder 平铺；每张卡独立折叠
+ *   + 新建项目
  *
- * 数据流：sidebarProjects / activeProjectId / activeConversationId 从 props
- * 来；CRUD 通过 onCreateProject / onRenameProject / onDeleteProject 三个
- * callback 由 CreatorWorkspace 转发到 useProjects hook。
+ * 关键交互：
+ *   - 点项目卡 header → toggle 该卡折叠（位置不变；不切 active）
+ *   - 点卡内 session row 或「全部对话」→ 切 active project + active
+ *     conversation
+ *   - 折叠状态记 localStorage（useCollapsedProjects），刷新保留
+ *   - active 与折叠状态完全正交：active 仅外观（边框 + 加粗）
+ *
+ * 数据流：sidebarProjects / activeProjectId / activeConversationId 从
+ * props 来；CRUD 通过 onCreateProject / onRenameProject / onDeleteProject
+ * 转发到上层 useProjects hook。
  */
 export type ProjectSidebarProps = {
   sidebarProjects: SidebarProjectGroup[];
@@ -56,16 +56,6 @@ export type ProjectSidebarProps = {
   ) => Promise<unknown> | unknown;
   onDeleteProject?: (projectId: CreatorProjectId) => Promise<unknown> | unknown;
 };
-
-const BUCKET_LABELS: Array<{
-  key: "today" | "yesterday" | "thisWeek" | "earlier";
-  label: string;
-}> = [
-  { key: "today", label: "今天" },
-  { key: "yesterday", label: "昨天" },
-  { key: "thisWeek", label: "本周" },
-  { key: "earlier", label: "更早" }
-];
 
 export default function ProjectSidebar(props: ProjectSidebarProps) {
   return (
@@ -93,18 +83,16 @@ function ProjectSidebarContent({
   const [deleteTarget, setDeleteTarget] =
     React.useState<CreatorProjectMeta | null>(null);
 
-  const activeGroup =
-    sidebarProjects.find((group) => group.project.id === activeProjectId) ??
-    sidebarProjects[0] ??
-    null;
-  const otherProjects = sidebarProjects.filter(
-    (group) => group.project.id !== activeProjectId
+  const projectIds = React.useMemo(
+    () => sidebarProjects.map((group) => group.project.id),
+    [sidebarProjects]
+  );
+  const { isCollapsed, toggle } = useCollapsedProjects(
+    projectIds,
+    activeProjectId
   );
 
-  const buckets = bucketByActivity(activeGroup?.branchSummaries ?? []);
   const isNewConversation = activeConversationId === "new";
-  const isAllConversation = activeConversationId === "all";
-  const totalSessions = activeGroup?.branchSummaries.length ?? 0;
 
   const handleKebabPlaceholder = React.useCallback(
     (label: string) => {
@@ -162,138 +150,36 @@ function ProjectSidebarContent({
         </button>
       </div>
 
-      {activeGroup ? (
-        <div className="flex items-center gap-2 px-1.5 py-2">
-          <span
-            aria-hidden="true"
-            className="flex size-7 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent-strong"
-          >
-            <Folder size={14} />
-          </span>
-          <div className="min-w-0 flex-1">
-            <div
-              className="truncate text-sm font-semibold leading-tight"
-              data-testid="project-header-title"
-            >
-              {activeGroup.project.title}
-            </div>
-            <div className="truncate text-xs leading-snug text-muted-foreground">
-              {activeGroup.nodes.length > 0
-                ? `${totalSessions} 个对话 · ${activeGroup.nodes.length} 个节点`
-                : activeGroup.project.description}
-            </div>
-          </div>
-          <ProjectKebabMenu
-            onDelete={() => setDeleteTarget(activeGroup.project)}
-            onPlaceholder={handleKebabPlaceholder}
-            onRename={() => setRenameTarget(activeGroup.project)}
-          />
-        </div>
-      ) : null}
-
-      {sidebarProjects.length > 0 ? (
-        <div className="grid gap-1 px-1.5">
-          <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            其他项目
-          </div>
-          {otherProjects.length === 0 ? (
-            <div className="rounded-md border border-dashed border-border px-2 py-2 text-xs text-muted-foreground">
-              当前只有这一个项目。
-            </div>
-          ) : (
-            otherProjects.map((group) => (
-              <button
-                className="flex items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left text-sm transition-colors hover:border-border hover:bg-accent/10"
-                data-testid="project-switch-row"
-                key={group.project.id}
-                onClick={() => onSelectProject(group.project.id)}
-                type="button"
-              >
-                <Folder
-                  aria-hidden="true"
-                  className="size-3.5 shrink-0 text-muted-foreground"
-                />
-                <span className="min-w-0 flex-1 truncate">
-                  {group.project.title}
-                </span>
-                <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground">
-                  {group.branchSummaries.length}
-                </span>
-              </button>
-            ))
-          )}
-          <button
-            className="mt-1 flex items-center gap-2 rounded-md border border-dashed border-border px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:border-accent hover:text-accent"
-            data-testid="new-project-button"
-            onClick={() => setNewProjectOpen(true)}
-            type="button"
-          >
-            <Plus aria-hidden="true" className="size-3.5 shrink-0" />
-            <span>新建项目</span>
-          </button>
-        </div>
-      ) : null}
-
       <div
-        className="sidebar-fill grid gap-3 px-1.5 pb-2"
-        data-testid="session-list"
+        className="sidebar-fill grid gap-1 px-1.5 pb-2"
+        data-testid="project-card-list"
       >
+        {sidebarProjects.map((group) => (
+          <ProjectCard
+            activeConversationId={activeConversationId}
+            activeProjectId={activeProjectId}
+            group={group}
+            isActive={group.project.id === activeProjectId}
+            isCollapsed={isCollapsed(group.project.id)}
+            key={group.project.id}
+            onDelete={() => setDeleteTarget(group.project)}
+            onKebabPlaceholder={handleKebabPlaceholder}
+            onRename={() => setRenameTarget(group.project)}
+            onSelectConversation={onSelectConversation}
+            onSelectProject={onSelectProject}
+            onToggleCollapse={() => toggle(group.project.id)}
+          />
+        ))}
+
         <button
-          aria-pressed={isAllConversation}
-          className={cn(
-            "flex items-center justify-between rounded-md border border-transparent px-2 py-1.5 text-left text-sm transition-colors hover:border-border hover:bg-accent/10",
-            isAllConversation && "border-accent bg-accent-soft text-accent-strong"
-          )}
-          data-testid="conversation-row-all"
-          onClick={() => onSelectConversation("all")}
+          className="mt-1 flex items-center gap-2 rounded-md border border-dashed border-border px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:border-accent hover:text-accent"
+          data-testid="new-project-button"
+          onClick={() => setNewProjectOpen(true)}
           type="button"
         >
-          <span className="font-medium">全部对话</span>
-          <span className="text-xs text-muted-foreground">
-            {activeGroup?.nodes.length ?? 0} 个节点
-          </span>
+          <Plus aria-hidden="true" className="size-3.5 shrink-0" />
+          <span>新建项目</span>
         </button>
-
-        {totalSessions === 0 ? (
-          <div
-            className="rounded-md border border-dashed border-border px-3 py-4 text-center text-xs text-muted-foreground"
-            data-testid="session-list-empty"
-          >
-            还没有生成记录。点击上方「新建对话」开始第一条。
-          </div>
-        ) : (
-          BUCKET_LABELS.map(({ key, label }) => {
-            const bucket = buckets[key];
-            if (bucket.length === 0) {
-              return null;
-            }
-            return (
-              <section
-                aria-label={label}
-                className="grid gap-1"
-                data-bucket={key}
-                data-testid={`session-bucket-${key}`}
-                key={key}
-              >
-                <div className="px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  {label}
-                  <span className="ml-1 text-muted-foreground/70">
-                    {bucket.length}
-                  </span>
-                </div>
-                {bucket.map((branch) => (
-                  <SessionRow
-                    activeConversationId={activeConversationId}
-                    activeProjectId={activeProjectId}
-                    branch={branch}
-                    key={branch.id}
-                    onSelect={onSelectConversation}
-                  />
-                ))}
-              </section>
-            );
-          })
-        )}
       </div>
 
       <NewProjectDialog
@@ -324,110 +210,4 @@ function ProjectSidebarContent({
       />
     </aside>
   );
-}
-
-type SessionRowProps = {
-  branch: SidebarProjectBranchSummary;
-  activeConversationId: CreatorConversationId;
-  activeProjectId: CreatorProjectId;
-  onSelect: (id: CreatorConversationId) => void;
-};
-
-function SessionRow({
-  branch,
-  activeConversationId,
-  activeProjectId,
-  onSelect
-}: SessionRowProps) {
-  const toast = useSidebarToast();
-  const id: CreatorConversationId = `branch:${branch.id}`;
-  const isActive = activeConversationId === id;
-  const title = branch.latestNode?.prompt.slice(0, 28) || branch.label;
-  const time = branch.latestNode
-    ? formatVersionNodeTime(branch.latestNode)
-    : "未生成";
-
-  const handleCopyId = React.useCallback(() => {
-    void copyToClipboard(branch.id);
-    toast.show("会话 ID 已复制", "success");
-  }, [branch.id, toast]);
-
-  const handleCopyLink = React.useCallback(() => {
-    const link = buildDeepLink(activeProjectId, branch.id);
-    void copyToClipboard(link);
-    toast.show("深度链接已复制", "success");
-  }, [activeProjectId, branch.id, toast]);
-
-  const handlePlaceholder = React.useCallback(
-    (label: string) => {
-      const isDesktopOnly =
-        label.includes("资源管理器") ||
-        label.includes("工作目录") ||
-        label.includes("迷你窗口") ||
-        label.includes("工作树");
-      toast.show(
-        `「${label}」${isDesktopOnly ? "为桌面端功能" : "即将上线"}`
-      );
-    },
-    [toast]
-  );
-
-  return (
-    <SessionContextMenu
-      onCopyId={handleCopyId}
-      onCopyLink={handleCopyLink}
-      onPlaceholder={handlePlaceholder}
-    >
-      <div className="group/row relative">
-        <button
-          aria-pressed={isActive}
-          className={cn(
-            "flex w-full items-start gap-2 rounded-md border border-transparent px-2 py-1.5 text-left text-sm transition-colors",
-            "hover:border-border hover:bg-accent/10",
-            isActive && "border-accent bg-accent-soft text-accent-strong"
-          )}
-          data-testid="conversation-row-branch"
-          onClick={() => onSelect(id)}
-          type="button"
-        >
-          <div className="min-w-0 flex-1">
-            <div className="truncate font-medium leading-tight" title={title}>
-              {title}
-            </div>
-            <div className="truncate text-[11px] leading-snug text-muted-foreground">
-              {branch.label} · {branch.count} 个节点 · {time}
-            </div>
-          </div>
-        </button>
-        <div className="absolute right-1 top-1 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 md:opacity-0 max-md:opacity-100">
-          <SessionDropdownTrigger
-            onCopyId={handleCopyId}
-            onCopyLink={handleCopyLink}
-            onPlaceholder={handlePlaceholder}
-          />
-        </div>
-      </div>
-    </SessionContextMenu>
-  );
-}
-
-function buildDeepLink(projectId: CreatorProjectId, branchId: string): string {
-  if (typeof window === "undefined") {
-    return `?project=${projectId}&conversation=branch:${branchId}`;
-  }
-  const url = new URL(window.location.href);
-  url.search = `?project=${projectId}&conversation=branch:${branchId}`;
-  return url.toString();
-}
-
-async function copyToClipboard(text: string): Promise<void> {
-  if (
-    typeof navigator !== "undefined" &&
-    navigator.clipboard &&
-    typeof navigator.clipboard.writeText === "function"
-  ) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-  // 老浏览器或 jsdom 早期版本：吃掉，让占位 toast 仍显示成功
 }

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ProjectSidebar from "@/components/creator/studio/ProjectSidebar";
 import type {
@@ -9,14 +9,17 @@ import type {
 import type { CreatorVersionNode } from "@/lib/creator/version-graph";
 
 /**
- * 写于 Cut 4 —— 验证 ProjectSidebar 视觉骨架重写后的关键 invariant：
- * - 时间分组渲染（4 桶 SectionHeading）
- * - 项目切换：点 switch-row 触发 onSelectProject；header 显示 active 项目
- * - 空 session 文案
- * - 「+ 新建项目」「kebab」走 onPlaceholderAction（Cut 5 接通）
+ * 重写于 plan slug clever-swimming-pumpkin · Cut 3 —— 平铺折叠卡 sidebar
+ * 主体的 invariant：
+ * - 所有项目都渲染成 ProjectCard（不再只看一个 active）
+ * - active project 默认展开（卡内 4 桶可见）
+ * - 非 active project 默认折叠
+ * - 点 active 之外的卡 header → 该卡展开（不切 active project）
+ * - 点折叠卡 → 仍折叠的卡里看不到 session
+ * - 点折叠卡内的 session 行触发 onSelectProject + onSelectConversation
+ * - 「+ 新建项目」打开 NewProjectDialog
  *
- * 时间分桶逻辑覆盖在 tests/unit/session-buckets.test.ts；这里只验证
- * sidebar 是否把分桶结果正确渲染。
+ * localStorage 持久化的覆盖在 tests/unit/use-collapsed-projects.test.ts。
  */
 
 const NODE_BASE: Omit<CreatorVersionNode, "id" | "branchId" | "createdAt" | "prompt"> = {
@@ -87,8 +90,13 @@ const TEST_PROJECTS: SidebarProjectGroup[] = [
   }
 ];
 
-describe("ProjectSidebar (Codex session list)", () => {
-  it("renders branches grouped into today / yesterday / earlier buckets", () => {
+beforeEach(() => {
+  // 清掉 useCollapsedProjects 的 localStorage，避免用例间串
+  window.localStorage.clear();
+});
+
+describe("ProjectSidebar (flat collapsible cards)", () => {
+  it("renders every project as a ProjectCard", () => {
     render(
       <ProjectSidebar
         sidebarProjects={TEST_PROJECTS}
@@ -100,21 +108,11 @@ describe("ProjectSidebar (Codex session list)", () => {
       />
     );
 
-    const today = screen.getByTestId("session-bucket-today");
-    expect(within(today).getByText("今天")).toBeInTheDocument();
-    expect(within(today).getByText(/今天的会话标题/)).toBeInTheDocument();
-
-    const yesterday = screen.getByTestId("session-bucket-yesterday");
-    expect(within(yesterday).getByText("昨天")).toBeInTheDocument();
-
-    const earlier = screen.getByTestId("session-bucket-earlier");
-    expect(within(earlier).getByText(/陈年老会话/)).toBeInTheDocument();
-
-    // 没有 thisWeek 数据 —— bucket 不渲染
-    expect(screen.queryByTestId("session-bucket-thisWeek")).not.toBeInTheDocument();
+    expect(screen.getByTestId("project-card-commercial")).toBeInTheDocument();
+    expect(screen.getByTestId("project-card-social")).toBeInTheDocument();
   });
 
-  it("shows the active project in the header and other projects in the switcher", () => {
+  it("expands the active project by default and collapses the others", () => {
     render(
       <ProjectSidebar
         sidebarProjects={TEST_PROJECTS}
@@ -126,15 +124,23 @@ describe("ProjectSidebar (Codex session list)", () => {
       />
     );
 
-    expect(screen.getByTestId("project-header-title")).toHaveTextContent(
-      "商业图库项目"
+    expect(screen.getByTestId("project-card-commercial")).toHaveAttribute(
+      "data-collapsed",
+      "false"
     );
-    const switchRows = screen.getAllByTestId("project-switch-row");
-    expect(switchRows).toHaveLength(1);
-    expect(switchRows[0]).toHaveTextContent("社媒内容项目");
+    expect(screen.getByTestId("project-card-social")).toHaveAttribute(
+      "data-collapsed",
+      "true"
+    );
+
+    // active 卡内可见 4 桶；折叠卡看不到「全部对话」
+    expect(screen.getByTestId("session-bucket-today")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("conversation-row-all-social")
+    ).not.toBeInTheDocument();
   });
 
-  it("calls onSelectProject when a switcher row is clicked", () => {
+  it("toggles a non-active card open without changing the active project", () => {
     const onSelectProject = vi.fn();
     render(
       <ProjectSidebar
@@ -147,24 +153,66 @@ describe("ProjectSidebar (Codex session list)", () => {
       />
     );
 
-    fireEvent.click(screen.getByTestId("project-switch-row"));
-    expect(onSelectProject).toHaveBeenCalledWith("social");
+    const socialHeader = screen.getByTestId("project-card-header-social");
+    fireEvent.click(socialHeader);
+
+    // social 卡展开了，commercial 仍然展开（不互斥）
+    expect(screen.getByTestId("project-card-social")).toHaveAttribute(
+      "data-collapsed",
+      "false"
+    );
+    expect(screen.getByTestId("project-card-commercial")).toHaveAttribute(
+      "data-collapsed",
+      "false"
+    );
+    // active project 没切
+    expect(onSelectProject).not.toHaveBeenCalled();
   });
 
-  it("shows an empty hint when the active project has no sessions", () => {
+  it("groups branches into today / yesterday / earlier buckets within the active card", () => {
     render(
       <ProjectSidebar
         sidebarProjects={TEST_PROJECTS}
-        activeProjectId="social"
+        activeProjectId="commercial"
         activeConversationId="all"
-        activeProjectTitle="社媒内容项目"
+        activeProjectTitle="商业图库项目"
         onSelectProject={vi.fn()}
         onSelectConversation={vi.fn()}
       />
     );
 
-    expect(screen.getByTestId("session-list-empty")).toBeInTheDocument();
-    expect(screen.queryByTestId("session-bucket-today")).not.toBeInTheDocument();
+    const today = screen.getByTestId("session-bucket-today");
+    expect(within(today).getByText(/今天的会话标题/)).toBeInTheDocument();
+
+    const yesterday = screen.getByTestId("session-bucket-yesterday");
+    expect(within(yesterday).getByText(/昨天的会话/)).toBeInTheDocument();
+
+    const earlier = screen.getByTestId("session-bucket-earlier");
+    expect(within(earlier).getByText(/陈年老会话/)).toBeInTheDocument();
+
+    // 没有 thisWeek 数据 —— bucket 不渲染
+    expect(screen.queryByTestId("session-bucket-thisWeek")).not.toBeInTheDocument();
+  });
+
+  it("clicking a branch row in the active card calls onSelectConversation", () => {
+    const onSelectConversation = vi.fn();
+    render(
+      <ProjectSidebar
+        sidebarProjects={TEST_PROJECTS}
+        activeProjectId="commercial"
+        activeConversationId="all"
+        activeProjectTitle="商业图库项目"
+        onSelectProject={vi.fn()}
+        onSelectConversation={onSelectConversation}
+      />
+    );
+
+    const branchButtons = screen.getAllByTestId("conversation-row-branch");
+    fireEvent.click(branchButtons[0]);
+
+    expect(onSelectConversation).toHaveBeenCalled();
+    const call = onSelectConversation.mock.calls.at(-1);
+    expect(call?.[0]).toMatch(/^branch:/);
   });
 
   it("opens the new-project dialog when 「+ 新建项目」 is clicked", () => {
