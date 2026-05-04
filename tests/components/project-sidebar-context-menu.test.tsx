@@ -340,4 +340,46 @@ describe("Session row menu (Cut 6)", () => {
     const region = await screen.findByTestId("sidebar-toast-region");
     expect(within(region).getByText("已恢复对话")).toBeInTheDocument();
   });
+
+  it("renders an unread indicator + bold title when branch.hasUnread is true", () => {
+    const unreadBranch = {
+      ...TEST_PROJECTS[0].branchSummaries[0],
+      hasUnread: true
+    };
+    const projectsWithUnread = [
+      {
+        ...TEST_PROJECTS[0],
+        branchSummaries: [unreadBranch]
+      }
+    ];
+    render(
+      <ProjectSidebar {...baseProps} sidebarProjects={projectsWithUnread} />
+    );
+
+    expect(screen.getByTestId("session-unread-indicator")).toBeInTheDocument();
+    const row = screen.getByTestId("conversation-row-branch");
+    expect(row).toHaveAttribute("data-unread", "true");
+  });
+
+  it("calls onMarkSessionUnread with toast when 「标记为未读」 is clicked", async () => {
+    const onMarkSessionUnread = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ProjectSidebar
+        {...baseProps}
+        onMarkSessionUnread={onMarkSessionUnread}
+      />
+    );
+
+    await user.click(screen.getByTestId("session-row-menu-button"));
+    await user.click(await screen.findByTestId("session-menu-unread"));
+
+    expect(onMarkSessionUnread).toHaveBeenCalledTimes(1);
+    const [projectId, branch] = onMarkSessionUnread.mock.calls[0];
+    expect(projectId).toBe("commercial");
+    expect(branch).toMatchObject({ id: "br_test_1" });
+
+    const region = await screen.findByTestId("sidebar-toast-region");
+    expect(within(region).getByText("已标记为未读")).toBeInTheDocument();
+  });
 });

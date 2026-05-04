@@ -203,7 +203,7 @@ export default function CreatorWorkspace({
     setPinned: setBranchPinned,
     setLabel: setBranchLabel,
     setArchived: setBranchArchived,
-    markRead: _markBranchRead,
+    markRead: markBranchRead,
     markUnread: markBranchUnread
   } = useBranchMeta();
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1454,6 +1454,12 @@ export default function CreatorWorkspace({
     setActiveNodeId(latestNode?.id ?? null);
     setForkParentId(null);
     setErrorMessage("");
+
+    // 切到具体分支视为「读了」—— 清掉未读 indicator
+    if (conversationId.startsWith("branch:")) {
+      const branchId = conversationId.slice("branch:".length);
+      void markBranchRead(branchId);
+    }
   }
 
   /**

@@ -509,11 +509,25 @@ function SessionRow({
             isActive && "border-accent bg-accent-soft text-accent-strong"
           )}
           data-testid="conversation-row-branch"
+          data-unread={branch.hasUnread ? "true" : "false"}
           onClick={() => onSelect(id)}
           type="button"
         >
+          {branch.hasUnread ? (
+            <span
+              aria-hidden="true"
+              className="mt-1.5 size-1.5 shrink-0 rounded-full bg-accent"
+              data-testid="session-unread-indicator"
+            />
+          ) : null}
           <div className="min-w-0 flex-1">
-            <div className="truncate font-medium leading-tight" title={title}>
+            <div
+              className={cn(
+                "truncate leading-tight",
+                branch.hasUnread ? "font-semibold" : "font-medium"
+              )}
+              title={title}
+            >
               {title}
             </div>
             <div className="truncate text-[11px] leading-snug text-muted-foreground">
