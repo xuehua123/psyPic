@@ -11,6 +11,7 @@ import type {
 } from "react";
 
 import BatchWorkflowPanel from "@/components/creator/BatchWorkflowPanel";
+import { BatchProvider } from "@/components/creator/studio/BatchContext";
 import BranchMapSection from "@/components/creator/studio/BranchMapSection";
 import ChatHeader from "@/components/creator/studio/ChatHeader";
 import ChatTranscript from "@/components/creator/studio/ChatTranscript";
@@ -1505,6 +1506,7 @@ export default function CreatorWorkspace({
       showAdminLink={showAdminLink}
     >
       <CreatorStudioProvider value={studioContextValue}>
+      <BatchProvider defaultSize={size}>
       <main className="chat-studio-shell" data-testid="chat-studio-shell">
       <ProjectSidebar
         activeConversationId={activeConversationId}
@@ -1560,7 +1562,7 @@ export default function CreatorWorkspace({
 
           <NodeInspectorSection activeVersionNode={activeVersionNode} />
 
-          <BatchWorkflowPanel defaultSize={size} />
+          <BatchWorkflowPanel />
 
           <LibrarySection />
       </Inspector>
@@ -1651,12 +1653,15 @@ export default function CreatorWorkspace({
 
               <NodeInspectorSection activeVersionNode={activeVersionNode} />
 
+              <BatchWorkflowPanel />
+
               <LibrarySection />
             </Inspector>
           </div>
         </SheetContent>
       </Sheet>
       </main>
+      </BatchProvider>
       </CreatorStudioProvider>
     </AppShell>
   );

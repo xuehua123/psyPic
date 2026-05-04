@@ -1,75 +1,41 @@
 "use client";
 
-import { ListPlus, RotateCcw, Table } from "lucide-react";
-import { useEffect, useState } from "react";
+/**
+ * BatchWorkflowPanel
+ *
+ * 批量工作流的纯 view：mode 切换、prompt / csv 输入、提交、批次结果列表与
+ * 失败项重试按钮。所有 state（含轮询）都集中在
+ * `components/creator/studio/BatchContext.tsx` 的 BatchProvider 里，本组件
+ * 仅消费 useBatch()。
+ *
+ * 这样工作台的桌面 Inspector 与移动端底抽屉可以**同时**挂载本 view 共享同
+ * 一份 batch state，不会出现状态分裂或双 polling timer。
+ *
+ * 使用：包一个 <BatchProvider defaultSize={...}> 在外层，本组件不再接 props。
+ */
 
+import { ListPlus, RotateCcw, Table } from "lucide-react";
+
+import { useBatch } from "@/components/creator/studio/BatchContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-type BatchMode = "prompts" | "csv";
-
-type BatchItem = {
-  item_id: string;
-  task_id: string;
-  prompt: string;
-  size: string;
-  status: string;
-  retry_count: number;
-};
-
-type BatchResponse = {
-  data?: {
-    batch_id: string;
-    status: string;
-    items: BatchItem[];
-  };
-  error?: {
-    message: string;
-  };
-};
-
-export default function BatchWorkflowPanel({
-  defaultSize
-}: {
-  defaultSize: string;
-}) {
-  const [mode, setMode] = useState<BatchMode>("prompts");
-  const [promptText, setPromptText] = useState("");
-  const [csvText, setCsvText] = useState("");
-  const [sizeText, setSizeText] = useState(defaultSize);
-  const [batch, setBatch] = useState<BatchResponse["data"] | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!batch || !["queued", "running"].includes(batch.status)) {
-      return;
-    }
-
-    let active = true;
-    async function refreshBatch() {
-      if (!batch) {
-        return;
-      }
-
-      const response = await fetch(`/api/batches/${batch.batch_id}`);
-      const responseBody = (await response.json().catch(() => ({}))) as BatchResponse;
-
-      if (active && response.ok && responseBody.data) {
-        setBatch(responseBody.data);
-      }
-    }
-
-    const timer = window.setInterval(() => {
-      void refreshBatch();
-    }, 2000);
-    void refreshBatch();
-
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, [batch]);
+export default function BatchWorkflowPanel() {
+  const {
+    mode,
+    promptText,
+    csvText,
+    sizeText,
+    batch,
+    error,
+    loading,
+    setMode,
+    setPromptText,
+    setCsvText,
+    setSizeText,
+    submitBatch,
+    retryItem
+  } = useBatch();
 
   return (
     <section className="batch-panel">
@@ -176,73 +142,4 @@ export default function BatchWorkflowPanel({
       </div>
     </section>
   );
-
-  async function submitBatch() {
-    setLoading(true);
-    setError("");
-
-    try {
-      const body =
-        mode === "csv"
-          ? {
-              csv: csvText,
-              params: defaultParams()
-            }
-          : {
-              prompts: promptText
-                .split(/\r?\n/)
-                .map((prompt) => prompt.trim())
-                .filter(Boolean),
-              sizes: sizeText
-                .split(",")
-                .map((size) => size.trim())
-                .filter(Boolean),
-              params: defaultParams()
-            };
-      const response = await fetch("/api/batches", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body)
-      });
-      const responseBody = (await response.json()) as BatchResponse;
-
-      if (!response.ok || !responseBody.data) {
-        setError(responseBody.error?.message ?? "批量任务创建失败。");
-        return;
-      }
-
-      setBatch(responseBody.data);
-    } catch {
-      setError("批量任务创建失败，请检查网络。");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function retryItem(itemId: string) {
-    if (!batch) {
-      return;
-    }
-
-    const response = await fetch(`/api/batches/${batch.batch_id}/retry`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ item_ids: [itemId] })
-    });
-    const responseBody = (await response.json().catch(() => ({}))) as BatchResponse;
-
-    if (response.ok && responseBody.data) {
-      setBatch(responseBody.data);
-    }
-  }
-
-  function defaultParams() {
-    return {
-      model: "gpt-image-2",
-      quality: "medium",
-      output_format: "png",
-      background: "auto",
-      moderation: "auto"
-    };
-  }
 }

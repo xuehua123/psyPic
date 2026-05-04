@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, ListChecks, Sparkles } from "lucide-react";
 
 import BatchWorkflowPanel from "@/components/creator/BatchWorkflowPanel";
+import { BatchProvider } from "@/components/creator/studio/BatchContext";
 import AppPageHeader from "@/components/layout/AppPageHeader";
 import AppShell from "@/components/layout/AppShell";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +42,9 @@ export default async function TasksPage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="px-0 pb-0">
-              <BatchWorkflowPanel defaultSize="1024x1024" />
+              <BatchProvider defaultSize="1024x1024">
+                <BatchWorkflowPanel />
+              </BatchProvider>
             </CardContent>
           </Card>
 
