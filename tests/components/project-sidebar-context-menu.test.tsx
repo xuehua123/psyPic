@@ -158,7 +158,7 @@ describe("Session row menu (Cut 6)", () => {
 
     const region = await screen.findByTestId("sidebar-toast-region");
     expect(
-      within(region).getByText(/分叉到同一工作树.*桌面端功能/)
+      within(region).getByText(/分叉到同一工作树.*桌面端独占功能/)
     ).toBeInTheDocument();
   });
 
@@ -382,4 +382,26 @@ describe("Session row menu (Cut 6)", () => {
     const region = await screen.findByTestId("sidebar-toast-region");
     expect(within(region).getByText("已标记为未读")).toBeInTheDocument();
   });
+
+  it.each([
+    { testid: "session-menu-explorer", label: "在资源管理器中打开" },
+    { testid: "session-menu-copy-cwd", label: "复制工作目录" },
+    { testid: "session-menu-mini", label: "在迷你窗口中打开" }
+  ])(
+    "shows the 「桌面端独占 · Tauri 客户端」 toast for desktop-only menu item $label",
+    async ({ testid, label }) => {
+      const user = userEvent.setup();
+      render(<ProjectSidebar {...baseProps} />);
+
+      await user.click(screen.getByTestId("session-row-menu-button"));
+      await user.click(await screen.findByTestId(testid));
+
+      const region = await screen.findByTestId("sidebar-toast-region");
+      expect(
+        within(region).getByText(
+          new RegExp(`${label}.*桌面端独占功能.*Tauri 客户端`)
+        )
+      ).toBeInTheDocument();
+    }
+  );
 });

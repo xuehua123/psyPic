@@ -144,7 +144,9 @@ function ProjectSidebarContent({
       const isDesktopOnly =
         label.includes("资源管理器") || label.includes("工作树");
       toast.show(
-        `「${label}」${isDesktopOnly ? "为桌面端功能" : "即将上线"}`
+        isDesktopOnly
+          ? `「${label}」为桌面端独占功能 · 请使用 Tauri 客户端`
+          : `「${label}」即将上线`
       );
     },
     [toast]

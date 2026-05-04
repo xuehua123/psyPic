@@ -474,13 +474,17 @@ function SessionRow({
 
   const handlePlaceholder = React.useCallback(
     (label: string) => {
+      // 实做后 SessionRowMenu 占位只剩 3 项桌面端独占功能。
+      // 文案明确告知用户「web 端不可达 · Tauri 桌面客户端可用」。
       const isDesktopOnly =
         label.includes("资源管理器") ||
         label.includes("工作目录") ||
         label.includes("迷你窗口") ||
         label.includes("工作树");
       toast.show(
-        `「${label}」${isDesktopOnly ? "为桌面端功能" : "即将上线"}`
+        isDesktopOnly
+          ? `「${label}」为桌面端独占功能 · 请使用 Tauri 客户端`
+          : `「${label}」即将上线`
       );
     },
     [toast]
