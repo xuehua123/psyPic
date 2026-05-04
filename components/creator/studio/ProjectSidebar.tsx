@@ -19,6 +19,7 @@ import NewProjectDialog from "./NewProjectDialog";
 import ProjectCard from "./ProjectCard";
 import ProjectDeleteAlert from "./ProjectDeleteAlert";
 import ProjectRenameDialog from "./ProjectRenameDialog";
+import SessionRenameDialog from "./SessionRenameDialog";
 import {
   SidebarToastProvider,
   useSidebarToast
@@ -67,6 +68,28 @@ export type ProjectSidebarProps = {
     projectId: CreatorProjectId,
     branch: SidebarProjectBranchSummary
   ) => Promise<unknown> | unknown;
+  /** 「置顶对话」/「取消置顶」 */
+  onTogglePinSession?: (
+    projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) => Promise<unknown> | unknown;
+  /** 「重命名对话」 —— sidebar 内部弹 SessionRenameDialog 完成（不需要上层
+   *  传新值，上层只负责把 customLabel 写到 branch-meta-store）。 */
+  onRenameSession?: (
+    projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary,
+    label: string
+  ) => Promise<unknown> | unknown;
+  /** 「归档对话」/「恢复对话」 */
+  onToggleArchiveSession?: (
+    projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) => Promise<unknown> | unknown;
+  /** 「标记为未读」 */
+  onMarkSessionUnread?: (
+    projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) => Promise<unknown> | unknown;
 };
 
 export default function ProjectSidebar(props: ProjectSidebarProps) {
@@ -87,7 +110,11 @@ function ProjectSidebarContent({
   onRenameProject,
   onDeleteProject,
   onForkSession,
-  onDeriveSession
+  onDeriveSession,
+  onTogglePinSession,
+  onRenameSession,
+  onToggleArchiveSession,
+  onMarkSessionUnread
 }: ProjectSidebarProps) {
   const toast = useSidebarToast();
 
@@ -96,6 +123,10 @@ function ProjectSidebarContent({
     React.useState<CreatorProjectMeta | null>(null);
   const [deleteTarget, setDeleteTarget] =
     React.useState<CreatorProjectMeta | null>(null);
+  const [renameSessionTarget, setRenameSessionTarget] = React.useState<{
+    projectId: CreatorProjectId;
+    branch: SidebarProjectBranchSummary;
+  } | null>(null);
 
   const projectIds = React.useMemo(
     () => sidebarProjects.map((group) => group.project.id),
@@ -113,7 +144,9 @@ function ProjectSidebarContent({
       const isDesktopOnly =
         label.includes("资源管理器") || label.includes("工作树");
       toast.show(
-        `「${label}」${isDesktopOnly ? "为桌面端功能" : "即将上线"}`
+        isDesktopOnly
+          ? `「${label}」为桌面端独占功能 · 请使用 Tauri 客户端`
+          : `「${label}」即将上线`
       );
     },
     [toast]
@@ -166,6 +199,64 @@ function ProjectSidebarContent({
       }
     : undefined;
 
+  const handleTogglePinWithToast = onTogglePinSession
+    ? async (
+        projectId: CreatorProjectId,
+        branch: SidebarProjectBranchSummary
+      ) => {
+        const wasPinned = branch.isPinned ?? false;
+        await onTogglePinSession(projectId, branch);
+        toast.show(wasPinned ? "已取消置顶" : "已置顶对话", "success");
+      }
+    : undefined;
+
+  const handleToggleArchiveWithToast = onToggleArchiveSession
+    ? async (
+        projectId: CreatorProjectId,
+        branch: SidebarProjectBranchSummary
+      ) => {
+        const wasArchived = branch.isArchived ?? false;
+        await onToggleArchiveSession(projectId, branch);
+        toast.show(wasArchived ? "已恢复对话" : "已归档对话", "success");
+      }
+    : undefined;
+
+  const handleMarkUnreadWithToast = onMarkSessionUnread
+    ? async (
+        projectId: CreatorProjectId,
+        branch: SidebarProjectBranchSummary
+      ) => {
+        await onMarkSessionUnread(projectId, branch);
+        toast.show("已标记为未读", "success");
+      }
+    : undefined;
+
+  /** Rename 走 Dialog —— 不直接调上层 callback；上层最终通过 dialog
+   *  submit 接到带 label 的 onRenameSession。 */
+  const handleOpenRenameSession = onRenameSession
+    ? (projectId: CreatorProjectId, branch: SidebarProjectBranchSummary) => {
+        setRenameSessionTarget({ projectId, branch });
+      }
+    : undefined;
+
+  async function handleSubmitSessionRename(label: string) {
+    if (!renameSessionTarget || !onRenameSession) {
+      return;
+    }
+    const { projectId, branch } = renameSessionTarget;
+    await onRenameSession(projectId, branch, label);
+    toast.show(
+      label.trim().length > 0 ? "已重命名" : "已恢复默认标题",
+      "success"
+    );
+  }
+
+  const renameSessionInitialTitle =
+    renameSessionTarget?.branch.customLabel ??
+    renameSessionTarget?.branch.latestNode?.prompt.slice(0, 80) ??
+    renameSessionTarget?.branch.label ??
+    "";
+
   return (
     <aside
       aria-label="项目与对话"
@@ -200,6 +291,10 @@ function ProjectSidebarContent({
             onDelete={() => setDeleteTarget(group.project)}
             onDeriveSession={handleDeriveSessionWithToast}
             onForkSession={handleForkSessionWithToast}
+            onMarkSessionUnread={handleMarkUnreadWithToast}
+            onRenameSession={handleOpenRenameSession}
+            onToggleArchiveSession={handleToggleArchiveWithToast}
+            onTogglePinSession={handleTogglePinWithToast}
             onKebabPlaceholder={handleKebabPlaceholder}
             onRename={() => setRenameTarget(group.project)}
             onSelectConversation={onSelectConversation}
@@ -244,6 +339,16 @@ function ProjectSidebarContent({
         open={deleteTarget !== null}
         projectCount={sidebarProjects.length}
         projectTitle={deleteTarget?.title ?? ""}
+      />
+      <SessionRenameDialog
+        initialTitle={renameSessionInitialTitle}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRenameSessionTarget(null);
+          }
+        }}
+        onSubmit={handleSubmitSessionRename}
+        open={renameSessionTarget !== null}
       />
     </aside>
   );

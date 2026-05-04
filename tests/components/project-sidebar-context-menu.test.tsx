@@ -158,7 +158,250 @@ describe("Session row menu (Cut 6)", () => {
 
     const region = await screen.findByTestId("sidebar-toast-region");
     expect(
-      within(region).getByText(/分叉到同一工作树.*桌面端功能/)
+      within(region).getByText(/分叉到同一工作树.*桌面端独占功能/)
     ).toBeInTheDocument();
   });
+
+  it("calls onTogglePinSession with the project id and branch when 「置顶对话」 is clicked", async () => {
+    const onTogglePinSession = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ProjectSidebar
+        {...baseProps}
+        onTogglePinSession={onTogglePinSession}
+      />
+    );
+
+    await user.click(screen.getByTestId("session-row-menu-button"));
+    await user.click(await screen.findByTestId("session-menu-pin"));
+
+    expect(onTogglePinSession).toHaveBeenCalledTimes(1);
+    const [projectId, branch] = onTogglePinSession.mock.calls[0];
+    expect(projectId).toBe("commercial");
+    expect(branch).toMatchObject({ id: "br_test_1" });
+
+    const region = await screen.findByTestId("sidebar-toast-region");
+    expect(within(region).getByText("已置顶对话")).toBeInTheDocument();
+  });
+
+  it("renders 「取消置顶」 label and toast when the branch is already pinned", async () => {
+    const onTogglePinSession = vi.fn();
+    const pinnedBranch = {
+      ...TEST_PROJECTS[0].branchSummaries[0],
+      isPinned: true
+    };
+    const projectsWithPinned = [
+      {
+        ...TEST_PROJECTS[0],
+        branchSummaries: [pinnedBranch]
+      }
+    ];
+    const user = userEvent.setup();
+    render(
+      <ProjectSidebar
+        {...baseProps}
+        onTogglePinSession={onTogglePinSession}
+        sidebarProjects={projectsWithPinned}
+      />
+    );
+
+    await user.click(screen.getByTestId("session-row-menu-button"));
+    await user.click(await screen.findByTestId("session-menu-pin"));
+
+    const region = await screen.findByTestId("sidebar-toast-region");
+    expect(within(region).getByText("已取消置顶")).toBeInTheDocument();
+  });
+
+  it("opens the SessionRenameDialog and submits a new label via 「重命名对话」", async () => {
+    const onRenameSession = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ProjectSidebar
+        {...baseProps}
+        onRenameSession={onRenameSession}
+      />
+    );
+
+    await user.click(screen.getByTestId("session-row-menu-button"));
+    await user.click(await screen.findByTestId("session-menu-rename"));
+
+    const dialog = await screen.findByTestId("session-rename-dialog");
+    const input = within(dialog).getByTestId("session-rename-input");
+    await user.clear(input);
+    await user.type(input, "我的新标题");
+    await user.click(within(dialog).getByTestId("session-rename-submit"));
+
+    expect(onRenameSession).toHaveBeenCalledTimes(1);
+    const [projectId, branch, label] = onRenameSession.mock.calls[0];
+    expect(projectId).toBe("commercial");
+    expect(branch).toMatchObject({ id: "br_test_1" });
+    expect(label).toBe("我的新标题");
+
+    const region = await screen.findByTestId("sidebar-toast-region");
+    expect(within(region).getByText("已重命名")).toBeInTheDocument();
+  });
+
+  it("renders the custom label when a branch has one", () => {
+    const labeledProjects = [
+      {
+        ...TEST_PROJECTS[0],
+        branchSummaries: [
+          {
+            ...TEST_PROJECTS[0].branchSummaries[0],
+            customLabel: "我的自定义会话"
+          }
+        ]
+      }
+    ];
+    render(
+      <ProjectSidebar {...baseProps} sidebarProjects={labeledProjects} />
+    );
+
+    expect(screen.getByText("我的自定义会话")).toBeInTheDocument();
+    expect(screen.queryByText("今天的会话")).not.toBeInTheDocument();
+  });
+
+  it("calls onToggleArchiveSession with toast and hides archived branches by default", async () => {
+    const onToggleArchiveSession = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ProjectSidebar
+        {...baseProps}
+        onToggleArchiveSession={onToggleArchiveSession}
+      />
+    );
+
+    await user.click(screen.getByTestId("session-row-menu-button"));
+    await user.click(await screen.findByTestId("session-menu-archive"));
+
+    expect(onToggleArchiveSession).toHaveBeenCalledTimes(1);
+    const [projectId, branch] = onToggleArchiveSession.mock.calls[0];
+    expect(projectId).toBe("commercial");
+    expect(branch).toMatchObject({ id: "br_test_1" });
+
+    const region = await screen.findByTestId("sidebar-toast-region");
+    expect(within(region).getByText("已归档对话")).toBeInTheDocument();
+  });
+
+  it("hides archived branches by default and reveals them via 「显示归档」 toggle", async () => {
+    const archivedBranch = {
+      ...TEST_PROJECTS[0].branchSummaries[0],
+      isArchived: true
+    };
+    const archivedProjects = [
+      {
+        ...TEST_PROJECTS[0],
+        branchSummaries: [archivedBranch]
+      }
+    ];
+    const user = userEvent.setup();
+    render(
+      <ProjectSidebar {...baseProps} sidebarProjects={archivedProjects} />
+    );
+
+    // 默认隐藏：会话标题不可见
+    expect(screen.queryByText("今天的会话")).not.toBeInTheDocument();
+
+    // 「显示归档（1）」可见
+    const toggle = screen.getByTestId("toggle-archived-commercial");
+    expect(toggle).toHaveTextContent("显示归档（1）");
+
+    await user.click(toggle);
+    expect(screen.getByText("今天的会话")).toBeInTheDocument();
+    expect(toggle).toHaveTextContent("隐藏归档");
+  });
+
+  it("renders 「恢复对话」 label and toast when the branch is already archived", async () => {
+    const onToggleArchiveSession = vi.fn();
+    const archivedBranch = {
+      ...TEST_PROJECTS[0].branchSummaries[0],
+      isArchived: true
+    };
+    const archivedProjects = [
+      {
+        ...TEST_PROJECTS[0],
+        branchSummaries: [archivedBranch]
+      }
+    ];
+    const user = userEvent.setup();
+    render(
+      <ProjectSidebar
+        {...baseProps}
+        onToggleArchiveSession={onToggleArchiveSession}
+        sidebarProjects={archivedProjects}
+      />
+    );
+
+    // 必须先打开归档区才能点到 row 的 menu
+    await user.click(screen.getByTestId("toggle-archived-commercial"));
+    await user.click(screen.getByTestId("session-row-menu-button"));
+    await user.click(await screen.findByTestId("session-menu-archive"));
+
+    const region = await screen.findByTestId("sidebar-toast-region");
+    expect(within(region).getByText("已恢复对话")).toBeInTheDocument();
+  });
+
+  it("renders an unread indicator + bold title when branch.hasUnread is true", () => {
+    const unreadBranch = {
+      ...TEST_PROJECTS[0].branchSummaries[0],
+      hasUnread: true
+    };
+    const projectsWithUnread = [
+      {
+        ...TEST_PROJECTS[0],
+        branchSummaries: [unreadBranch]
+      }
+    ];
+    render(
+      <ProjectSidebar {...baseProps} sidebarProjects={projectsWithUnread} />
+    );
+
+    expect(screen.getByTestId("session-unread-indicator")).toBeInTheDocument();
+    const row = screen.getByTestId("conversation-row-branch");
+    expect(row).toHaveAttribute("data-unread", "true");
+  });
+
+  it("calls onMarkSessionUnread with toast when 「标记为未读」 is clicked", async () => {
+    const onMarkSessionUnread = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ProjectSidebar
+        {...baseProps}
+        onMarkSessionUnread={onMarkSessionUnread}
+      />
+    );
+
+    await user.click(screen.getByTestId("session-row-menu-button"));
+    await user.click(await screen.findByTestId("session-menu-unread"));
+
+    expect(onMarkSessionUnread).toHaveBeenCalledTimes(1);
+    const [projectId, branch] = onMarkSessionUnread.mock.calls[0];
+    expect(projectId).toBe("commercial");
+    expect(branch).toMatchObject({ id: "br_test_1" });
+
+    const region = await screen.findByTestId("sidebar-toast-region");
+    expect(within(region).getByText("已标记为未读")).toBeInTheDocument();
+  });
+
+  it.each([
+    { testid: "session-menu-explorer", label: "在资源管理器中打开" },
+    { testid: "session-menu-copy-cwd", label: "复制工作目录" },
+    { testid: "session-menu-mini", label: "在迷你窗口中打开" }
+  ])(
+    "shows the 「桌面端独占 · Tauri 客户端」 toast for desktop-only menu item $label",
+    async ({ testid, label }) => {
+      const user = userEvent.setup();
+      render(<ProjectSidebar {...baseProps} />);
+
+      await user.click(screen.getByTestId("session-row-menu-button"));
+      await user.click(await screen.findByTestId(testid));
+
+      const region = await screen.findByTestId("sidebar-toast-region");
+      expect(
+        within(region).getByText(
+          new RegExp(`${label}.*桌面端独占功能.*Tauri 客户端`)
+        )
+      ).toBeInTheDocument();
+    }
+  );
 });

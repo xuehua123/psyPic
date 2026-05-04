@@ -75,6 +75,26 @@ export type ProjectCardProps = {
     projectId: CreatorProjectId,
     branch: SidebarProjectBranchSummary
   ) => void;
+  /** 「置顶对话」/「取消置顶」—— 切换 branch 的 isPinned。 */
+  onTogglePinSession?: (
+    projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) => void;
+  /** 「重命名对话」—— 弹 Dialog 改 customLabel。 */
+  onRenameSession?: (
+    projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) => void;
+  /** 「归档对话」/「恢复对话」—— 切换 branch 的 isArchived。 */
+  onToggleArchiveSession?: (
+    projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) => void;
+  /** 「标记为未读」—— 清除 branch 的 lastReadAt 让 indicator 重新出现。 */
+  onMarkSessionUnread?: (
+    projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) => void;
 };
 
 export default function ProjectCard({
@@ -90,13 +110,44 @@ export default function ProjectCard({
   onDelete,
   onKebabPlaceholder,
   onForkSession,
-  onDeriveSession
+  onDeriveSession,
+  onTogglePinSession,
+  onRenameSession,
+  onToggleArchiveSession,
+  onMarkSessionUnread
 }: ProjectCardProps) {
-  const buckets = React.useMemo(
-    () => bucketByActivity(group.branchSummaries),
+  const [showArchived, setShowArchived] = React.useState(false);
+  const archivedCount = React.useMemo(
+    () => group.branchSummaries.filter((branch) => branch.isArchived).length,
     [group.branchSummaries]
   );
-  const totalSessions = group.branchSummaries.length;
+  const visibleBranches = React.useMemo(
+    () =>
+      showArchived
+        ? group.branchSummaries
+        : group.branchSummaries.filter((branch) => !branch.isArchived),
+    [group.branchSummaries, showArchived]
+  );
+  const pinnedBranches = React.useMemo(
+    () =>
+      visibleBranches
+        .filter((branch) => branch.isPinned)
+        .sort((left, right) => {
+          const leftTime = left.latestNode?.createdAt ?? "";
+          const rightTime = right.latestNode?.createdAt ?? "";
+          return rightTime.localeCompare(leftTime);
+        }),
+    [visibleBranches]
+  );
+  const unpinnedBranches = React.useMemo(
+    () => visibleBranches.filter((branch) => !branch.isPinned),
+    [visibleBranches]
+  );
+  const buckets = React.useMemo(
+    () => bucketByActivity(unpinnedBranches),
+    [unpinnedBranches]
+  );
+  const totalSessions = visibleBranches.length;
   const projectId = group.project.id;
 
   // 「全部对话」row 是否高亮：active project 命中 + activeConversationId === "all"
@@ -236,26 +287,21 @@ export default function ProjectCard({
               还没有生成记录。
             </div>
           ) : (
-            BUCKET_LABELS.map(({ key, label }) => {
-              const bucket = buckets[key];
-              if (bucket.length === 0) {
-                return null;
-              }
-              return (
+            <>
+              {pinnedBranches.length > 0 ? (
                 <section
-                  aria-label={label}
+                  aria-label="置顶"
                   className="grid gap-1"
-                  data-bucket={key}
-                  data-testid={`session-bucket-${key}`}
-                  key={key}
+                  data-bucket="pinned"
+                  data-testid="session-bucket-pinned"
                 >
                   <div className="px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {label}
+                    置顶
                     <span className="ml-1 text-muted-foreground/70">
-                      {bucket.length}
+                      {pinnedBranches.length}
                     </span>
                   </div>
-                  {bucket.map((branch) => (
+                  {pinnedBranches.map((branch) => (
                     <SessionRow
                       activeConversationId={activeConversationId}
                       activeProjectId={activeProjectId}
@@ -272,13 +318,105 @@ export default function ProjectCard({
                           ? () => onForkSession(projectId, branch)
                           : undefined
                       }
+                      onMarkUnread={
+                        onMarkSessionUnread
+                          ? () => onMarkSessionUnread(projectId, branch)
+                          : undefined
+                      }
+                      onRename={
+                        onRenameSession
+                          ? () => onRenameSession(projectId, branch)
+                          : undefined
+                      }
                       onSelect={handleSelectBranch}
+                      onToggleArchive={
+                        onToggleArchiveSession
+                          ? () => onToggleArchiveSession(projectId, branch)
+                          : undefined
+                      }
+                      onTogglePin={
+                        onTogglePinSession
+                          ? () => onTogglePinSession(projectId, branch)
+                          : undefined
+                      }
                     />
                   ))}
                 </section>
-              );
-            })
+              ) : null}
+              {BUCKET_LABELS.map(({ key, label }) => {
+                const bucket = buckets[key];
+                if (bucket.length === 0) {
+                  return null;
+                }
+                return (
+                  <section
+                    aria-label={label}
+                    className="grid gap-1"
+                    data-bucket={key}
+                    data-testid={`session-bucket-${key}`}
+                    key={key}
+                  >
+                    <div className="px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {label}
+                      <span className="ml-1 text-muted-foreground/70">
+                        {bucket.length}
+                      </span>
+                    </div>
+                    {bucket.map((branch) => (
+                      <SessionRow
+                        activeConversationId={activeConversationId}
+                        activeProjectId={activeProjectId}
+                        branch={branch}
+                        isProjectActive={isActive}
+                        key={branch.id}
+                        onDeriveSession={
+                          onDeriveSession
+                            ? () => onDeriveSession(projectId, branch)
+                            : undefined
+                        }
+                        onForkSession={
+                          onForkSession
+                            ? () => onForkSession(projectId, branch)
+                            : undefined
+                        }
+                        onMarkUnread={
+                          onMarkSessionUnread
+                            ? () => onMarkSessionUnread(projectId, branch)
+                            : undefined
+                        }
+                        onRename={
+                          onRenameSession
+                            ? () => onRenameSession(projectId, branch)
+                            : undefined
+                        }
+                        onSelect={handleSelectBranch}
+                        onToggleArchive={
+                          onToggleArchiveSession
+                            ? () => onToggleArchiveSession(projectId, branch)
+                            : undefined
+                        }
+                        onTogglePin={
+                          onTogglePinSession
+                            ? () => onTogglePinSession(projectId, branch)
+                            : undefined
+                        }
+                      />
+                    ))}
+                  </section>
+                );
+              })}
+            </>
           )}
+          {archivedCount > 0 ? (
+            <button
+              className="mt-1 flex items-center justify-center gap-1 rounded-md border border-dashed border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-accent hover:text-accent"
+              data-testid={`toggle-archived-${projectId}`}
+              onClick={() => setShowArchived((prev) => !prev)}
+              type="button"
+            >
+              {showArchived ? `隐藏归档` : `显示归档（${archivedCount}）`}
+            </button>
+          ) : null}
         </div>
       )}
     </div>
@@ -294,6 +432,10 @@ type SessionRowProps = {
   onSelect: (id: CreatorConversationId) => void;
   onForkSession?: () => void;
   onDeriveSession?: () => void;
+  onTogglePin?: () => void;
+  onRename?: () => void;
+  onToggleArchive?: () => void;
+  onMarkUnread?: () => void;
 };
 
 function SessionRow({
@@ -303,12 +445,18 @@ function SessionRow({
   isProjectActive,
   onSelect,
   onForkSession,
-  onDeriveSession
+  onDeriveSession,
+  onTogglePin,
+  onRename,
+  onToggleArchive,
+  onMarkUnread
 }: SessionRowProps) {
   const toast = useSidebarToast();
   const id: CreatorConversationId = `branch:${branch.id}`;
   const isActive = isProjectActive && activeConversationId === id;
-  const title = branch.latestNode?.prompt.slice(0, 28) || branch.label;
+  const fallbackTitle =
+    branch.latestNode?.prompt.slice(0, 28) || branch.label;
+  const title = branch.customLabel ?? fallbackTitle;
   const time = branch.latestNode
     ? formatVersionNodeTime(branch.latestNode)
     : "未生成";
@@ -326,13 +474,17 @@ function SessionRow({
 
   const handlePlaceholder = React.useCallback(
     (label: string) => {
+      // 实做后 SessionRowMenu 占位只剩 3 项桌面端独占功能。
+      // 文案明确告知用户「web 端不可达 · Tauri 桌面客户端可用」。
       const isDesktopOnly =
         label.includes("资源管理器") ||
         label.includes("工作目录") ||
         label.includes("迷你窗口") ||
         label.includes("工作树");
       toast.show(
-        `「${label}」${isDesktopOnly ? "为桌面端功能" : "即将上线"}`
+        isDesktopOnly
+          ? `「${label}」为桌面端独占功能 · 请使用 Tauri 客户端`
+          : `「${label}」即将上线`
       );
     },
     [toast]
@@ -340,11 +492,17 @@ function SessionRow({
 
   return (
     <SessionContextMenu
+      isArchived={branch.isArchived}
+      isPinned={branch.isPinned}
       onCopyId={handleCopyId}
       onCopyLink={handleCopyLink}
       onForkNew={onDeriveSession}
       onForkSame={onForkSession}
+      onMarkUnread={onMarkUnread}
       onPlaceholder={handlePlaceholder}
+      onRename={onRename}
+      onToggleArchive={onToggleArchive}
+      onTogglePin={onTogglePin}
     >
       <div className="group/row relative">
         <button
@@ -355,11 +513,25 @@ function SessionRow({
             isActive && "border-accent bg-accent-soft text-accent-strong"
           )}
           data-testid="conversation-row-branch"
+          data-unread={branch.hasUnread ? "true" : "false"}
           onClick={() => onSelect(id)}
           type="button"
         >
+          {branch.hasUnread ? (
+            <span
+              aria-hidden="true"
+              className="mt-1.5 size-1.5 shrink-0 rounded-full bg-accent"
+              data-testid="session-unread-indicator"
+            />
+          ) : null}
           <div className="min-w-0 flex-1">
-            <div className="truncate font-medium leading-tight" title={title}>
+            <div
+              className={cn(
+                "truncate leading-tight",
+                branch.hasUnread ? "font-semibold" : "font-medium"
+              )}
+              title={title}
+            >
               {title}
             </div>
             <div className="truncate text-[11px] leading-snug text-muted-foreground">
@@ -369,11 +541,17 @@ function SessionRow({
         </button>
         <div className="absolute right-1 top-1 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 md:opacity-0 max-md:opacity-100">
           <SessionDropdownTrigger
+            isArchived={branch.isArchived}
+            isPinned={branch.isPinned}
             onCopyId={handleCopyId}
             onCopyLink={handleCopyLink}
             onForkNew={onDeriveSession}
             onForkSame={onForkSession}
+            onMarkUnread={onMarkUnread}
             onPlaceholder={handlePlaceholder}
+            onRename={onRename}
+            onToggleArchive={onToggleArchive}
+            onTogglePin={onTogglePin}
           />
         </div>
       </div>

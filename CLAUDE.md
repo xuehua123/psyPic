@@ -5,33 +5,41 @@
 
 ## 当前重点工作
 
-**Sidebar fork / 派生 实做**（plan slug `clever-swimming-pumpkin` 续作 · F 选项）—— SessionRowMenu 11 项菜单的「分叉到同一工作树」/「派生到新工作树」从 placeholder 变实做。原 plan 还含两小升级：每卡「+ 新对话」icon button + sidebar 平铺折叠卡。
+**SessionRowMenu 11 项菜单全部完结**（plan slug `gentle-spinning-walnut`）—— 剩 7 项 placeholder 全部处理：4 项实做（置顶 / 重命名 / 归档 / 标记未读）+ 3 项桌面端独占占位文案明确化。
 
-**状态**：**全部出库 🎉**
+**状态**：**Cut 7/7 ✅ 全部出库 🎉**
 
-**最近进度**（自下而上时间线）：
-- F · Cut 3 ✅ `4fba1fa`：「派生到新工作树」—— createProject(`${源项目} · 派生`) + 切 new + 回填 prompt/params；fallback 路径（jsdom 无 IndexedDB 时只填 Composer 不切项目）
-- F · Cut 2 ✅ `4027f8d`：「分叉到同一工作树」—— 一步到位等价于 startVersionFork（切 active project + branch + setForkParentId(latestNode.id) + restoreVersionNodeParams）
-- F · Cut 1 ✅ `a7f1c43`：SessionRowMenu / ProjectCard / ProjectSidebar 加 fork 通路（onForkSame? / onForkNew? optional callbacks，不传时 fallback 走 onPlaceholder）
-- 每卡「+ 新对话」 ✅ `da95a7e`：ProjectCard header 加 MessageSquarePlus 一步直达
-- 平铺折叠卡 ✅ `5e9f8fe`/`b4301bd`/`e025eff`/`ed6bb8f`/`8a3460f`/`620394d`：6 cut 完成 sidebar 重构
+**进度**：
+- Cut 1 ✅ `8bea756`：branch-meta-store + useBranchMeta hook（IndexedDB 合并 store：customLabel / isPinned / isArchived / lastReadAt）+ 12 单测
+- Cut 2 ✅ `bec56be`：**置顶对话实做** + 一次铺好 4 项 callback 通路
+- Cut 3 ✅ `5646787`：**重命名对话实做** —— SessionRenameDialog + customLabel 优先于 prompt 渲染
+- Cut 4 ✅ `0d57501`：**归档对话实做** + 「显示归档（N）」toggle
+- Cut 5 ✅ `aac1811`：**标记未读实做** —— hasUnread 派生 + 蓝点 indicator + 自动 markRead
+- Cut 6 ✅ `680f0b7`：桌面端独占 placeholder 文案升级（Tauri 客户端）
+- Cut 7 ✅：文档同步 + push origin main
 
-**整体测试覆盖**：56 files / 265 tests pass。SessionRowMenu 11 项菜单实做 **4 项** / 占位 7 项（置顶 / 重命名对话 / 归档 / 标记未读 / 资源管理器 / 复制工作目录 / 迷你窗口）。
+**整体增减**：59 files / 292 tests pass（比上轮 +3 files +27 tests）。SessionRowMenu 11 项菜单实做 **8 项** + 桌面端独占 3 项占位（资源管理器 / 工作目录 / 迷你窗口）。
+
+至此创作台 sidebar **从「单 active + 4 hardcoded 项目」演进到「平铺折叠卡 + IndexedDB 项目 CRUD + 完整会话级菜单（置顶 / 重命名 / 归档 / 未读 / 复制 ID·链接 / 分叉 / 派生）+ Tauri 桌面端独占功能明确占位」**。
 
 **之前重点（已封板，保留作历史）**：
-- ProjectSidebar Codex 风重构（plan slug `cosmic-tumbling-narwhal`）—— IndexedDB CRUD + 4 桶时间分组 + 行级菜单
-- PsyPic UI 全面深度优化（plan slug `linear-stirring-acorn`）—— Phase 4-6 + Plan Task 6/7 全部出库
+- Sidebar fork / 派生 实做 + 平铺折叠卡（plan slug `clever-swimming-pumpkin`）
+- ProjectSidebar Codex 风重构（plan slug `cosmic-tumbling-narwhal`）
+- PsyPic UI 全面深度优化（plan slug `linear-stirring-acorn`）
 
 ## 接棒读哪一份
 
-**先读**：`docs/superpowers/plans/2026-05-04-project-sidebar-flat-collapse.md`
-平铺折叠卡的精简落地版本（也含 F 续作的进度尾巴）。
+**先读**：`docs/superpowers/plans/2026-05-05-session-row-menu-finishing.md`
+本轮的精简落地版本（合并 store 设计 + 拆刀对照表 + 经验总结）。
 
 **前情提要**：
-- `docs/superpowers/plans/2026-05-04-project-sidebar-codex-rewrite.md` — 上一轮 sidebar 重构（CRUD + 4 桶 + 菜单），本轮改的是它的视觉结构
-- `docs/superpowers/plans/2026-05-03-creatorworkspace-extraction-map.md` — 更上一轮 UI 重构入口
+- `docs/superpowers/plans/2026-05-04-project-sidebar-flat-collapse.md` — 上一轮平铺折叠卡 + fork/派生
+- `docs/superpowers/plans/2026-05-04-project-sidebar-codex-rewrite.md` — 更上一轮 sidebar 重构
+- `docs/superpowers/plans/2026-05-03-creatorworkspace-extraction-map.md` — 更早一轮 UI 重构入口
 
 **辅助**：
+- `docs/19-图片工作台改造蓝图.md` — 文档侧总蓝图：project / session / version node / asset / job 的工作台化语言
+- `docs/20-多素材多图层画布（Board Mode）改造方案.md` — Board Mode 专项：多素材多图层画布、手绘标注、mask、导出到 edits、version node snapshot
 - `docs/superpowers/plans/2026-05-02-psypic-ui-system-implementation.md` — Phase 0-8 完整 plan
 - `docs/superpowers/specs/2026-05-02-psypic-ui-system-design.md` — 视觉/信息架构 spec
 - `docs/superpowers/specs/2026-05-02-codex-chat-studio-design.md` — chat-studio 设计
@@ -45,6 +53,7 @@
 - 主导航**严格 2 项**（工作台 / 灵感社区）；spec 命令不要把素材/模板/任务塞进顶栏
 - **不引入新状态库**（不上 Zustand / Jotai，用 React Context）
 - **不引入新图标库**（继续 lucide-react）
+- Board Mode 若进入实现，优先按 `docs/20-多素材多图层画布（Board Mode）改造方案.md` 用 `components/creator/board/*` + `lib/creator/board/*` 隔离，不把 canvas 交互塞回 `CreatorWorkspace.tsx`
 - 所有改动必须 `pnpm typecheck` 通过；建议 commit 前还跑 `pnpm lint && pnpm test`
 - 主题切换：通过 `<ThemeProvider>` + `useTheme()` hook，**不再加任何 raw 字面量颜色**（统一走 CSS var 或 Tailwind semantic class）
 

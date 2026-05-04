@@ -63,6 +63,14 @@ export type SidebarProjectBranchSummary = {
   label: string;
   count: number;
   latestNode: CreatorVersionNode | null;
+  /** 用户重命名后的标题（覆盖 latestNode.prompt 显示）；来自 branch-meta-store。 */
+  customLabel?: string;
+  /** 置顶：sidebar 渲染时排到「置顶」桶。 */
+  isPinned?: boolean;
+  /** 归档：默认隐藏，「显示归档」toggle 后可见。 */
+  isArchived?: boolean;
+  /** derived: !lastReadAt || lastReadAt < latestNode.createdAt */
+  hasUnread?: boolean;
 };
 
 export type SidebarProjectGroup = {

@@ -91,6 +91,7 @@ import {
   type SidebarProjectGroup
 } from "@/lib/creator/projects";
 import { useProjects } from "@/lib/creator/use-projects";
+import { useBranchMeta } from "@/lib/creator/use-branch-meta";
 import {
   listPromptFavorites,
   savePromptFavorite,
@@ -197,6 +198,14 @@ export default function CreatorWorkspace({
     renameProject: renameProjectInStore,
     deleteProject: deleteProjectInStore
   } = useProjects();
+  const {
+    metaById: branchMetaById,
+    setPinned: setBranchPinned,
+    setLabel: setBranchLabel,
+    setArchived: setBranchArchived,
+    markRead: markBranchRead,
+    markUnread: markBranchUnread
+  } = useBranchMeta();
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const maskDrawingRef = useRef(false);
 
@@ -222,28 +231,41 @@ export default function CreatorWorkspace({
           nodes,
           branchSummaries: Array.from(
             new Map(
-              nodes.map((node) => [
-                node.branchId,
-                {
-                  id: node.branchId,
-                  label: node.branchLabel,
-                  count: nodes.filter((item) => item.branchId === node.branchId)
-                    .length,
-                  latestNode:
-                    nodes
-                      .filter((item) => item.branchId === node.branchId)
-                      .sort(
-                        (left, right) =>
-                          new Date(right.createdAt).getTime() -
-                          new Date(left.createdAt).getTime()
-                      )[0] ?? null
-                }
-              ])
+              nodes.map((node) => {
+                const branchNodes = nodes.filter(
+                  (item) => item.branchId === node.branchId
+                );
+                const latestNode =
+                  branchNodes.sort(
+                    (left, right) =>
+                      new Date(right.createdAt).getTime() -
+                      new Date(left.createdAt).getTime()
+                  )[0] ?? null;
+                const meta = branchMetaById.get(node.branchId);
+                const hasUnread = latestNode
+                  ? !meta?.lastReadAt ||
+                    Date.parse(meta.lastReadAt) <
+                      Date.parse(latestNode.createdAt)
+                  : false;
+                return [
+                  node.branchId,
+                  {
+                    id: node.branchId,
+                    label: node.branchLabel,
+                    count: branchNodes.length,
+                    latestNode,
+                    customLabel: meta?.customLabel,
+                    isPinned: meta?.isPinned ?? false,
+                    isArchived: meta?.isArchived ?? false,
+                    hasUnread
+                  }
+                ];
+              })
             ).values()
           )
         };
       }),
-    [creatorProjects, nodeProjectIds, versionNodes]
+    [creatorProjects, nodeProjectIds, versionNodes, branchMetaById]
   );
   const activeProjectGroup = useMemo<SidebarProjectGroup>(
     () =>
@@ -1432,6 +1454,12 @@ export default function CreatorWorkspace({
     setActiveNodeId(latestNode?.id ?? null);
     setForkParentId(null);
     setErrorMessage("");
+
+    // 切到具体分支视为「读了」—— 清掉未读 indicator
+    if (conversationId.startsWith("branch:")) {
+      const branchId = conversationId.slice("branch:".length);
+      void markBranchRead(branchId);
+    }
   }
 
   /**
@@ -1497,6 +1525,35 @@ export default function CreatorWorkspace({
     setForkParentId(null);
     restoreVersionNodeParams(latestNode);
     setErrorMessage("");
+  }
+
+  function handleTogglePinSession(
+    _projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) {
+    void setBranchPinned(branch.id, !(branch.isPinned ?? false));
+  }
+
+  function handleRenameSession(
+    _projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary,
+    label: string
+  ) {
+    void setBranchLabel(branch.id, label);
+  }
+
+  function handleToggleArchiveSession(
+    _projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) {
+    void setBranchArchived(branch.id, !(branch.isArchived ?? false));
+  }
+
+  function handleMarkSessionUnread(
+    _projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) {
+    void markBranchUnread(branch.id);
   }
 
   const currentConversationTitle =
@@ -1609,9 +1666,13 @@ export default function CreatorWorkspace({
         onDeleteProject={handleDeleteProject}
         onDeriveSession={handleDeriveSession}
         onForkSession={handleForkSession}
+        onMarkSessionUnread={handleMarkSessionUnread}
         onRenameProject={renameProjectInStore}
+        onRenameSession={handleRenameSession}
         onSelectConversation={selectConversation}
         onSelectProject={selectProject}
+        onToggleArchiveSession={handleToggleArchiveSession}
+        onTogglePinSession={handleTogglePinSession}
         sidebarProjects={sidebarProjects}
       />
 
@@ -1711,7 +1772,9 @@ export default function CreatorWorkspace({
                 handleForkSession(projectId, branch);
                 setMobileSidebarOpen(false);
               }}
+              onMarkSessionUnread={handleMarkSessionUnread}
               onRenameProject={renameProjectInStore}
+              onRenameSession={handleRenameSession}
               onSelectConversation={(conversationId) => {
                 selectConversation(conversationId);
                 setMobileSidebarOpen(false);
@@ -1720,6 +1783,8 @@ export default function CreatorWorkspace({
                 selectProject(projectId);
                 setMobileSidebarOpen(false);
               }}
+              onToggleArchiveSession={handleToggleArchiveSession}
+              onTogglePinSession={handleTogglePinSession}
               sidebarProjects={sidebarProjects}
             />
           </div>
