@@ -61,11 +61,52 @@
 }
 
 /*
+ * 亮色默认 token（历史 :root 变量系，与上面 @theme 的 --color-* 系并行）。
+ *
+ * ⚠️ 顺序重要：此 :root block 必须在 .dark block **之前**定义。
+ *
+ * CSS specificity：:root 与 .dark 同为 (0,0,1,0)，相同 specificity 时
+ * source-order 后定义胜出 → .dark 必须后定义才能在 <html class="dark">
+ * 上正确覆盖 :root 的亮色默认值。
+ *
+ * 历史 bug：之前 .dark 写在 :root 之前，导致暗色模式下 :root 反向覆盖
+ * .dark 的暗色 token，全站 161 处 var(--bg)/var(--surface)/var(--ink)/
+ * ... 永远读到亮色，与 shadcn 走 @theme 系（--color-*）的元件不同步，
+ * 出现「shadcn 元件暗色 + 老样式亮色」的黑白相加视觉裂痕。
+ */
+:root {
+  color-scheme: light;
+  --bg: #eef3f7;
+  --surface: #ffffff;
+  --surface-muted: #f5f7fa;
+  --ink: #101620;
+  --muted: #617086;
+  --line: #d6dee8;
+  --line-strong: #aab8ca;
+  --accent: #0c7a6f;
+  --accent-strong: #075f57;
+  --accent-soft: #e5f4f1;
+  --accent-border: #85c7be;
+  --accent-alt: #2563eb;
+  --control: #f8fafc;
+  --control-hover: #eef3f8;
+  --danger: #b42318;
+  --danger-soft: #fff5f3;
+  --danger-border: #f0b8b1;
+  --shadow: 0 18px 42px rgba(15, 23, 42, 0.1);
+  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.07);
+  --shadow-panel: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+/*
  * 暗色模式 token —— Phase 6 启用。
+ *
  * 包含两套：① Tailwind v4 @theme 系新 tokens（--color-*）；② 历史 :root
  * 老变量（--surface / --ink / --muted / 等）。两套都覆盖才能让 globals.css
  * 中现有 161 处 var() 引用 + 全部走 semantic class 的 shadcn 元件 一次性翻
  * 暗色，无需 grep-replace。
+ *
+ * ⚠️ 必须放在 :root 之后（见 :root 上方注释解释 cascade 顺序）。
  */
 .dark {
   color-scheme: dark;
@@ -115,30 +156,6 @@
   --shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
   --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.5);
   --shadow-panel: 0 12px 30px rgba(0, 0, 0, 0.45);
-}
-
-:root {
-  color-scheme: light;
-  --bg: #eef3f7;
-  --surface: #ffffff;
-  --surface-muted: #f5f7fa;
-  --ink: #101620;
-  --muted: #617086;
-  --line: #d6dee8;
-  --line-strong: #aab8ca;
-  --accent: #0c7a6f;
-  --accent-strong: #075f57;
-  --accent-soft: #e5f4f1;
-  --accent-border: #85c7be;
-  --accent-alt: #2563eb;
-  --control: #f8fafc;
-  --control-hover: #eef3f8;
-  --danger: #b42318;
-  --danger-soft: #fff5f3;
-  --danger-border: #f0b8b1;
-  --shadow: 0 18px 42px rgba(15, 23, 42, 0.1);
-  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.07);
-  --shadow-panel: 0 12px 30px rgba(15, 23, 42, 0.08);
 }
 
 * {

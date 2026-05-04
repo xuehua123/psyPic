@@ -269,7 +269,10 @@ function WorkCard({
         {/* 角标 */}
         <div className="absolute left-2 top-2 flex flex-wrap gap-1">
           {work.featured ? (
-            <Badge className="bg-amber-50 text-amber-700 backdrop-blur" variant="outline">
+            <Badge
+              className="bg-amber-50 text-amber-700 backdrop-blur dark:bg-amber-500/15 dark:text-amber-300"
+              variant="outline"
+            >
               <Star aria-hidden className="size-3 fill-amber-400 text-amber-500" />
               精选
             </Badge>
