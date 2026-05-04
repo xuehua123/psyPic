@@ -119,20 +119,44 @@ describe("CreatorWorkspace", () => {
     render(<CreatorWorkspace />);
 
     const user = userEvent.setup();
-    const communityProject = screen.getByRole("button", {
-      name: /社区同款草稿/
-    });
-    await user.click(communityProject);
 
-    // Codex 风 sidebar 重构后：active project 进入 project-header，
-    // 切换项目通过验证 header title 是否更新（不再用 aria-pressed，
-    // 因为 switch-row 是动作按钮不是 toggle）。
-    expect(screen.getByTestId("project-header-title")).toHaveTextContent(
-      "社区同款草稿"
+    // 平铺折叠卡 sidebar（plan slug clever-swimming-pumpkin）下：
+    // - 默认 active=commercial，「社区同款草稿」(id=same) 卡折叠
+    // - 点 same card header 仅 toggle 展开（不切 active）
+    // - 切 active 要点卡内「全部对话」row（同时调
+    //   onSelectProject + onSelectConversation('all')）
+    const sameHeader = screen.getByTestId("project-card-header-same");
+    await user.click(sameHeader);
+    // 折叠展开后能看到「全部对话」row
+    const sameAllRow = await screen.findByTestId("conversation-row-all-same");
+    await user.click(sameAllRow);
+
+    // active 切到 same 后：same card 上 data-active="true"，commercial
+    // 失活；项目名继续在 sidebar 可见。
+    expect(screen.getByTestId("project-card-same")).toHaveAttribute(
+      "data-active",
+      "true"
     );
-    expect(screen.getAllByText("社区同款草稿").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("project-card-commercial")).toHaveAttribute(
+      "data-active",
+      "false"
+    );
 
-    await user.click(screen.getByRole("button", { name: /商业图库项目/ }));
+    // 切回 commercial：点 commercial 卡的「全部对话」row
+    // （commercial 默认就展开，因为它是 active 之后被切走的；user toggle
+    // 优先策略下它仍展开 —— 但保险起见先确保展开）
+    const commercialCard = screen.getByTestId("project-card-commercial");
+    if (commercialCard.getAttribute("data-collapsed") === "true") {
+      await user.click(screen.getByTestId("project-card-header-commercial"));
+    }
+    await user.click(
+      screen.getByTestId("conversation-row-all-commercial")
+    );
+    expect(screen.getByTestId("project-card-commercial")).toHaveAttribute(
+      "data-active",
+      "true"
+    );
+
     await user.type(
       screen.getByRole("textbox", { name: "Prompt" }),
       "Switchable conversation prompt."
@@ -148,12 +172,13 @@ describe("CreatorWorkspace", () => {
 
     expect(branchConversation).toHaveAttribute("aria-pressed", "true");
 
-    const allConversation = screen.getByRole("button", {
-      name: /全部对话/
-    });
-    await user.click(allConversation);
+    // 「全部对话」row 现在每张卡一份；用 scoped testid 取 commercial 的
+    const commercialAllRow = screen.getByTestId(
+      "conversation-row-all-commercial"
+    );
+    await user.click(commercialAllRow);
 
-    expect(allConversation).toHaveAttribute("aria-pressed", "true");
+    expect(commercialAllRow).toHaveAttribute("aria-pressed", "true");
   });
 
   it("loads server library assets and toggles favorite metadata", async () => {
