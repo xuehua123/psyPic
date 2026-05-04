@@ -87,6 +87,7 @@ import {
 } from "@/lib/creator/version-graph";
 import {
   defaultProjectSeeds,
+  type SidebarProjectBranchSummary,
   type SidebarProjectGroup
 } from "@/lib/creator/projects";
 import { useProjects } from "@/lib/creator/use-projects";
@@ -1433,6 +1434,71 @@ export default function CreatorWorkspace({
     setErrorMessage("");
   }
 
+  /**
+   * 「分叉到同一工作树」—— 从该 session 的最新节点起新分叉，留在原项目下。
+   *
+   * 等价于在 sidebar 上一步搞定 startVersionFork：切 active project +
+   * active conversation 到该 branch + 把 forkParentId 设到 latestNode。
+   * 用户接下来在 Composer 里输入新 prompt → 下次生成会创建 parentId =
+   * latestNode 的新节点 → version-graph 自动分配新 branchId（startsBranch
+   * 路径）。
+   */
+  function handleForkSession(
+    projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) {
+    const latestNode = branch.latestNode;
+    if (!latestNode) {
+      setErrorMessage("该会话还没有生成节点，无法分叉。");
+      return;
+    }
+    setActiveProjectId(projectId);
+    setActiveConversationId(`branch:${branch.id}`);
+    setActiveNodeId(latestNode.id);
+    setForkParentId(latestNode.id);
+    restoreVersionNodeParams(latestNode);
+  }
+
+  /**
+   * 「派生到新工作树」—— 创建一个新项目，把该 session 最新节点的
+   * prompt+params 作为新项目的 Composer 起点。不复制节点；不改 branchId；
+   * 原项目完全不动。
+   *
+   * 流程：
+   *   1. 找到源项目名，生成 `${源项目名} · 派生` 作为新项目 title
+   *   2. createProject(title) → 新 CreatorProjectMeta（IndexedDB）
+   *   3. 切 active 到新项目 + activeConversationId="new"
+   *   4. restoreVersionNodeParams 填回 prompt/params + setPrompt(latest.prompt)
+   *   5. toast「已派生到「xxx」」（用新项目标题）
+   *
+   * 如果 createProject 失败（IndexedDB 不可用等）则静默回退到只填 Composer，
+   * 不切项目（避免切到不存在的 project id）。
+   */
+  async function handleDeriveSession(
+    projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) {
+    const latestNode = branch.latestNode;
+    if (!latestNode) {
+      setErrorMessage("该会话还没有生成节点，无法派生。");
+      return;
+    }
+
+    const sourceProject =
+      creatorProjects.find((meta) => meta.id === projectId) ?? activeProject;
+    const derivedTitle = `${sourceProject.title} · 派生`;
+
+    const created = await createProject(derivedTitle);
+    if (created) {
+      setActiveProjectId(created.id);
+    }
+    setActiveConversationId("new");
+    setActiveNodeId(null);
+    setForkParentId(null);
+    restoreVersionNodeParams(latestNode);
+    setErrorMessage("");
+  }
+
   const currentConversationTitle =
     activeConversationId === "new"
       ? activeProject.emptyTitle
@@ -1541,6 +1607,8 @@ export default function CreatorWorkspace({
         activeProjectTitle={activeProject.title}
         onCreateProject={createProject}
         onDeleteProject={handleDeleteProject}
+        onDeriveSession={handleDeriveSession}
+        onForkSession={handleForkSession}
         onRenameProject={renameProjectInStore}
         onSelectConversation={selectConversation}
         onSelectProject={selectProject}
@@ -1635,6 +1703,14 @@ export default function CreatorWorkspace({
               activeProjectTitle={activeProject.title}
               onCreateProject={createProject}
               onDeleteProject={handleDeleteProject}
+              onDeriveSession={(projectId, branch) => {
+                void handleDeriveSession(projectId, branch);
+                setMobileSidebarOpen(false);
+              }}
+              onForkSession={(projectId, branch) => {
+                handleForkSession(projectId, branch);
+                setMobileSidebarOpen(false);
+              }}
               onRenameProject={renameProjectInStore}
               onSelectConversation={(conversationId) => {
                 selectConversation(conversationId);
