@@ -21,6 +21,10 @@ import ProjectDeleteAlert from "./ProjectDeleteAlert";
 import ProjectKebabMenu from "./ProjectKebabMenu";
 import ProjectRenameDialog from "./ProjectRenameDialog";
 import {
+  SessionContextMenu,
+  SessionDropdownTrigger
+} from "./SessionRowMenu";
+import {
   SidebarToastProvider,
   useSidebarToast
 } from "./SidebarToast";
@@ -280,6 +284,7 @@ function ProjectSidebarContent({
                 {bucket.map((branch) => (
                   <SessionRow
                     activeConversationId={activeConversationId}
+                    activeProjectId={activeProjectId}
                     branch={branch}
                     key={branch.id}
                     onSelect={onSelectConversation}
@@ -324,14 +329,17 @@ function ProjectSidebarContent({
 type SessionRowProps = {
   branch: SidebarProjectBranchSummary;
   activeConversationId: CreatorConversationId;
+  activeProjectId: CreatorProjectId;
   onSelect: (id: CreatorConversationId) => void;
 };
 
 function SessionRow({
   branch,
   activeConversationId,
+  activeProjectId,
   onSelect
 }: SessionRowProps) {
+  const toast = useSidebarToast();
   const id: CreatorConversationId = `branch:${branch.id}`;
   const isActive = activeConversationId === id;
   const title = branch.latestNode?.prompt.slice(0, 28) || branch.label;
@@ -339,28 +347,87 @@ function SessionRow({
     ? formatVersionNodeTime(branch.latestNode)
     : "未生成";
 
-  return (
-    <div className="group/row relative">
-      <button
-        aria-pressed={isActive}
-        className={cn(
-          "flex w-full items-start gap-2 rounded-md border border-transparent px-2 py-1.5 text-left text-sm transition-colors",
-          "hover:border-border hover:bg-accent/10",
-          isActive && "border-accent bg-accent-soft text-accent-strong"
-        )}
-        data-testid="conversation-row-branch"
-        onClick={() => onSelect(id)}
-        type="button"
-      >
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-medium leading-tight" title={title}>
-            {title}
-          </div>
-          <div className="truncate text-[11px] leading-snug text-muted-foreground">
-            {branch.label} · {branch.count} 个节点 · {time}
-          </div>
-        </div>
-      </button>
-    </div>
+  const handleCopyId = React.useCallback(() => {
+    void copyToClipboard(branch.id);
+    toast.show("会话 ID 已复制", "success");
+  }, [branch.id, toast]);
+
+  const handleCopyLink = React.useCallback(() => {
+    const link = buildDeepLink(activeProjectId, branch.id);
+    void copyToClipboard(link);
+    toast.show("深度链接已复制", "success");
+  }, [activeProjectId, branch.id, toast]);
+
+  const handlePlaceholder = React.useCallback(
+    (label: string) => {
+      const isDesktopOnly =
+        label.includes("资源管理器") ||
+        label.includes("工作目录") ||
+        label.includes("迷你窗口") ||
+        label.includes("工作树");
+      toast.show(
+        `「${label}」${isDesktopOnly ? "为桌面端功能" : "即将上线"}`
+      );
+    },
+    [toast]
   );
+
+  return (
+    <SessionContextMenu
+      onCopyId={handleCopyId}
+      onCopyLink={handleCopyLink}
+      onPlaceholder={handlePlaceholder}
+    >
+      <div className="group/row relative">
+        <button
+          aria-pressed={isActive}
+          className={cn(
+            "flex w-full items-start gap-2 rounded-md border border-transparent px-2 py-1.5 text-left text-sm transition-colors",
+            "hover:border-border hover:bg-accent/10",
+            isActive && "border-accent bg-accent-soft text-accent-strong"
+          )}
+          data-testid="conversation-row-branch"
+          onClick={() => onSelect(id)}
+          type="button"
+        >
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-medium leading-tight" title={title}>
+              {title}
+            </div>
+            <div className="truncate text-[11px] leading-snug text-muted-foreground">
+              {branch.label} · {branch.count} 个节点 · {time}
+            </div>
+          </div>
+        </button>
+        <div className="absolute right-1 top-1 opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 md:opacity-0 max-md:opacity-100">
+          <SessionDropdownTrigger
+            onCopyId={handleCopyId}
+            onCopyLink={handleCopyLink}
+            onPlaceholder={handlePlaceholder}
+          />
+        </div>
+      </div>
+    </SessionContextMenu>
+  );
+}
+
+function buildDeepLink(projectId: CreatorProjectId, branchId: string): string {
+  if (typeof window === "undefined") {
+    return `?project=${projectId}&conversation=branch:${branchId}`;
+  }
+  const url = new URL(window.location.href);
+  url.search = `?project=${projectId}&conversation=branch:${branchId}`;
+  return url.toString();
+}
+
+async function copyToClipboard(text: string): Promise<void> {
+  if (
+    typeof navigator !== "undefined" &&
+    navigator.clipboard &&
+    typeof navigator.clipboard.writeText === "function"
+  ) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  // 老浏览器或 jsdom 早期版本：吃掉，让占位 toast 仍显示成功
 }
