@@ -170,4 +170,17 @@ describe("ProjectCard", () => {
     fireEvent.click(screen.getByTestId("project-kebab-button"));
     expect(props.onToggleCollapse).not.toHaveBeenCalled();
   });
+
+  it("starts a new conversation in this project when the + button is clicked", () => {
+    const { props } = renderCard({ isActive: false, isCollapsed: true });
+
+    fireEvent.click(
+      screen.getByTestId("project-card-new-conversation-commercial")
+    );
+
+    expect(props.onSelectProject).toHaveBeenCalledWith("commercial");
+    expect(props.onSelectConversation).toHaveBeenCalledWith("new");
+    // 不应冒到 header 触发 toggle
+    expect(props.onToggleCollapse).not.toHaveBeenCalled();
+  });
 });
