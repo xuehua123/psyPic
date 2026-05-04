@@ -1,6 +1,12 @@
 import Link from "next/link";
-import { ArrowLeft, Download, ImagePlus, Star, Tags } from "lucide-react";
+import { Clock, Download, FileImage, Hash, ImagePlus, Star, Tags } from "lucide-react";
 import type { ImageGenerationParams } from "@/lib/validation/image-params";
+
+import AppPageHeader from "@/components/layout/AppPageHeader";
+import AppShell from "@/components/layout/AppShell";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export type LibraryAssetDetailItem = {
   asset_id: string;
@@ -25,90 +31,127 @@ export type LibraryAssetDetailItem = {
 
 export default function LibraryAssetDetailPage({
   item,
-  errorMessage
+  errorMessage,
+  showAdminLink = false
 }: {
   item: LibraryAssetDetailItem | null;
   errorMessage?: string;
+  showAdminLink?: boolean;
 }) {
   return (
-    <main className="library-detail-shell">
-      <header className="topbar">
-        <Link className="secondary-button" href="/">
-          <ArrowLeft size={16} aria-hidden="true" />
-          返回创作台
-        </Link>
-        <div className="brand" aria-label="PsyPic">
-          <div className="brand-mark">P</div>
-          <div>
-            <div className="brand-title">PsyPic</div>
-            <div className="brand-subtitle">素材详情</div>
-          </div>
-        </div>
-      </header>
-
-      <section className="library-detail-wrap">
+    <AppShell currentPath="/library" showAdminLink={showAdminLink}>
+      <main className="mx-auto flex w-full max-w-[1180px] flex-col gap-5 px-5 py-6">
         {!item ? (
-          <div className="workspace-panel library-detail-panel" role="alert">
-            <strong>无法打开素材</strong>
-            <p>{errorMessage ?? "素材不存在或无权访问。"}</p>
-          </div>
+          <Card role="alert" className="p-6">
+            <CardTitle className="mb-1.5 text-base">无法打开素材</CardTitle>
+            <p className="text-[13px] text-muted-foreground">
+              {errorMessage ?? "素材不存在或无权访问。"}
+            </p>
+            <Button asChild className="mt-4 w-fit" variant="secondary">
+              <Link href="/library">返回素材库</Link>
+            </Button>
+          </Card>
         ) : (
-          <div className="library-detail-grid">
-            <div className="workspace-panel library-preview-panel">
-              <img alt={`素材 ${item.asset_id}`} src={item.thumbnail_url} />
-            </div>
+          <>
+            <AppPageHeader
+              eyebrow="素材详情"
+              title={item.prompt}
+              description={`${item.type === "edit" ? "图生图" : "文生图"} · ${item.params.size} · ${item.format.toUpperCase()}`}
+            />
 
-            <aside className="workspace-panel library-detail-panel">
-              <div className="panel-header">
-                <div className="panel-title">
-                  <Tags size={16} aria-hidden="true" />
-                  素材信息
+            <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(320px,400px)]">
+              <Card className="overflow-hidden p-0">
+                <div className="relative bg-muted">
+                  <img
+                    alt={`素材 ${item.asset_id}`}
+                    className="block max-h-[55vh] w-full object-contain md:max-h-[calc(100vh-220px)]"
+                    src={item.thumbnail_url}
+                  />
+                  {item.favorite ? (
+                    <Star
+                      aria-hidden
+                      className="absolute right-3 top-3 size-5 fill-amber-400 text-amber-500"
+                    />
+                  ) : null}
                 </div>
-              </div>
-              <div className="panel-body field-stack">
-                <div>
-                  <strong>{item.asset_id}</strong>
-                  <p>{item.prompt}</p>
-                </div>
-                <div className="task-status-meta">
-                  <span>{item.task_id}</span>
-                  <span>{item.type === "edit" ? "图生图" : "文生图"}</span>
-                  <span>{item.params.size}</span>
-                  <span>{item.format.toUpperCase()}</span>
-                  {item.usage ? <span>{item.usage.total_tokens} tokens</span> : null}
-                  {item.duration_ms ? <span>{item.duration_ms}ms</span> : null}
-                </div>
-                {item.tags.length > 0 ? (
-                  <div className="tag-list">
-                    {item.tags.map((tag) => (
-                      <span key={tag}>{tag}</span>
-                    ))}
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-[14px]">
+                    <Tags aria-hidden className="size-4 text-accent" />
+                    素材信息
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-4">
+                  {/* 主 CTA：spec "继续编辑是主要动作" */}
+                  <div className="flex flex-col gap-2">
+                    <Button asChild>
+                      <Link href={`/?reference_asset=${encodeURIComponent(item.asset_id)}`}>
+                        <ImagePlus aria-hidden className="size-4" />
+                        继续编辑
+                      </Link>
+                    </Button>
+                    <Button asChild variant="secondary">
+                      <a download href={item.url}>
+                        <Download aria-hidden className="size-4" />
+                        下载
+                      </a>
+                    </Button>
                   </div>
-                ) : null}
-                {item.favorite ? (
-                  <div className="task-status-meta">
-                    <Star fill="currentColor" size={15} aria-hidden="true" />
-                    <span>已收藏</span>
+
+                  <div className="grid grid-cols-1 gap-2 border-t border-border pt-4 text-[12.5px]">
+                    <MetaRow icon={Hash} label="Asset" value={item.asset_id} mono />
+                    <MetaRow icon={FileImage} label="Task" value={item.task_id} mono />
+                    {item.usage ? (
+                      <MetaRow
+                        icon={Hash}
+                        label="Tokens"
+                        value={`${item.usage.total_tokens} (in ${item.usage.input_tokens} / out ${item.usage.output_tokens})`}
+                      />
+                    ) : null}
+                    {item.duration_ms ? (
+                      <MetaRow icon={Clock} label="Duration" value={`${item.duration_ms} ms`} />
+                    ) : null}
                   </div>
-                ) : null}
-                <div className="result-actions">
-                  <a className="secondary-button" download href={item.url}>
-                    <Download size={16} aria-hidden="true" />
-                    下载
-                  </a>
-                  <Link
-                    className="primary-button"
-                    href={`/?reference_asset=${encodeURIComponent(item.asset_id)}`}
-                  >
-                    <ImagePlus size={16} aria-hidden="true" />
-                    继续编辑
-                  </Link>
-                </div>
-              </div>
-            </aside>
-          </div>
+
+                  {item.tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5 border-t border-border pt-4">
+                      {item.tags.map((tag) => (
+                        <Badge key={tag} variant="secondary">
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : null}
+                </CardContent>
+              </Card>
+            </div>
+          </>
         )}
-      </section>
-    </main>
+      </main>
+    </AppShell>
+  );
+}
+
+function MetaRow({
+  icon: Icon,
+  label,
+  value,
+  mono
+}: {
+  icon: typeof Hash;
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <Icon aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="w-[68px] shrink-0 text-muted-foreground">{label}</span>
+      <span className={mono ? "truncate font-mono text-[11.5px] text-foreground/80" : "text-foreground/80"}>
+        {value}
+      </span>
+    </div>
   );
 }

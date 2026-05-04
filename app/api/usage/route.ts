@@ -17,5 +17,5 @@ export async function GET(request: Request) {
     });
   }
 
-  return jsonOk(summarizeImageUsageForUser(session.user_id), requestId);
+  return jsonOk(await summarizeImageUsageForUser(session.user_id), requestId);
 }

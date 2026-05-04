@@ -36,7 +36,7 @@ async function updateLike(
   }
 
   const { workId } = await context.params;
-  const work = setCommunityWorkInteractionForUser(session.user_id, workId, {
+  const work = await setCommunityWorkInteractionForUser(session.user_id, workId, {
     type: "like",
     enabled
   });

@@ -1,6 +1,6 @@
 const allowedMimeTypes = ["image/png", "image/jpeg", "image/webp"] as const;
 const allowedExtensions = ["png", "jpg", "jpeg", "webp"] as const;
-const defaultMaxImageUploadMb = 10;
+const defaultMaxImageUploadMb = 20;
 
 type ReferenceImageFormat = "png" | "jpeg" | "webp";
 type ImageUploadField = "image" | "mask";
@@ -29,22 +29,26 @@ export type ReferenceImageUploadResult =
     };
 
 export async function validateReferenceImageUpload(
-  file: File
+  file: File,
+  options?: { maxUploadMb?: number }
 ): Promise<ReferenceImageUploadResult> {
   return validateImageUpload(file, {
     field: "image",
     formats: ["png", "jpeg", "webp"],
-    unsupportedMessage: "仅支持 PNG、JPEG 或 WebP 图片"
+    unsupportedMessage: "仅支持 PNG、JPEG 或 WebP 图片",
+    maxUploadMb: options?.maxUploadMb
   });
 }
 
 export async function validateMaskImageUpload(
-  file: File
+  file: File,
+  options?: { maxUploadMb?: number }
 ): Promise<ReferenceImageUploadResult> {
   return validateImageUpload(file, {
     field: "mask",
     formats: ["png"],
-    unsupportedMessage: "遮罩仅支持 PNG 图片"
+    unsupportedMessage: "遮罩仅支持 PNG 图片",
+    maxUploadMb: options?.maxUploadMb
   });
 }
 
@@ -54,9 +58,13 @@ async function validateImageUpload(
     field: ImageUploadField;
     formats: ReferenceImageFormat[];
     unsupportedMessage: string;
+    maxUploadMb?: number;
   }
 ): Promise<ReferenceImageUploadResult> {
-  const maxBytes = Number(process.env.MAX_IMAGE_UPLOAD_MB ?? defaultMaxImageUploadMb) *
+  const maxUploadMb =
+    options.maxUploadMb ??
+    Number(process.env.MAX_IMAGE_UPLOAD_MB ?? defaultMaxImageUploadMb);
+  const maxBytes = maxUploadMb *
     1024 *
     1024;
 

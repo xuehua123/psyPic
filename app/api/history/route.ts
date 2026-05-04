@@ -23,14 +23,14 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const limit = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
   const cursor = url.searchParams.get("cursor");
-  const history = listImageTaskHistoryForUser(session.user_id, {
+  const history = await listImageTaskHistoryForUser(session.user_id, {
     cursor,
     limit
   });
 
   return jsonOk(
     {
-      items: history.items.map(serializeImageTaskHistoryItem),
+      items: await Promise.all(history.items.map(serializeImageTaskHistoryItem)),
       next_cursor: history.nextCursor
     },
     requestId

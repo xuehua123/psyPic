@@ -34,7 +34,7 @@ export async function POST(
       ? String((body as Record<string, unknown>).reason ?? "").trim()
       : "";
   const { workId } = await context.params;
-  const work = takeDownCommunityWork(workId, {
+  const work = await takeDownCommunityWork(workId, {
     reviewerUserId: admin.user.id,
     reason
   });

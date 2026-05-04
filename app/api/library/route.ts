@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const limit = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
   const favorite = parseFavoriteFilter(url.searchParams.get("favorite"));
-  const library = listImageLibraryAssetsForUser(session.user_id, {
+  const library = await listImageLibraryAssetsForUser(session.user_id, {
     cursor: url.searchParams.get("cursor"),
     limit,
     favorite,

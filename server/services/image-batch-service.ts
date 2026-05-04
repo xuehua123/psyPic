@@ -13,6 +13,7 @@ import {
   markImageJobSucceeded,
   startImageJobForTask
 } from "@/server/services/image-job-queue-service";
+import { recordAuditLog } from "@/server/services/audit-log-service";
 import { createId, redactSensitiveValue } from "@/server/services/key-binding-service";
 import {
   generateImageWithSub2API,
@@ -75,14 +76,14 @@ export function resetImageBatchStore() {
   processingImageBatches.clear();
 }
 
-export function createImageBatchForUser(
+export async function createImageBatchForUser(
   userId: string,
   input: CreateImageBatchInput
 ) {
   const now = new Date().toISOString();
   const batchId = createId("batch");
-  const items = input.items.map((item) => {
-    const task = createImageTask({
+  const items = await Promise.all(input.items.map(async (item) => {
+    const task = await createImageTask({
       userId,
       keyBindingId: input.keyBindingId,
       type: "generation",
@@ -108,7 +109,7 @@ export function createImageBatchForUser(
       created_at: now,
       updated_at: now
     };
-  });
+  }));
   const batch: ImageBatch = {
     id: batchId,
     user_id: userId,
@@ -168,7 +169,7 @@ export function markBatchItemFailed(
   return serializeImageBatch(updated);
 }
 
-export function retryImageBatchItemsForUser(
+export async function retryImageBatchItemsForUser(
   batchId: string,
   userId: string,
   input: {
@@ -184,12 +185,12 @@ export function retryImageBatchItemsForUser(
 
   const retryIds = new Set(input.itemIds);
   const now = new Date().toISOString();
-  const items = batch.items.map((item) => {
+  const items = await Promise.all(batch.items.map(async (item) => {
     if (!retryIds.has(item.id) || item.status !== "failed") {
       return item;
     }
 
-    const task = createImageTask({
+    const task = await createImageTask({
       userId,
       keyBindingId: input.keyBindingId,
       type: "generation",
@@ -210,7 +211,7 @@ export function retryImageBatchItemsForUser(
       error: null,
       updated_at: now
     };
-  });
+  }));
   const updated = {
     ...batch,
     status: "queued" as const,
@@ -222,12 +223,31 @@ export function retryImageBatchItemsForUser(
   return serializeImageBatch(updated);
 }
 
+export function scheduleImageBatchProcessing(
+  batchId: string,
+  userId: string,
+  input: {
+    baseUrl: string;
+    apiKey: string;
+    requestId?: string;
+  }
+) {
+  const timer = setTimeout(() => {
+    void processImageBatchForUser(batchId, userId, input).catch(() => undefined);
+  }, 0);
+
+  if (typeof timer === "object" && timer && "unref" in timer) {
+    (timer as { unref: () => void }).unref();
+  }
+}
+
 export async function processImageBatchForUser(
   batchId: string,
   userId: string,
   input: {
     baseUrl: string;
     apiKey: string;
+    requestId?: string;
   }
 ) {
   const processingKey = `${userId}:${batchId}`;
@@ -250,7 +270,7 @@ export async function processImageBatchForUser(
         continue;
       }
 
-      const task = getImageTaskForUser(item.task_id, userId);
+      const task = await getImageTaskForUser(item.task_id, userId);
 
       if (!task) {
         continue;
@@ -258,7 +278,7 @@ export async function processImageBatchForUser(
 
       const startedAt = Date.now();
       startImageJobForTask(item.task_id, userId);
-      markImageTaskRunning(item.task_id);
+      await markImageTaskRunning(item.task_id);
       updateBatchItem(batchId, item.id, {
         status: "running",
         error: null
@@ -289,7 +309,7 @@ export async function processImageBatchForUser(
           })
         );
 
-        markImageTaskSucceeded(item.task_id, {
+        await markImageTaskSucceeded(item.task_id, {
           images,
           usage: upstream.usage,
           durationMs: Date.now() - startedAt,
@@ -299,6 +319,21 @@ export async function processImageBatchForUser(
         updateBatchItem(batchId, item.id, {
           status: "succeeded",
           error: null
+        });
+        await recordAuditLog({
+          actorUserId: userId,
+          action: "image_generation.succeeded",
+          targetType: "image_task",
+          targetId: item.task_id,
+          requestId: input.requestId ?? createId("batch_req"),
+          metadata: {
+            mode: "batch",
+            batch_id: batchId,
+            batch_item_id: item.id,
+            upstream_request_id: upstream.upstreamRequestId,
+            image_count: images.length,
+            usage: upstream.usage
+          }
         });
       } catch (error) {
         const failure =
@@ -313,7 +348,7 @@ export async function processImageBatchForUser(
                 message: "批量图片生成失败",
                 upstreamRequestId: undefined
               };
-        markImageTaskFailed(item.task_id, {
+        await markImageTaskFailed(item.task_id, {
           code: failure.code,
           message: failure.message,
           durationMs: Date.now() - startedAt,
@@ -325,6 +360,21 @@ export async function processImageBatchForUser(
           error: {
             code: failure.code,
             message: redactSensitiveValue(failure.message)
+          }
+        });
+        await recordAuditLog({
+          actorUserId: userId,
+          action: "image_generation.failed",
+          targetType: "image_task",
+          targetId: item.task_id,
+          requestId: input.requestId ?? createId("batch_req"),
+          metadata: {
+            mode: "batch",
+            batch_id: batchId,
+            batch_item_id: item.id,
+            upstream_request_id: failure.upstreamRequestId,
+            code: failure.code,
+            message: failure.message
           }
         });
       }

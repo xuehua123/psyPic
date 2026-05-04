@@ -1,10 +1,21 @@
 import type { ImageGenerationParams } from "@/lib/validation/image-params";
 
+export type LocalHistoryImage = {
+  asset_id: string;
+  url: string;
+  format: string;
+};
+
 export type LocalHistoryItem = {
   taskId: string;
   prompt: string;
   params: Omit<ImageGenerationParams, "prompt">;
   thumbnailUrl: string;
+  images?: LocalHistoryImage[];
+  parentTaskId?: string | null;
+  branchId?: string;
+  branchLabel?: string;
+  versionNodeId?: string;
   requestId: string;
   durationMs: number;
   totalTokens: number;

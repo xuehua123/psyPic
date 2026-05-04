@@ -1,7 +1,18 @@
 "use client";
 
 import { KeyRound, Save } from "lucide-react";
-import { FormEvent, useState } from "react";
+import { type FormEvent, useState } from "react";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 
 type DraftSettings = {
   baseUrl: string;
@@ -16,6 +27,7 @@ export default function ApiSettingsForm() {
     defaultModel: "gpt-image-2"
   });
   const [message, setMessage] = useState("");
+  const [variant, setVariant] = useState<"success" | "error" | null>(null);
 
   function updateDraft<Key extends keyof DraftSettings>(
     key: Key,
@@ -27,6 +39,7 @@ export default function ApiSettingsForm() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
+    setVariant(null);
 
     const response = await fetch("/api/settings/manual-key", {
       method: "POST",
@@ -41,18 +54,19 @@ export default function ApiSettingsForm() {
     if (response.ok) {
       setDraft((current) => ({ ...current, apiKey: "" }));
       setMessage("已通过 BFF 建立 key binding。");
+      setVariant("success");
       return;
     }
 
     setMessage("保存失败，请检查 Base URL 和 API Key。");
+    setVariant("error");
   }
 
   return (
-    <form className="settings-form" onSubmit={handleSubmit}>
-      <div className="field">
-        <label htmlFor="sub2api-base-url">Sub2API Base URL</label>
-        <input
-          className="input"
+    <form className="flex flex-col gap-5" onSubmit={handleSubmit}>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="sub2api-base-url">Sub2API Base URL</Label>
+        <Input
           id="sub2api-base-url"
           inputMode="url"
           onChange={(event) => updateDraft("baseUrl", event.target.value)}
@@ -62,39 +76,56 @@ export default function ApiSettingsForm() {
         />
       </div>
 
-      <div className="field">
-        <label htmlFor="manual-api-key">API Key</label>
-        <input
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="manual-api-key">API Key</Label>
+        <Input
           autoComplete="off"
-          className="input"
           id="manual-api-key"
           onChange={(event) => updateDraft("apiKey", event.target.value)}
           placeholder="只在当前页面内存中暂存"
           type="password"
           value={draft.apiKey}
         />
-        <span className="inline-hint">
-          <KeyRound size={13} aria-hidden="true" /> 明文 key 不写入浏览器长期存储。
-        </span>
+        <p className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+          <KeyRound aria-hidden className="size-3.5" />
+          明文 key 不写入浏览器长期存储（localStorage / sessionStorage / IndexedDB）。
+        </p>
       </div>
 
-      <div className="field">
-        <label htmlFor="default-model">默认模型</label>
-        <select
-          className="select"
-          id="default-model"
-          onChange={(event) => updateDraft("defaultModel", event.target.value)}
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor="default-model">默认模型</Label>
+        <Select
+          onValueChange={(value) => updateDraft("defaultModel", value)}
           value={draft.defaultModel}
         >
-          <option value="gpt-image-2">gpt-image-2</option>
-        </select>
+          <SelectTrigger aria-label="默认模型" id="default-model">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="gpt-image-2">gpt-image-2</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
-      <button className="primary-button" type="submit">
-        <Save size={16} aria-hidden="true" />
-        保存到 BFF
-      </button>
-      {message ? <p className="settings-note">{message}</p> : null}
+      <div className="flex items-center gap-3 pt-1">
+        <Button type="submit">
+          <Save aria-hidden className="size-4" />
+          保存到 BFF
+        </Button>
+        {message ? (
+          <p
+            className={
+              variant === "success"
+                ? "text-[12.5px] text-emerald-700"
+                : variant === "error"
+                  ? "text-[12.5px] text-destructive"
+                  : "text-[12.5px] text-muted-foreground"
+            }
+          >
+            {message}
+          </p>
+        ) : null}
+      </div>
     </form>
   );
 }

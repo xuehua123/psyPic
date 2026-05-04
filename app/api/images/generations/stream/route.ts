@@ -1,8 +1,13 @@
 import type { ImageGenerationParams } from "@/lib/validation/image-params";
-import { parseGenerationParams } from "@/lib/validation/image-params";
+import {
+  parseGenerationParams,
+  validateSizeTier
+} from "@/lib/validation/image-params";
 import { createRequestId, jsonError } from "@/server/services/api-response";
+import { recordAuditLog } from "@/server/services/audit-log-service";
 import { getKeyBinding, getSession } from "@/server/services/dev-store";
 import {
+  acquireImageTaskCreationLock,
   createImageTask,
   getImageTaskConcurrencyState,
   markImageTaskFailed,
@@ -11,6 +16,10 @@ import {
 } from "@/server/services/image-task-service";
 import { decryptKeyBindingSecret } from "@/server/services/key-binding-service";
 import { readSessionIdFromRequest } from "@/server/services/session-service";
+import {
+  getEffectiveImageLimits,
+  getRuntimeFeatureFlags
+} from "@/server/services/runtime-settings-service";
 import {
   getSub2APITimeoutMs,
   normalizeUsage,
@@ -81,36 +90,78 @@ export async function POST(request: Request) {
     });
   }
 
-  if (parsed.params.n > binding.limits.max_n) {
+  const features = await getRuntimeFeatureFlags();
+
+  if (!features.stream) {
+    return jsonError({
+      status: 403,
+      code: "stream_disabled",
+      message: "流式生成当前已关闭",
+      requestId
+    });
+  }
+
+  const limits = await getEffectiveImageLimits(binding.limits);
+
+  if (parsed.params.n > limits.max_n) {
     return jsonError({
       status: 400,
       code: "invalid_parameter",
-      message: `数量不能超过 ${binding.limits.max_n}`,
+      message: `数量不能超过 ${limits.max_n}`,
       field: "n",
       requestId
     });
   }
 
-  const concurrency = getImageTaskConcurrencyState(session.user_id);
-
-  if (concurrency.limited) {
+  if (parsed.params.moderation === "low" && !limits.allow_moderation_low) {
     return jsonError({
-      status: 429,
-      code: "rate_limited",
-      message: "当前有图片任务正在运行，请等待完成或取消后重试。",
+      status: 400,
+      code: "invalid_parameter",
+      message: "当前配置不允许 moderation=low",
+      field: "moderation",
+      requestId
+    });
+  }
+
+  const sizeTier = validateSizeTier(parsed.params.size, limits.max_size_tier);
+
+  if (!sizeTier.success) {
+    return jsonError({
+      status: 400,
+      code: "invalid_parameter",
+      message: sizeTier.message,
+      field: sizeTier.field,
       requestId
     });
   }
 
   const startedAt = Date.now();
-  const task = createImageTask({
-    userId: session.user_id,
-    keyBindingId: binding.id,
-    type: "generation",
-    prompt: parsed.params.prompt,
-    params: parsed.params
-  });
-  markImageTaskRunning(task.id);
+  const releaseTaskCreation = await acquireImageTaskCreationLock(session.user_id);
+  let task: Awaited<ReturnType<typeof createImageTask>>;
+
+  try {
+    const concurrency = await getImageTaskConcurrencyState(session.user_id);
+
+    if (concurrency.limited) {
+      return jsonError({
+        status: 429,
+        code: "rate_limited",
+        message: "当前有图片任务正在运行，请等待完成或取消后重试。",
+        requestId
+      });
+    }
+
+    task = await createImageTask({
+      userId: session.user_id,
+      keyBindingId: binding.id,
+      type: "generation",
+      prompt: parsed.params.prompt,
+      params: parsed.params
+    });
+    await markImageTaskRunning(task.id);
+  } finally {
+    releaseTaskCreation();
+  }
 
   const abortController = new AbortController();
   const timeout = setTimeout(
@@ -140,13 +191,14 @@ export async function POST(request: Request) {
 
         try {
           await pipeUpstreamImageEvents({
-            controller,
-            response: upstream.response,
-            taskId: task.id,
-            userId: session.user_id,
-            params: parsed.params,
-            startedAt,
-            upstreamRequestId: upstream.upstreamRequestId
+              controller,
+              response: upstream.response,
+              taskId: task.id,
+              userId: session.user_id,
+              requestId,
+              params: parsed.params,
+              startedAt,
+              upstreamRequestId: upstream.upstreamRequestId
           });
         } catch (error) {
           const streamError =
@@ -159,11 +211,24 @@ export async function POST(request: Request) {
                   upstreamRequestId: upstream.upstreamRequestId
                 });
 
-          markImageTaskFailed(task.id, {
+          await markImageTaskFailed(task.id, {
             code: streamError.code,
             message: streamError.message,
             durationMs: Date.now() - startedAt,
             upstreamRequestId: streamError.upstreamRequestId
+          });
+          await recordAuditLog({
+            actorUserId: session.user_id,
+            action: "image_generation.failed",
+            targetType: "image_task",
+            targetId: task.id,
+            requestId,
+            metadata: {
+              mode: "stream",
+              upstream_request_id: streamError.upstreamRequestId,
+              code: streamError.code,
+              message: streamError.message
+            }
           });
           controller.enqueue(
             encodeSse("error", {
@@ -197,11 +262,24 @@ export async function POST(request: Request) {
     clearTimeout(timeout);
 
     if (error instanceof Sub2APIError) {
-      markImageTaskFailed(task.id, {
+      await markImageTaskFailed(task.id, {
         code: error.code,
         message: error.message,
         durationMs: Date.now() - startedAt,
         upstreamRequestId: error.upstreamRequestId
+      });
+      await recordAuditLog({
+        actorUserId: session.user_id,
+        action: "image_generation.failed",
+        targetType: "image_task",
+        targetId: task.id,
+        requestId,
+        metadata: {
+          mode: "stream",
+          upstream_request_id: error.upstreamRequestId,
+          code: error.code,
+          message: error.message
+        }
       });
 
       return jsonError({
@@ -213,10 +291,22 @@ export async function POST(request: Request) {
       });
     }
 
-    markImageTaskFailed(task.id, {
+    await markImageTaskFailed(task.id, {
       code: "upstream_error",
       message: "图片生成流启动失败",
       durationMs: Date.now() - startedAt
+    });
+    await recordAuditLog({
+      actorUserId: session.user_id,
+      action: "image_generation.failed",
+      targetType: "image_task",
+      targetId: task.id,
+      requestId,
+      metadata: {
+        mode: "stream",
+        code: "upstream_error",
+        message: "图片生成流启动失败"
+      }
     });
 
     return jsonError({
@@ -288,6 +378,7 @@ async function pipeUpstreamImageEvents(input: {
   response: Response;
   taskId: string;
   userId: string;
+  requestId: string;
   params: ImageGenerationParams;
   startedAt: number;
   upstreamRequestId?: string;
@@ -348,6 +439,7 @@ async function handleUpstreamSseBlock(input: {
   block: string;
   taskId: string;
   userId: string;
+  requestId: string;
   params: ImageGenerationParams;
   startedAt: number;
   upstreamRequestId?: string;
@@ -409,11 +501,24 @@ async function handleUpstreamSseBlock(input: {
     const usage = normalizeUsage(readUsage(payload));
     const durationMs = Date.now() - input.startedAt;
 
-    markImageTaskSucceeded(input.taskId, {
+    await markImageTaskSucceeded(input.taskId, {
       images,
       usage,
       durationMs,
       upstreamRequestId: input.upstreamRequestId
+    });
+    await recordAuditLog({
+      actorUserId: input.userId,
+      action: "image_generation.succeeded",
+      targetType: "image_task",
+      targetId: input.taskId,
+      requestId: input.requestId,
+      metadata: {
+        mode: "stream",
+        upstream_request_id: input.upstreamRequestId,
+        image_count: images.length,
+        usage
+      }
     });
     input.controller.enqueue(
       encodeSse("completed", {

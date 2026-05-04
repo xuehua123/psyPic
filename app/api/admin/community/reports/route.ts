@@ -29,7 +29,7 @@ export async function GET(request: Request) {
   }
 
   const limit = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
-  const reports = listCommunityReportsForAdmin({
+  const reports = await listCommunityReportsForAdmin({
     status,
     cursor: url.searchParams.get("cursor"),
     limit

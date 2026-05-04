@@ -50,8 +50,8 @@ describe("reference image upload validation", () => {
     });
   });
 
-  it("rejects images over the configured max size", async () => {
-    const tooLarge = new Uint8Array(11 * 1024 * 1024);
+  it("rejects images over the default max size", async () => {
+    const tooLarge = new Uint8Array(21 * 1024 * 1024);
     tooLarge.set(pngBytes, 0);
 
     await expect(
@@ -61,6 +61,28 @@ describe("reference image upload validation", () => {
           type: "image/png",
           bytes: tooLarge
         })
+      )
+    ).resolves.toMatchObject({
+      success: false,
+      error: {
+        code: "payload_too_large",
+        field: "image"
+      }
+    });
+  });
+
+  it("uses an explicit runtime max size when provided", async () => {
+    const tooLarge = new Uint8Array(2 * 1024 * 1024);
+    tooLarge.set(pngBytes, 0);
+
+    await expect(
+      validateReferenceImageUpload(
+        imageFile({
+          name: "large.png",
+          type: "image/png",
+          bytes: tooLarge
+        }),
+        { maxUploadMb: 1 }
       )
     ).resolves.toMatchObject({
       success: false,

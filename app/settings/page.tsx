@@ -1,24 +1,27 @@
-import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import AppPageHeader from "@/components/layout/AppPageHeader";
+import AppShell from "@/components/layout/AppShell";
 import ApiSettingsForm from "@/components/settings/ApiSettingsForm";
+import { Card, CardContent } from "@/components/ui/card";
+import { isCurrentRequestAdmin } from "@/server/services/request-user-service";
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const showAdminLink = await isCurrentRequestAdmin();
+
   return (
-    <main className="settings-wrap">
-      <div className="settings-grid">
-        <Link className="ghost-button" href="/">
-          <ArrowLeft size={16} aria-hidden="true" />
-          返回创作台
-        </Link>
-        <section className="settings-panel">
-          <h1 className="settings-title">本地开发设置</h1>
-          <p className="settings-note">
-            手动 API Key 只作为当前页面草稿输入，提交后由 BFF 建立后端 key
-            binding。前端不写入 localStorage、sessionStorage 或 IndexedDB。
-          </p>
-          <ApiSettingsForm />
-        </section>
-      </div>
-    </main>
+    <AppShell currentPath="/settings" showAdminLink={showAdminLink}>
+      <main className="mx-auto flex w-full max-w-[920px] flex-col gap-6 px-5 py-6">
+        <AppPageHeader
+          eyebrow="账户与连接"
+          title="本地开发设置"
+          description="手动 API Key 只作为当前页面草稿输入，提交后由 BFF 建立后端 key binding。前端不写入 localStorage、sessionStorage 或 IndexedDB。"
+        />
+
+        <Card>
+          <CardContent className="px-6 py-6">
+            <ApiSettingsForm />
+          </CardContent>
+        </Card>
+      </main>
+    </AppShell>
   );
 }

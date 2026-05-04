@@ -25,7 +25,7 @@ export async function GET(
   }
 
   const { assetId } = await context.params;
-  const item = getImageLibraryAssetForUser(session.user_id, assetId);
+  const item = await getImageLibraryAssetForUser(session.user_id, assetId);
 
   if (!item) {
     return jsonError({
@@ -69,7 +69,7 @@ export async function PATCH(
   }
 
   const { assetId } = await context.params;
-  const item = updateImageLibraryAssetForUser(
+  const item = await updateImageLibraryAssetForUser(
     session.user_id,
     assetId,
     parsed.data

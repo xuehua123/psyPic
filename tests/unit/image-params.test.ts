@@ -50,18 +50,18 @@ describe("image generation parameter schema", () => {
     expect(result.error.details.field).toBe("background");
   });
 
-  it("enforces the MVP max n limit", () => {
+  it("accepts the product-level max n and lets runtime limits enforce lower caps", () => {
     const result = parseGenerationParams({
       prompt: "Create a clean product image.",
-      n: 5
+      n: 8
     });
 
-    expect(result.success).toBe(false);
-    if (result.success) {
-      throw new Error("expected invalid parameters");
+    expect(result.success).toBe(true);
+    if (!result.success) {
+      throw new Error("expected valid parameters");
     }
 
-    expect(result.error.details.field).toBe("n");
+    expect(result.data.n).toBe(8);
   });
 
   it("keeps documented preset size options and accepts normalized custom sizes", () => {

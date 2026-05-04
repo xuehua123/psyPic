@@ -46,6 +46,11 @@ describe("AdminDashboardPage", () => {
     );
 
     expect(screen.getByRole("heading", { name: "管理端" })).toBeInTheDocument();
+    expect(screen.getByText("PsyPic")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "管理台" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
     expect(screen.getByText("生成任务")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByLabelText("最大生成数量")).toHaveValue(4);
@@ -100,5 +105,38 @@ describe("AdminDashboardPage", () => {
         body: expect.stringContaining('"max_n":2')
       })
     );
+  });
+
+  it("does not treat the admin entry as a primary navigation item for ordinary views", () => {
+    render(
+      <AdminDashboardPage
+        auditLogs={[]}
+        reports={[]}
+        runtimeSettings={{
+          max_n: 4,
+          max_upload_mb: 20,
+          max_size_tier: "2K",
+          allow_moderation_low: false,
+          community_enabled: true,
+          public_publish_enabled: true,
+          stream_enabled: true
+        }}
+        usage={{
+          task_count: 0,
+          image_count: 0,
+          input_tokens: 0,
+          output_tokens: 0,
+          total_tokens: 0,
+          estimated_cost: "0.0000"
+        }}
+      />
+    );
+
+    expect(
+      screen.queryByRole("link", { name: "管理台", hidden: false })
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "工作台" })
+    ).toBeInTheDocument();
   });
 });

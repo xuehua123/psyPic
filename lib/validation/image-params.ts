@@ -39,7 +39,7 @@ const generationSchema = z
       .default(imageGenerationDefaults.size)
       .transform((value, context) => normalizeGenerationSize(value, context)),
     quality: z.enum(qualityOptions).default(imageGenerationDefaults.quality),
-    n: z.number().int().min(1).max(4).default(imageGenerationDefaults.n),
+    n: z.number().int().min(1).max(8).default(imageGenerationDefaults.n),
     output_format: z
       .enum(outputFormatOptions)
       .default(imageGenerationDefaults.output_format),

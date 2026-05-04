@@ -7,6 +7,7 @@ import { getKeyBinding, getSession } from "@/server/services/dev-store";
 import { recordAuditLog } from "@/server/services/audit-log-service";
 import { decryptKeyBindingSecret } from "@/server/services/key-binding-service";
 import {
+  acquireImageTaskCreationLock,
   createImageTask,
   getImageTaskConcurrencyState,
   markImageTaskFailed,
@@ -92,26 +93,33 @@ export async function POST(request: Request) {
     });
   }
 
-  const concurrency = getImageTaskConcurrencyState(session.user_id);
-
-  if (concurrency.limited) {
-    return jsonError({
-      status: 429,
-      code: "rate_limited",
-      message: "当前有图片任务正在运行，请等待完成或取消后重试。",
-      requestId
-    });
-  }
-
   const startedAt = Date.now();
-  const task = createImageTask({
-    userId: session.user_id,
-    keyBindingId: binding.id,
-    type: "generation",
-    prompt: parsed.data.prompt,
-    params: parsed.data
-  });
-  markImageTaskRunning(task.id);
+  const releaseTaskCreation = await acquireImageTaskCreationLock(session.user_id);
+  let task: Awaited<ReturnType<typeof createImageTask>>;
+
+  try {
+    const concurrency = await getImageTaskConcurrencyState(session.user_id);
+
+    if (concurrency.limited) {
+      return jsonError({
+        status: 429,
+        code: "rate_limited",
+        message: "当前有图片任务正在运行，请等待完成或取消后重试。",
+        requestId
+      });
+    }
+
+    task = await createImageTask({
+      userId: session.user_id,
+      keyBindingId: binding.id,
+      type: "generation",
+      prompt: parsed.data.prompt,
+      params: parsed.data
+    });
+    await markImageTaskRunning(task.id);
+  } finally {
+    releaseTaskCreation();
+  }
 
   try {
     const upstream = await generateImageWithSub2API({
@@ -138,7 +146,7 @@ export async function POST(request: Request) {
       })
     );
     const durationMs = Date.now() - startedAt;
-    markImageTaskSucceeded(task.id, {
+    await markImageTaskSucceeded(task.id, {
       images,
       usage: upstream.usage,
       durationMs,
@@ -171,7 +179,7 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     if (error instanceof Sub2APIError) {
-      markImageTaskFailed(task.id, {
+      await markImageTaskFailed(task.id, {
         code: error.code,
         message: error.message,
         durationMs: Date.now() - startedAt,
@@ -199,7 +207,7 @@ export async function POST(request: Request) {
       });
     }
 
-    markImageTaskFailed(task.id, {
+    await markImageTaskFailed(task.id, {
       code: "upstream_error",
       message: "图片生成失败",
       durationMs: Date.now() - startedAt

@@ -35,7 +35,7 @@ export async function GET(request: Request) {
   const limit = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
   const sessionId = readSessionIdFromRequest(request);
   const session = sessionId ? getSession(sessionId) : null;
-  const works = listPublicCommunityWorks({
+  const works = await listPublicCommunityWorks({
     cursor: url.searchParams.get("cursor"),
     limit,
     scene: url.searchParams.get("scene"),
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
     });
   }
 
-  const work = createCommunityWorkForUser(session.user_id, parsed.data);
+  const work = await createCommunityWorkForUser(session.user_id, parsed.data);
 
   if (!work) {
     return jsonError({

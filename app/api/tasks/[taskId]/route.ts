@@ -25,7 +25,7 @@ export async function GET(
   }
 
   const { taskId } = await context.params;
-  const task = getImageTaskForUser(taskId, session.user_id);
+  const task = await getImageTaskForUser(taskId, session.user_id);
 
   if (!task) {
     return jsonError({
@@ -56,7 +56,7 @@ export async function POST(
   }
 
   const { taskId } = await context.params;
-  const task = cancelImageTaskForUser(taskId, session.user_id);
+  const task = await cancelImageTaskForUser(taskId, session.user_id);
 
   if (!task) {
     return jsonError({

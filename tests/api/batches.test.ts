@@ -5,6 +5,7 @@ import { POST as createBatches } from "@/app/api/batches/route";
 import { POST as exchangeImportCode } from "@/app/api/import/exchange/route";
 import { getSession, resetDevStore } from "@/server/services/dev-store";
 import {
+  getImageBatchForUser,
   markBatchItemFailed,
   resetImageBatchStore
 } from "@/server/services/image-batch-service";
@@ -13,7 +14,12 @@ import {
   getImageTaskForUser,
   resetImageTaskStore
 } from "@/server/services/image-task-service";
+import {
+  listAuditLogs,
+  resetAuditLogStore
+} from "@/server/services/audit-log-service";
 import { resetTempAssetStore } from "@/server/services/temp-asset-service";
+import { resetRuntimeSettingsStore } from "@/server/services/runtime-settings-service";
 
 async function bindSession() {
   const response = await exchangeImportCode(
@@ -29,9 +35,11 @@ async function bindSession() {
 
 async function resetStores() {
   resetDevStore();
+  resetAuditLogStore();
   resetImageTaskStore();
   resetImageJobQueueStore();
   resetImageBatchStore();
+  resetRuntimeSettingsStore();
   await resetTempAssetStore();
 }
 
@@ -156,6 +164,114 @@ describe("image batches API", () => {
     expect(settledBatch.items[0]).toMatchObject({
       status: "succeeded"
     });
+    const auditLogs = await listAuditLogs({ limit: 10 });
+    expect(auditLogs.items[0]).toMatchObject({
+      action: "image_generation.succeeded",
+      target_id: settledBatch.items[0].task_id,
+      metadata: expect.objectContaining({
+        mode: "batch",
+        upstream_request_id: "upstream_batch_req"
+      })
+    });
+  });
+
+  it("enforces runtime limits before creating batch items", async () => {
+    await resetStores();
+    const previousSizeTier = process.env.PSYPIC_MAX_SIZE_TIER;
+    process.env.PSYPIC_MAX_SIZE_TIER = "2K";
+    const cookie = await bindSession();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    try {
+      const response = await createBatches(
+        new Request("http://localhost/api/batches", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            cookie
+          },
+          body: JSON.stringify({
+            prompts: ["超大海报"],
+            sizes: ["4096x2048"],
+            params: {
+              model: "gpt-image-2",
+              quality: "medium",
+              output_format: "png",
+              background: "auto",
+              moderation: "auto"
+            }
+          })
+        })
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(body.error.details.field).toBe("size");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreEnv("PSYPIC_MAX_SIZE_TIER", previousSizeTier);
+      resetRuntimeSettingsStore();
+    }
+  });
+
+  it("starts processing after batch creation without relying on GET polling", async () => {
+    await resetStores();
+    const cookie = await bindSession();
+    const sessionId = cookie.replace("psypic_session=", "");
+    const session = getSession(sessionId);
+    if (!session) {
+      throw new Error("expected session");
+    }
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            data: [{ b64_json: Buffer.from("batch-image").toString("base64") }],
+            usage: { input_tokens: 8, output_tokens: 16, total_tokens: 24 }
+          }),
+          {
+            status: 200,
+            headers: {
+              "content-type": "application/json",
+              "x-request-id": "upstream_batch_req"
+            }
+          }
+        )
+      )
+    );
+
+    const response = await createBatches(
+      new Request("http://localhost/api/batches", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie
+        },
+        body: JSON.stringify({
+          prompts: ["香水主图"],
+          sizes: ["1024x1024"],
+          params: {
+            model: "gpt-image-2",
+            quality: "medium",
+            output_format: "png",
+            background: "auto",
+            moderation: "auto"
+          }
+        })
+      })
+    );
+    const createBody = await response.json();
+    const batchId = createBody.data.batch_id as string;
+    const settledBatch = await waitForStoredBatchStatus(
+      session.user_id,
+      batchId,
+      "succeeded"
+    );
+
+    expect(settledBatch.status).toBe("succeeded");
+    expect(settledBatch.items[0].status).toBe("succeeded");
   });
 
   it("retries failed batch items with new queued tasks and original params", async () => {
@@ -220,7 +336,7 @@ describe("image batches API", () => {
     if (!session) {
       throw new Error("expected session");
     }
-    const retriedTask = getImageTaskForUser(
+    const retriedTask = await getImageTaskForUser(
       retryBody.data.items[0].task_id,
       session.user_id
     );
@@ -293,4 +409,31 @@ async function waitForBatchStatus(
   }
 
   throw new Error(`expected batch ${batchId} to reach ${status}`);
+}
+
+function restoreEnv(name: string, value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+
+  process.env[name] = value;
+}
+
+async function waitForStoredBatchStatus(
+  userId: string,
+  batchId: string,
+  status: string
+) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const batch = getImageBatchForUser(batchId, userId);
+
+    if (batch?.status === status) {
+      return batch;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+
+  throw new Error(`expected stored batch ${batchId} to reach ${status}`);
 }

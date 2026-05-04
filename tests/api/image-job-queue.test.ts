@@ -26,7 +26,7 @@ async function bindSession() {
   return response.headers.get("set-cookie")?.split(";")[0] ?? "";
 }
 
-function createQueuedTask(userId: string, keyBindingId: string) {
+async function createQueuedTask(userId: string, keyBindingId: string) {
   return createImageTask({
     userId,
     keyBindingId,
@@ -58,8 +58,14 @@ describe("image job queue service", () => {
       throw new Error("expected session");
     }
 
-    const firstTask = createQueuedTask(session.user_id, session.key_binding_id);
-    const secondTask = createQueuedTask(session.user_id, session.key_binding_id);
+    const firstTask = await createQueuedTask(
+      session.user_id,
+      session.key_binding_id
+    );
+    const secondTask = await createQueuedTask(
+      session.user_id,
+      session.key_binding_id
+    );
     const firstJob = enqueueImageJob({
       userId: session.user_id,
       taskId: firstTask.id,
@@ -73,10 +79,10 @@ describe("image job queue service", () => {
 
     expect(firstJob.status).toBe("running");
     expect(secondJob.status).toBe("queued");
-    expect(getImageTaskForUser(firstTask.id, session.user_id)?.status).toBe(
+    expect((await getImageTaskForUser(firstTask.id, session.user_id))?.status).toBe(
       "running"
     );
-    expect(getImageTaskForUser(secondTask.id, session.user_id)?.status).toBe(
+    expect((await getImageTaskForUser(secondTask.id, session.user_id))?.status).toBe(
       "queued"
     );
   });
@@ -92,7 +98,7 @@ describe("image job queue service", () => {
       throw new Error("expected session");
     }
 
-    const task = createQueuedTask(session.user_id, session.key_binding_id);
+    const task = await createQueuedTask(session.user_id, session.key_binding_id);
     enqueueImageJob({
       userId: session.user_id,
       taskId: task.id,
@@ -124,7 +130,7 @@ describe("image job queue service", () => {
       throw new Error("expected session");
     }
 
-    const task = createQueuedTask(session.user_id, session.key_binding_id);
+    const task = await createQueuedTask(session.user_id, session.key_binding_id);
     enqueueImageJob({
       userId: session.user_id,
       taskId: task.id,

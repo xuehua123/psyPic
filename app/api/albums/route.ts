@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 
   return jsonOk(
     {
-      items: listImageAlbumsForUser(session.user_id)
+      items: await listImageAlbumsForUser(session.user_id)
     },
     requestId
   );
@@ -52,7 +52,7 @@ export async function POST(request: Request) {
     });
   }
 
-  const album = createImageAlbumForUser(session.user_id, {
+  const album = await createImageAlbumForUser(session.user_id, {
     title: parsed.data.title,
     assetIds: parsed.data.asset_ids
   });

@@ -1,10 +1,16 @@
 import {
   parseGenerationParams,
+  validateSizeTier,
   type ImageGenerationParams
 } from "@/lib/validation/image-params";
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
 import { getKeyBinding, getSession } from "@/server/services/dev-store";
-import { createImageBatchForUser } from "@/server/services/image-batch-service";
+import {
+  createImageBatchForUser,
+  scheduleImageBatchProcessing
+} from "@/server/services/image-batch-service";
+import { decryptKeyBindingSecret } from "@/server/services/key-binding-service";
+import { getEffectiveImageLimits } from "@/server/services/runtime-settings-service";
 import { readSessionIdFromRequest } from "@/server/services/session-service";
 
 export async function POST(request: Request) {
@@ -44,12 +50,67 @@ export async function POST(request: Request) {
     });
   }
 
-  const batch = createImageBatchForUser(session.user_id, {
+  const limits = await getEffectiveImageLimits(binding.limits);
+  const limitError = parsed.data
+    .map((item) => validateBatchItemLimits(item.params, limits))
+    .find((item) => !item.success);
+
+  if (limitError && !limitError.success) {
+    return jsonError({
+      status: 400,
+      code: "invalid_parameter",
+      message: limitError.message,
+      field: limitError.field,
+      requestId
+    });
+  }
+
+  const batch = await createImageBatchForUser(session.user_id, {
     keyBindingId: binding.id,
     items: parsed.data
   });
+  scheduleImageBatchProcessing(batch.batch_id, session.user_id, {
+    baseUrl: binding.sub2api_base_url,
+    apiKey: decryptKeyBindingSecret(binding),
+    requestId
+  });
 
   return jsonOk(batch, requestId);
+}
+
+function validateBatchItemLimits(
+  params: ImageGenerationParams,
+  limits: Awaited<ReturnType<typeof getEffectiveImageLimits>>
+):
+  | { success: true }
+  | { success: false; message: string; field: string } {
+  if (params.n > limits.max_n) {
+    return {
+      success: false,
+      message: `数量不能超过 ${limits.max_n}`,
+      field: "n"
+    };
+  }
+
+  if (params.moderation === "low" && !limits.allow_moderation_low) {
+    return {
+      success: false,
+      message: "当前配置不允许 moderation=low",
+      field: "moderation"
+    };
+  }
+
+  const sizeTier = validateSizeTier(params.size, limits.max_size_tier);
+
+  if (!sizeTier.success) {
+    return {
+      success: false,
+      message: sizeTier.message,
+      field: sizeTier.field
+    };
+  }
+
+  return { success: true };
 }
 
 function parseCreateBatchBody(value: unknown):

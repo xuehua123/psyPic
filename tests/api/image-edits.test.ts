@@ -1,12 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 import { POST as exchangeImportCode } from "@/app/api/import/exchange/route";
 import { POST as editImage } from "@/app/api/images/edits/route";
+import {
+  listAuditLogs,
+  resetAuditLogStore
+} from "@/server/services/audit-log-service";
 import { getKeyBinding, getSession, resetDevStore } from "@/server/services/dev-store";
 import {
   createImageTask,
   markImageTaskRunning,
   resetImageTaskStore
 } from "@/server/services/image-task-service";
+import { resetRuntimeSettingsStore } from "@/server/services/runtime-settings-service";
 import { resetTempAssetStore } from "@/server/services/temp-asset-service";
 
 const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -92,7 +97,7 @@ function pngWithDimensions(width: number, height: number) {
   ]);
 }
 
-function createRunningTaskForCookie(cookie: string) {
+async function createRunningTaskForCookie(cookie: string) {
   const sessionId = cookie.replace("psypic_session=", "");
   const session = getSession(sessionId);
 
@@ -106,19 +111,21 @@ function createRunningTaskForCookie(cookie: string) {
     throw new Error("Expected test key binding");
   }
 
-  const task = createImageTask({
+  const task = await createImageTask({
     userId: session.user_id,
     keyBindingId: binding.id,
     type: "generation",
     prompt: validTaskParams.prompt,
     params: validTaskParams
   });
-  markImageTaskRunning(task.id);
+  await markImageTaskRunning(task.id);
 }
 
 describe("POST /api/images/edits", () => {
   it("edits a single reference image through Sub2API and returns TempAsset URLs", async () => {
     resetDevStore();
+    resetAuditLogStore();
+    resetRuntimeSettingsStore();
     resetImageTaskStore();
     await resetTempAssetStore();
     const cookie = await bindSession();
@@ -160,6 +167,45 @@ describe("POST /api/images/edits", () => {
     expect(body.upstream_request_id).toBe("upstream_edit_req_123");
     expect(JSON.stringify(body)).not.toContain("api_key");
     expect(JSON.stringify(body)).not.toContain("secret-token");
+    const auditLogs = await listAuditLogs({ limit: 10 });
+    expect(auditLogs.items[0]).toMatchObject({
+      action: "image_edit.succeeded",
+      target_id: body.data.task_id,
+      metadata: expect.objectContaining({
+        upstream_request_id: "upstream_edit_req_123"
+      })
+    });
+  });
+
+  it("enforces runtime upload size before validating reference images", async () => {
+    resetDevStore();
+    resetRuntimeSettingsStore();
+    resetImageTaskStore();
+    const previousMaxUpload = process.env.PSYPIC_MAX_UPLOAD_MB;
+    process.env.PSYPIC_MAX_UPLOAD_MB = "1";
+    const cookie = await bindSession();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+    const formData = validEditFormData();
+    const oversizedPng = new Uint8Array(2 * 1024 * 1024);
+    oversizedPng.set(pngBytes, 0);
+    formData.set(
+      "image",
+      new File([oversizedPng], "large.png", { type: "image/png" })
+    );
+
+    try {
+      const response = await editImage(editRequest(cookie, formData));
+      const body = await response.json();
+
+      expect(response.status).toBe(413);
+      expect(body.error.code).toBe("payload_too_large");
+      expect(body.error.details.field).toBe("image");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreEnv("PSYPIC_MAX_UPLOAD_MB", previousMaxUpload);
+      resetRuntimeSettingsStore();
+    }
   });
 
   it("rejects missing or invalid reference images before calling Sub2API", async () => {
@@ -295,7 +341,7 @@ describe("POST /api/images/edits", () => {
     resetDevStore();
     resetImageTaskStore();
     const cookie = await bindSession();
-    createRunningTaskForCookie(cookie);
+    await createRunningTaskForCookie(cookie);
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
 
@@ -308,3 +354,12 @@ describe("POST /api/images/edits", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
+
+function restoreEnv(name: string, value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+
+  process.env[name] = value;
+}

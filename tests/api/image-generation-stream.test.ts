@@ -2,12 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 import { POST as streamGenerateImage } from "@/app/api/images/generations/stream/route";
 import { POST as exchangeImportCode } from "@/app/api/import/exchange/route";
 import { GET as getTask } from "@/app/api/tasks/[taskId]/route";
+import {
+  listAuditLogs,
+  resetAuditLogStore
+} from "@/server/services/audit-log-service";
 import { getKeyBinding, getSession, resetDevStore } from "@/server/services/dev-store";
 import {
   createImageTask,
   markImageTaskRunning,
   resetImageTaskStore
 } from "@/server/services/image-task-service";
+import { resetRuntimeSettingsStore } from "@/server/services/runtime-settings-service";
 import { resetTempAssetStore } from "@/server/services/temp-asset-service";
 
 async function bindSession() {
@@ -56,7 +61,7 @@ const validTaskParams = {
   moderation: "auto"
 } as const;
 
-function createRunningTaskForCookie(cookie: string) {
+async function createRunningTaskForCookie(cookie: string) {
   const sessionId = cookie.replace("psypic_session=", "");
   const session = getSession(sessionId);
 
@@ -70,19 +75,21 @@ function createRunningTaskForCookie(cookie: string) {
     throw new Error("Expected test key binding");
   }
 
-  const task = createImageTask({
+  const task = await createImageTask({
     userId: session.user_id,
     keyBindingId: binding.id,
     type: "generation",
     prompt: validTaskParams.prompt,
     params: validTaskParams
   });
-  markImageTaskRunning(task.id);
+  await markImageTaskRunning(task.id);
 }
 
 describe("POST /api/images/generations/stream", () => {
   it("proxies partial image events and persists the completed task", async () => {
     resetDevStore();
+    resetAuditLogStore();
+    resetRuntimeSettingsStore();
     resetImageTaskStore();
     await resetTempAssetStore();
     const cookie = await bindSession();
@@ -163,13 +170,82 @@ describe("POST /api/images/generations/stream", () => {
       upstream_request_id: "upstream_stream_req_123"
     });
     expect(taskBody.data.images[0].url).toMatch(/^\/api\/assets\/asset_/);
+    const auditLogs = await listAuditLogs({ limit: 10 });
+    expect(auditLogs.items[0]).toMatchObject({
+      action: "image_generation.succeeded",
+      target_id: started?.data.task_id,
+      metadata: expect.objectContaining({
+        mode: "stream",
+        upstream_request_id: "upstream_stream_req_123"
+      })
+    });
+  });
+
+  it("rejects stream requests when runtime streaming is disabled", async () => {
+    resetDevStore();
+    resetRuntimeSettingsStore();
+    const previousStreamEnabled = process.env.PSYPIC_STREAM_ENABLED;
+    process.env.PSYPIC_STREAM_ENABLED = "false";
+    const cookie = await bindSession();
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    try {
+      const response = await streamGenerateImage(streamRequest(cookie));
+      const body = await response.json();
+
+      expect(response.status).toBe(403);
+      expect(body.error.code).toBe("stream_disabled");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreEnv("PSYPIC_STREAM_ENABLED", previousStreamEnabled);
+      resetRuntimeSettingsStore();
+    }
+  });
+
+  it("enforces runtime size tier limits before opening a stream", async () => {
+    resetDevStore();
+    resetRuntimeSettingsStore();
+    const previousSizeTier = process.env.PSYPIC_MAX_SIZE_TIER;
+    process.env.PSYPIC_MAX_SIZE_TIER = "2K";
+    const cookie = await bindSession();
+    const request = streamRequest(cookie);
+    Object.defineProperty(request, "json", {
+      value: () =>
+        Promise.resolve({
+          prompt: "Create a large product billboard.",
+          model: "gpt-image-2",
+          size: "4096x2048",
+          quality: "medium",
+          n: 1,
+          output_format: "png",
+          background: "auto",
+          moderation: "auto",
+          stream: true,
+          partial_images: 1
+        })
+    });
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    try {
+      const response = await streamGenerateImage(request);
+      const body = await response.json();
+
+      expect(response.status).toBe(400);
+      expect(body.error.details.field).toBe("size");
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      restoreEnv("PSYPIC_MAX_SIZE_TIER", previousSizeTier);
+      resetRuntimeSettingsStore();
+    }
   });
 
   it("rejects a new stream when the user already has an active image task", async () => {
     resetDevStore();
     resetImageTaskStore();
     const cookie = await bindSession();
-    createRunningTaskForCookie(cookie);
+    await createRunningTaskForCookie(cookie);
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
 
@@ -182,6 +258,15 @@ describe("POST /api/images/generations/stream", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
+
+function restoreEnv(name: string, value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+
+  process.env[name] = value;
+}
 
 function parseSse(text: string) {
   return text

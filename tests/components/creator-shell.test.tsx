@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { vi } from "vitest";
@@ -8,6 +8,21 @@ describe("CreatorWorkspace", () => {
   it("renders the v0.1 creator shell as the first screen", () => {
     render(<CreatorWorkspace />);
 
+    expect(screen.getByTestId("app-shell")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "工作台" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    );
+    expect(screen.getByRole("link", { name: "灵感社区" })).toHaveAttribute(
+      "href",
+      "/community"
+    );
+    expect(screen.getByRole("link", { name: "设置" })).toHaveAttribute(
+      "href",
+      "/settings"
+    );
+    expect(screen.getByTestId("chat-studio-shell")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-transcript")).toBeInTheDocument();
     expect(screen.getByTestId("left-parameter-panel")).toBeInTheDocument();
     expect(screen.getByTestId("center-workspace")).toBeInTheDocument();
     expect(screen.getByTestId("right-history-panel")).toBeInTheDocument();
@@ -19,6 +34,17 @@ describe("CreatorWorkspace", () => {
       screen.getByRole("button", { name: /生成图片/ })
     ).toBeInTheDocument();
     expect(screen.queryByText(/营销首页|hero/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps the sidebar focused on studio context instead of site navigation", () => {
+    render(<CreatorWorkspace />);
+
+    expect(screen.getByRole("button", { name: "新建对话" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /社媒内容项目/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /广告投放项目/ })).toBeInTheDocument();
+    expect(screen.queryByText(/^对话$/)).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "设置" })).toHaveLength(1);
+    expect(screen.queryByRole("link", { name: "社区" })).not.toBeInTheDocument();
   });
 
   it("keeps advanced parameters collapsed by default", () => {
@@ -36,6 +62,92 @@ describe("CreatorWorkspace", () => {
     expect(
       screen.getByRole("button", { name: "打开参数面板" })
     ).toBeInTheDocument();
+  });
+
+  it("opens the inspector bottom sheet when 打开参数面板 is clicked", async () => {
+    const user = userEvent.setup();
+    render(<CreatorWorkspace />);
+
+    // 默认底部抽屉关闭，title 不可见
+    expect(
+      screen.queryByRole("dialog", { name: "参数与素材" })
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "打开参数面板" }));
+
+    expect(
+      await screen.findByRole("dialog", { name: "参数与素材" })
+    ).toBeInTheDocument();
+  });
+
+  it("opens the project sidebar drawer when the mobile hamburger is clicked", async () => {
+    const user = userEvent.setup();
+    render(<CreatorWorkspace />);
+
+    expect(
+      screen.queryByRole("dialog", { name: "项目 / 对话" })
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "打开项目侧边栏" })
+    );
+
+    expect(
+      await screen.findByRole("dialog", { name: "项目 / 对话" })
+    ).toBeInTheDocument();
+  });
+
+  it("switches projects and branch conversations from the sidebar", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(
+        generationResponse({
+          taskId: "task_switchable_123",
+          assetId: "asset_switchable_123",
+          requestId: "psypic_req_switchable_123"
+        })
+      )
+      .mockResolvedValueOnce(
+        taskResponse({
+          taskId: "task_switchable_123",
+          status: "succeeded",
+          requestId: "psypic_req_task_switchable_123"
+        })
+      );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    const communityProject = screen.getByRole("button", {
+      name: /社区同款草稿/
+    });
+    await user.click(communityProject);
+
+    expect(communityProject).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByText("社区同款草稿").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: /商业图库项目/ }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Prompt" }),
+      "Switchable conversation prompt."
+    );
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+
+    expect(await screen.findByText("asset_switchable_123")).toBeInTheDocument();
+    const branchConversation = await screen.findByRole("button", {
+      name: /主线 · 1 个历史节点/
+    });
+    await user.click(branchConversation);
+
+    expect(branchConversation).toHaveAttribute("aria-pressed", "true");
+
+    const allConversation = screen.getByRole("button", {
+      name: /全部对话 · 1 次生成/
+    });
+    await user.click(allConversation);
+
+    expect(allConversation).toHaveAttribute("aria-pressed", "true");
   });
 
   it("loads server library assets and toggles favorite metadata", async () => {
@@ -126,7 +238,8 @@ describe("CreatorWorkspace", () => {
     await user.click(screen.getByRole("button", { name: "发布作品" }));
     await user.clear(screen.getByLabelText("作品标题"));
     await user.type(screen.getByLabelText("作品标题"), "社区展示作品");
-    await user.selectOptions(screen.getByLabelText("可见性"), "unlisted");
+    await user.click(screen.getByLabelText("可见性"));
+    await user.click(screen.getByRole("option", { name: "链接可见" }));
     await user.click(screen.getByRole("button", { name: "确认发布" }));
 
     expect(await screen.findByText(/已发布：work_publish_123/)).toBeInTheDocument();
@@ -185,9 +298,9 @@ describe("CreatorWorkspace", () => {
     render(<CreatorWorkspace />);
 
     const user = userEvent.setup();
-    await user.selectOptions(
-      screen.getByLabelText("商业尺寸"),
-      "ad_banner_landscape"
+    await user.click(screen.getByLabelText("商业尺寸"));
+    await user.click(
+      screen.getByRole("option", { name: "广告 Banner · 1536x1024" })
     );
     await user.type(
       screen.getByRole("textbox", { name: "Prompt" }),
@@ -468,7 +581,10 @@ describe("CreatorWorkspace", () => {
     render(<CreatorWorkspace />);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: /广告 Banner/ }));
+    const templatesPanel = screen.getByTestId("commercial-template-list");
+    await user.click(
+      within(templatesPanel).getByRole("button", { name: /广告 Banner/ })
+    );
     await user.clear(screen.getByLabelText("活动主题"));
     await user.type(screen.getByLabelText("活动主题"), "618 新品首发");
     await user.clear(screen.getByLabelText("产品类型"));
@@ -978,13 +1094,19 @@ describe("CreatorWorkspace", () => {
         "/api/community/works/work_same_query_123/same",
         { method: "POST" }
       );
-      expect(screen.getByLabelText("尺寸")).toHaveValue("1536x1024");
+      expect(screen.getByLabelText("尺寸")).toHaveTextContent("1536x1024");
     } finally {
       window.history.pushState({}, "", "/");
     }
   });
 
   it("continues editing from a local history result", async () => {
+    const createObjectUrl = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValue("blob:history-reference");
+    const revokeObjectUrl = vi
+      .spyOn(URL, "revokeObjectURL")
+      .mockImplementation(() => undefined);
     const imageBytes = new Uint8Array([
       0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a
     ]);
@@ -1044,6 +1166,223 @@ describe("CreatorWorkspace", () => {
 
     expect(screen.getByRole("button", { name: "图生图" })).toHaveClass("active");
     expect(screen.getByText("asset_history_123.png")).toBeInTheDocument();
+    expect(
+      screen.getByRole("img", { name: "参考图 asset_history_123.png" })
+    ).toHaveAttribute("src", "blob:history-reference");
+    expect(createObjectUrl).toHaveBeenCalledWith(expect.any(File));
+    createObjectUrl.mockRestore();
+    revokeObjectUrl.mockRestore();
+  });
+
+  it("does not treat a failed history image fetch as a reference image", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              data: {
+                task_id: "task_history_missing",
+                images: [
+                  {
+                    asset_id: "asset_history_missing",
+                    url: "/api/assets/asset_history_missing",
+                    format: "png"
+                  }
+                ],
+                usage: {
+                  input_tokens: 10,
+                  output_tokens: 20,
+                  total_tokens: 30,
+                  estimated_cost: "0.0000"
+                },
+                duration_ms: 1200
+              },
+              request_id: "psypic_req_history_missing"
+            }),
+            { status: 200, headers: { "content-type": "application/json" } }
+          )
+        )
+        .mockResolvedValueOnce(
+          taskResponse({
+            taskId: "task_history_missing",
+            status: "succeeded",
+            requestId: "psypic_req_task_history_missing"
+          })
+        )
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ error: { code: "not_found" } }), {
+            status: 404,
+            headers: { "content-type": "application/json" }
+          })
+        )
+    );
+
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    await user.type(
+      screen.getByRole("textbox", { name: "Prompt" }),
+      "Create a premium product photo."
+    );
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+    await user.click(await screen.findByRole("button", { name: "继续编辑" }));
+
+    expect(await screen.findByText("无法读取历史结果作为参考图。")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "文生图" })).toHaveClass("active");
+    expect(screen.queryByText("asset_history_missing.png")).not.toBeInTheDocument();
+  });
+
+  it("shows a version stream and restores params from a previous node", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          generationResponse({
+            taskId: "task_version_a",
+            assetId: "asset_version_a",
+            requestId: "psypic_req_version_a"
+          })
+        )
+        .mockResolvedValueOnce(
+          taskResponse({
+            taskId: "task_version_a",
+            status: "succeeded",
+            requestId: "psypic_req_task_version_a"
+          })
+        )
+        .mockResolvedValueOnce(
+          generationResponse({
+            taskId: "task_version_b",
+            assetId: "asset_version_b",
+            requestId: "psypic_req_version_b"
+          })
+        )
+        .mockResolvedValueOnce(
+          taskResponse({
+            taskId: "task_version_b",
+            status: "succeeded",
+            requestId: "psypic_req_task_version_b"
+          })
+        )
+    );
+
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    const promptBox = screen.getByRole("textbox", { name: "Prompt" });
+    await user.type(promptBox, "Create a square hero product photo.");
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+
+    expect(await screen.findByTestId("version-stream")).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Create a square hero product photo.").length
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("1024x1024 · medium · 1 张 · png").length
+    ).toBeGreaterThan(0);
+
+    await user.clear(promptBox);
+    await user.type(promptBox, "Create a wide banner product photo.");
+    await user.click(screen.getByLabelText("尺寸"));
+    await user.click(screen.getByRole("option", { name: "1536x1024" }));
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+
+    expect(
+      (await screen.findAllByText("Create a wide banner product photo.")).length
+    ).toBeGreaterThan(0);
+    await user.click(
+      screen.getByRole("button", {
+        name: "恢复参数 Create a square hero product photo."
+      })
+    );
+
+    expect((promptBox as HTMLTextAreaElement).value).toBe(
+      "Create a square hero product photo."
+    );
+    expect(screen.getByLabelText("尺寸")).toHaveTextContent("1024x1024");
+  });
+
+  it("creates a non-destructive branch from an older version", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          generationResponse({
+            taskId: "task_branch_a",
+            assetId: "asset_branch_a",
+            requestId: "psypic_req_branch_a"
+          })
+        )
+        .mockResolvedValueOnce(
+          taskResponse({
+            taskId: "task_branch_a",
+            status: "succeeded",
+            requestId: "psypic_req_task_branch_a"
+          })
+        )
+        .mockResolvedValueOnce(
+          generationResponse({
+            taskId: "task_branch_b",
+            assetId: "asset_branch_b",
+            requestId: "psypic_req_branch_b"
+          })
+        )
+        .mockResolvedValueOnce(
+          taskResponse({
+            taskId: "task_branch_b",
+            status: "succeeded",
+            requestId: "psypic_req_task_branch_b"
+          })
+        )
+        .mockResolvedValueOnce(
+          generationResponse({
+            taskId: "task_branch_c",
+            assetId: "asset_branch_c",
+            requestId: "psypic_req_branch_c"
+          })
+        )
+        .mockResolvedValueOnce(
+          taskResponse({
+            taskId: "task_branch_c",
+            status: "succeeded",
+            requestId: "psypic_req_task_branch_c"
+          })
+        )
+    );
+
+    render(<CreatorWorkspace />);
+
+    const user = userEvent.setup();
+    const promptBox = screen.getByRole("textbox", { name: "Prompt" });
+    await user.type(promptBox, "Root commercial concept.");
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+    expect(await screen.findByTestId("version-stream")).toBeInTheDocument();
+    expect(screen.getAllByText("Root commercial concept.").length).toBeGreaterThan(0);
+
+    await user.clear(promptBox);
+    await user.type(promptBox, "Mainline refinement.");
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+    expect(
+      (await screen.findAllByText("Mainline refinement.")).length
+    ).toBeGreaterThan(0);
+
+    await user.click(
+      screen.getByRole("button", { name: "从此分叉 Root commercial concept." })
+    );
+    await user.clear(promptBox);
+    await user.type(promptBox, "Alternative branch concept.");
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+
+    expect(
+      (await screen.findAllByText("Alternative branch concept.")).length
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByText("Mainline refinement.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("分支 2").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("branch-map")).toBeInTheDocument();
   });
 });
 

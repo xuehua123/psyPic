@@ -162,16 +162,16 @@ describe("GET /api/history", () => {
     expect(secondBody.data.next_cursor).toBeNull();
   });
 
-  it("orders same-millisecond completed tasks by creation order descending", () => {
+  it("orders same-millisecond completed tasks by creation order descending", async () => {
     resetImageTaskStore();
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-01T00:00:00.000Z"));
 
     try {
-      const oldTask = createSucceededTask("Old same time.");
-      const middleTask = createSucceededTask("Middle same time.");
-      const newestTask = createSucceededTask("Newest same time.");
-      const history = listImageTaskHistoryForUser("user_history_sort", {
+      const oldTask = await createSucceededTask("Old same time.");
+      const middleTask = await createSucceededTask("Middle same time.");
+      const newestTask = await createSucceededTask("Newest same time.");
+      const history = await listImageTaskHistoryForUser("user_history_sort", {
         limit: 3
       });
 
@@ -187,8 +187,8 @@ describe("GET /api/history", () => {
   });
 });
 
-function createSucceededTask(prompt: string) {
-  const task = createImageTask({
+async function createSucceededTask(prompt: string) {
+  const task = await createImageTask({
     userId: "user_history_sort",
     keyBindingId: "key_history_sort",
     type: "generation",
@@ -205,7 +205,7 @@ function createSucceededTask(prompt: string) {
       moderation: "auto"
     }
   });
-  markImageTaskSucceeded(task.id, {
+  await markImageTaskSucceeded(task.id, {
     images: [
       {
         asset_id: `asset_${task.id}`,

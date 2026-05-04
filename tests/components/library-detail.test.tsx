@@ -40,6 +40,11 @@ describe("LibraryAssetDetailPage", () => {
     );
 
     expect(screen.getByText("asset_detail_123")).toBeInTheDocument();
+    expect(screen.getByText("PsyPic")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "设置" })).toHaveAttribute(
+      "href",
+      "/settings"
+    );
     expect(screen.getByText("Create a premium detail product photo.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "下载" })).toHaveAttribute(
       "href",
@@ -55,5 +60,8 @@ describe("LibraryAssetDetailPage", () => {
     render(<LibraryAssetDetailPage item={null} errorMessage="素材不存在。" />);
 
     expect(screen.getByRole("alert")).toHaveTextContent("素材不存在。");
+    expect(
+      screen.queryByRole("link", { name: "返回创作台" })
+    ).not.toBeInTheDocument();
   });
 });
