@@ -36,15 +36,21 @@ import { Button } from "@/components/ui/button";
 /**
  * 会话级菜单：右键（桌面）+ 三点按钮（移动 / hover 兜底）。
  *
- * 11 项菜单，实做 4 项 / 占位 7 项：
+ * 11 项菜单 —— 实做 8 项 / 桌面端独占占位 3 项：
+ *   ✅ 置顶对话（onTogglePin）
+ *   ✅ 重命名对话（onRename）
+ *   ✅ 归档对话（onToggleArchive）
+ *   ✅ 标记为未读（onMarkUnread）
  *   ✅ 复制会话 ID
  *   ✅ 复制深度链接
  *   ✅ 分叉到同一工作树（onForkSame）
  *   ✅ 派生到新工作树（onForkNew）
- *   占位 → onPlaceholder("xxx")：父级转 SidebarToast.show()
+ *   🖥️ 在资源管理器中打开 / 复制工作目录 / 在迷你窗口中打开
+ *      —— 桌面端独占占位（onPlaceholder("xxx")）
  *
- * onForkSame / onForkNew 是 optional —— 没传时 fork 项继续走
- * onPlaceholder（保持向后兼容，老 ProjectSidebar consumer 不会爆）。
+ * 4 项实做 callback 全部 optional：不传则 fallback 到 onPlaceholder
+ * 保持向后兼容。`isPinned` / `hasUnread` 用来决定 Pin / Unread 文案
+ * 双向显示（已置顶 → 取消置顶）。
  */
 export type SessionMenuItemsProps = {
   onCopyId: () => void;
@@ -52,6 +58,12 @@ export type SessionMenuItemsProps = {
   onPlaceholder: (action: string) => void;
   onForkSame?: () => void;
   onForkNew?: () => void;
+  onTogglePin?: () => void;
+  onRename?: () => void;
+  onToggleArchive?: () => void;
+  onMarkUnread?: () => void;
+  isPinned?: boolean;
+  isArchived?: boolean;
 };
 
 export type SessionContextMenuProps = SessionMenuItemsProps & {
@@ -64,6 +76,12 @@ export function SessionContextMenu({
   onPlaceholder,
   onForkSame,
   onForkNew,
+  onTogglePin,
+  onRename,
+  onToggleArchive,
+  onMarkUnread,
+  isPinned,
+  isArchived,
   children
 }: SessionContextMenuProps) {
   return (
@@ -74,11 +92,17 @@ export function SessionContextMenu({
         data-testid="session-context-menu"
       >
         <SessionMenuBody
+          isArchived={isArchived}
+          isPinned={isPinned}
           onCopyId={onCopyId}
           onCopyLink={onCopyLink}
           onForkNew={onForkNew}
           onForkSame={onForkSame}
+          onMarkUnread={onMarkUnread}
           onPlaceholder={onPlaceholder}
+          onRename={onRename}
+          onToggleArchive={onToggleArchive}
+          onTogglePin={onTogglePin}
           variant="context"
         />
       </ContextMenuContent>
@@ -91,7 +115,13 @@ export function SessionDropdownTrigger({
   onCopyLink,
   onPlaceholder,
   onForkSame,
-  onForkNew
+  onForkNew,
+  onTogglePin,
+  onRename,
+  onToggleArchive,
+  onMarkUnread,
+  isPinned,
+  isArchived
 }: SessionMenuItemsProps) {
   return (
     <DropdownMenu>
@@ -112,11 +142,17 @@ export function SessionDropdownTrigger({
         data-testid="session-dropdown-menu"
       >
         <SessionMenuBody
+          isArchived={isArchived}
+          isPinned={isPinned}
           onCopyId={onCopyId}
           onCopyLink={onCopyLink}
           onForkNew={onForkNew}
           onForkSame={onForkSame}
+          onMarkUnread={onMarkUnread}
           onPlaceholder={onPlaceholder}
+          onRename={onRename}
+          onToggleArchive={onToggleArchive}
+          onTogglePin={onTogglePin}
           variant="dropdown"
         />
       </DropdownMenuContent>
@@ -138,6 +174,12 @@ function SessionMenuBody({
   onPlaceholder,
   onForkSame,
   onForkNew,
+  onTogglePin,
+  onRename,
+  onToggleArchive,
+  onMarkUnread,
+  isPinned,
+  isArchived,
   variant
 }: SessionMenuBodyProps) {
   const Item = variant === "context" ? ContextMenuItem : DropdownMenuItem;
@@ -150,28 +192,36 @@ function SessionMenuBody({
       <Label>会话操作</Label>
       <Item
         data-testid="session-menu-pin"
-        onSelect={() => onPlaceholder("置顶对话")}
+        onSelect={() =>
+          onTogglePin ? onTogglePin() : onPlaceholder("置顶对话")
+        }
       >
         <PinIcon aria-hidden="true" size={14} />
-        <span>置顶对话</span>
+        <span>{isPinned ? "取消置顶" : "置顶对话"}</span>
       </Item>
       <Item
         data-testid="session-menu-rename"
-        onSelect={() => onPlaceholder("重命名对话")}
+        onSelect={() => (onRename ? onRename() : onPlaceholder("重命名对话"))}
       >
         <PencilIcon aria-hidden="true" size={14} />
         <span>重命名对话</span>
       </Item>
       <Item
         data-testid="session-menu-archive"
-        onSelect={() => onPlaceholder("归档对话")}
+        onSelect={() =>
+          onToggleArchive
+            ? onToggleArchive()
+            : onPlaceholder("归档对话")
+        }
       >
         <ArchiveIcon aria-hidden="true" size={14} />
-        <span>归档对话</span>
+        <span>{isArchived ? "恢复对话" : "归档对话"}</span>
       </Item>
       <Item
         data-testid="session-menu-unread"
-        onSelect={() => onPlaceholder("标记为未读")}
+        onSelect={() =>
+          onMarkUnread ? onMarkUnread() : onPlaceholder("标记为未读")
+        }
       >
         <MailOpenIcon aria-hidden="true" size={14} />
         <span>标记为未读</span>

@@ -67,6 +67,28 @@ export type ProjectSidebarProps = {
     projectId: CreatorProjectId,
     branch: SidebarProjectBranchSummary
   ) => Promise<unknown> | unknown;
+  /** 「置顶对话」/「取消置顶」 */
+  onTogglePinSession?: (
+    projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) => Promise<unknown> | unknown;
+  /** 「重命名对话」 —— sidebar 内部弹 SessionRenameDialog 完成（不需要上层
+   *  传新值，上层只负责把 customLabel 写到 branch-meta-store）。 */
+  onRenameSession?: (
+    projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary,
+    label: string
+  ) => Promise<unknown> | unknown;
+  /** 「归档对话」/「恢复对话」 */
+  onToggleArchiveSession?: (
+    projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) => Promise<unknown> | unknown;
+  /** 「标记为未读」 */
+  onMarkSessionUnread?: (
+    projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) => Promise<unknown> | unknown;
 };
 
 export default function ProjectSidebar(props: ProjectSidebarProps) {
@@ -87,7 +109,11 @@ function ProjectSidebarContent({
   onRenameProject,
   onDeleteProject,
   onForkSession,
-  onDeriveSession
+  onDeriveSession,
+  onTogglePinSession,
+  onRenameSession: _onRenameSession,
+  onToggleArchiveSession,
+  onMarkSessionUnread
 }: ProjectSidebarProps) {
   const toast = useSidebarToast();
 
@@ -166,6 +192,38 @@ function ProjectSidebarContent({
       }
     : undefined;
 
+  const handleTogglePinWithToast = onTogglePinSession
+    ? async (
+        projectId: CreatorProjectId,
+        branch: SidebarProjectBranchSummary
+      ) => {
+        const wasPinned = branch.isPinned ?? false;
+        await onTogglePinSession(projectId, branch);
+        toast.show(wasPinned ? "已取消置顶" : "已置顶对话", "success");
+      }
+    : undefined;
+
+  const handleToggleArchiveWithToast = onToggleArchiveSession
+    ? async (
+        projectId: CreatorProjectId,
+        branch: SidebarProjectBranchSummary
+      ) => {
+        const wasArchived = branch.isArchived ?? false;
+        await onToggleArchiveSession(projectId, branch);
+        toast.show(wasArchived ? "已恢复对话" : "已归档对话", "success");
+      }
+    : undefined;
+
+  const handleMarkUnreadWithToast = onMarkSessionUnread
+    ? async (
+        projectId: CreatorProjectId,
+        branch: SidebarProjectBranchSummary
+      ) => {
+        await onMarkSessionUnread(projectId, branch);
+        toast.show("已标记为未读", "success");
+      }
+    : undefined;
+
   return (
     <aside
       aria-label="项目与对话"
@@ -200,6 +258,9 @@ function ProjectSidebarContent({
             onDelete={() => setDeleteTarget(group.project)}
             onDeriveSession={handleDeriveSessionWithToast}
             onForkSession={handleForkSessionWithToast}
+            onMarkSessionUnread={handleMarkUnreadWithToast}
+            onToggleArchiveSession={handleToggleArchiveWithToast}
+            onTogglePinSession={handleTogglePinWithToast}
             onKebabPlaceholder={handleKebabPlaceholder}
             onRename={() => setRenameTarget(group.project)}
             onSelectConversation={onSelectConversation}

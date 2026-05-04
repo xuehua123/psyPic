@@ -161,4 +161,54 @@ describe("Session row menu (Cut 6)", () => {
       within(region).getByText(/分叉到同一工作树.*桌面端功能/)
     ).toBeInTheDocument();
   });
+
+  it("calls onTogglePinSession with the project id and branch when 「置顶对话」 is clicked", async () => {
+    const onTogglePinSession = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ProjectSidebar
+        {...baseProps}
+        onTogglePinSession={onTogglePinSession}
+      />
+    );
+
+    await user.click(screen.getByTestId("session-row-menu-button"));
+    await user.click(await screen.findByTestId("session-menu-pin"));
+
+    expect(onTogglePinSession).toHaveBeenCalledTimes(1);
+    const [projectId, branch] = onTogglePinSession.mock.calls[0];
+    expect(projectId).toBe("commercial");
+    expect(branch).toMatchObject({ id: "br_test_1" });
+
+    const region = await screen.findByTestId("sidebar-toast-region");
+    expect(within(region).getByText("已置顶对话")).toBeInTheDocument();
+  });
+
+  it("renders 「取消置顶」 label and toast when the branch is already pinned", async () => {
+    const onTogglePinSession = vi.fn();
+    const pinnedBranch = {
+      ...TEST_PROJECTS[0].branchSummaries[0],
+      isPinned: true
+    };
+    const projectsWithPinned = [
+      {
+        ...TEST_PROJECTS[0],
+        branchSummaries: [pinnedBranch]
+      }
+    ];
+    const user = userEvent.setup();
+    render(
+      <ProjectSidebar
+        {...baseProps}
+        onTogglePinSession={onTogglePinSession}
+        sidebarProjects={projectsWithPinned}
+      />
+    );
+
+    await user.click(screen.getByTestId("session-row-menu-button"));
+    await user.click(await screen.findByTestId("session-menu-pin"));
+
+    const region = await screen.findByTestId("sidebar-toast-region");
+    expect(within(region).getByText("已取消置顶")).toBeInTheDocument();
+  });
 });
