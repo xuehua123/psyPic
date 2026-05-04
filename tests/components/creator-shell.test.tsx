@@ -187,6 +187,52 @@ describe("CreatorWorkspace", () => {
     expect(commercialAllRow).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("forks a session into the same project via 分叉到同一工作树", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(
+        generationResponse({
+          taskId: "task_fork_1",
+          assetId: "asset_fork_1",
+          requestId: "psypic_req_fork_1"
+        })
+      )
+      .mockResolvedValueOnce(
+        taskResponse({
+          taskId: "task_fork_1",
+          status: "succeeded",
+          requestId: "psypic_req_task_fork_1"
+        })
+      );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    render(<CreatorWorkspace />);
+    const user = userEvent.setup();
+
+    // 先生成一条 session 作为 fork 的源（commercial 项目）
+    await user.type(
+      screen.getByRole("textbox", { name: "Prompt" }),
+      "Original session prompt."
+    );
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+    await screen.findByText("asset_fork_1");
+
+    // 此时 commercial 卡下有一条 branch session row；通过 dropdown 菜单
+    // 触发 fork-same
+    const kebabs = await screen.findAllByTestId("session-row-menu-button");
+    await user.click(kebabs[0]);
+    await user.click(await screen.findByTestId("session-menu-fork-same"));
+
+    // 验证：ChatHeader / VersionStream 显示「分叉中 / 分叉生成中」pill
+    expect(screen.getAllByText(/分叉/).length).toBeGreaterThan(0);
+
+    // Sidebar toast：「已分叉...」
+    const region = await screen.findByTestId("sidebar-toast-region");
+    expect(
+      within(region).getByText(/已分叉.*Composer/)
+    ).toBeInTheDocument();
+  });
+
   it("loads server library assets and toggles favorite metadata", async () => {
     const fetchSpy = vi
       .fn()

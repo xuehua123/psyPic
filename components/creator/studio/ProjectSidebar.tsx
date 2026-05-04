@@ -145,6 +145,28 @@ function ProjectSidebarContent({
     toast.show(`项目「${title}」已移除`, "success");
   }
 
+  /** 包一层把 toast 反馈接上 —— 父级 callback 只管业务，文案在 sidebar 内。 */
+  const handleForkSessionWithToast = onForkSession
+    ? async (
+        projectId: CreatorProjectId,
+        branch: SidebarProjectBranchSummary
+      ) => {
+        await onForkSession(projectId, branch);
+        toast.show("已分叉，请在 Composer 中输入新 prompt", "success");
+      }
+    : undefined;
+
+  const handleDeriveSessionWithToast = onDeriveSession
+    ? async (
+        projectId: CreatorProjectId,
+        branch: SidebarProjectBranchSummary
+      ) => {
+        await onDeriveSession(projectId, branch);
+        // 派生 toast 文案在 CreatorWorkspace 里有新项目名，那边已经 show；
+        // 这里不重复 show，避免双 toast。
+      }
+    : undefined;
+
   return (
     <aside
       aria-label="项目与对话"
@@ -177,8 +199,8 @@ function ProjectSidebarContent({
             isCollapsed={isCollapsed(group.project.id)}
             key={group.project.id}
             onDelete={() => setDeleteTarget(group.project)}
-            onDeriveSession={onDeriveSession}
-            onForkSession={onForkSession}
+            onDeriveSession={handleDeriveSessionWithToast}
+            onForkSession={handleForkSessionWithToast}
             onKebabPlaceholder={handleKebabPlaceholder}
             onRename={() => setRenameTarget(group.project)}
             onSelectConversation={onSelectConversation}

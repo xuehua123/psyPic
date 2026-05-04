@@ -87,6 +87,7 @@ import {
 } from "@/lib/creator/version-graph";
 import {
   defaultProjectSeeds,
+  type SidebarProjectBranchSummary,
   type SidebarProjectGroup
 } from "@/lib/creator/projects";
 import { useProjects } from "@/lib/creator/use-projects";
@@ -1433,6 +1434,31 @@ export default function CreatorWorkspace({
     setErrorMessage("");
   }
 
+  /**
+   * 「分叉到同一工作树」—— 从该 session 的最新节点起新分叉，留在原项目下。
+   *
+   * 等价于在 sidebar 上一步搞定 startVersionFork：切 active project +
+   * active conversation 到该 branch + 把 forkParentId 设到 latestNode。
+   * 用户接下来在 Composer 里输入新 prompt → 下次生成会创建 parentId =
+   * latestNode 的新节点 → version-graph 自动分配新 branchId（startsBranch
+   * 路径）。
+   */
+  function handleForkSession(
+    projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) {
+    const latestNode = branch.latestNode;
+    if (!latestNode) {
+      setErrorMessage("该会话还没有生成节点，无法分叉。");
+      return;
+    }
+    setActiveProjectId(projectId);
+    setActiveConversationId(`branch:${branch.id}`);
+    setActiveNodeId(latestNode.id);
+    setForkParentId(latestNode.id);
+    restoreVersionNodeParams(latestNode);
+  }
+
   const currentConversationTitle =
     activeConversationId === "new"
       ? activeProject.emptyTitle
@@ -1541,6 +1567,7 @@ export default function CreatorWorkspace({
         activeProjectTitle={activeProject.title}
         onCreateProject={createProject}
         onDeleteProject={handleDeleteProject}
+        onForkSession={handleForkSession}
         onRenameProject={renameProjectInStore}
         onSelectConversation={selectConversation}
         onSelectProject={selectProject}
@@ -1635,6 +1662,10 @@ export default function CreatorWorkspace({
               activeProjectTitle={activeProject.title}
               onCreateProject={createProject}
               onDeleteProject={handleDeleteProject}
+              onForkSession={(projectId, branch) => {
+                handleForkSession(projectId, branch);
+                setMobileSidebarOpen(false);
+              }}
               onRenameProject={renameProjectInStore}
               onSelectConversation={(conversationId) => {
                 selectConversation(conversationId);
