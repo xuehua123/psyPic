@@ -5,19 +5,18 @@
 
 ## 当前重点工作
 
-**ProjectSidebar 平铺折叠卡重构**（plan slug `clever-swimming-pumpkin`）—— 把侧栏从「单 active 顶部 + 其他项目切换列表」改成「所有项目平铺成可折叠卡 + 每卡独立 collapse + active 与折叠状态完全解耦」。参考 [desktop-cc-gui Sidebar.tsx](https://github.com/zhukunpenglinyutong/desktop-cc-gui/blob/main/src/features/app/components/Sidebar.tsx) + [WorkspaceCard.tsx](https://github.com/zhukunpenglinyutong/desktop-cc-gui/blob/main/src/features/app/components/WorkspaceCard.tsx)。
+**Sidebar fork / 派生 实做**（plan slug `clever-swimming-pumpkin` 续作 · F 选项）—— SessionRowMenu 11 项菜单的「分叉到同一工作树」/「派生到新工作树」从 placeholder 变实做。原 plan 还含两小升级：每卡「+ 新对话」icon button + sidebar 平铺折叠卡。
 
-**状态**：**Cut 6/6 ✅ 全部出库 🎉**
+**状态**：**全部出库 🎉**
 
-**进度**：
-- Cut 1 ✅ `5e9f8fe`：useCollapsedProjects hook（localStorage 持久化，SSR safe，垃圾值兜底）+ 7 单测
-- Cut 2 ✅ `b4301bd`：ProjectCard 组件（collapsible header + 内嵌 4 桶 session list +「全部对话」row + kebab）+ 6 用例
-- Cut 3 ✅ `e025eff`：重写 ProjectSidebar 主体（删 ProjectHeader 单卡 + 删「其他项目」switcher + map ProjectCard），370 → 198 行；改 sidebar 6 用例
-- Cut 4 ✅ `ed6bb8f`：CRUD 测试适配（kebab 现在每卡一份，新增 getKebabIn scope helper）
-- Cut 5 ✅ `8a3460f`：creator-shell 切换用例适配（点 header 改 toggle / 点全部对话切 active）
-- Cut 6 ✅：文档同步 + push origin main
+**最近进度**（自下而上时间线）：
+- F · Cut 3 ✅ `4fba1fa`：「派生到新工作树」—— createProject(`${源项目} · 派生`) + 切 new + 回填 prompt/params；fallback 路径（jsdom 无 IndexedDB 时只填 Composer 不切项目）
+- F · Cut 2 ✅ `4027f8d`：「分叉到同一工作树」—— 一步到位等价于 startVersionFork（切 active project + branch + setForkParentId(latestNode.id) + restoreVersionNodeParams）
+- F · Cut 1 ✅ `a7f1c43`：SessionRowMenu / ProjectCard / ProjectSidebar 加 fork 通路（onForkSame? / onForkNew? optional callbacks，不传时 fallback 走 onPlaceholder）
+- 每卡「+ 新对话」 ✅ `da95a7e`：ProjectCard header 加 MessageSquarePlus 一步直达
+- 平铺折叠卡 ✅ `5e9f8fe`/`b4301bd`/`e025eff`/`ed6bb8f`/`8a3460f`/`620394d`：6 cut 完成 sidebar 重构
 
-**整体增减**：56 files / 259 tests pass（比上轮 +2 files +14 tests）；ProjectSidebar 主体 -172 行（结构换骨）；新增 ProjectCard 318 行 + hook 86 行 + 测试 ~250 行。CreatorWorkspace.tsx 零修改 —— props 契约不变。
+**整体测试覆盖**：56 files / 265 tests pass。SessionRowMenu 11 项菜单实做 **4 项** / 占位 7 项（置顶 / 重命名对话 / 归档 / 标记未读 / 资源管理器 / 复制工作目录 / 迷你窗口）。
 
 **之前重点（已封板，保留作历史）**：
 - ProjectSidebar Codex 风重构（plan slug `cosmic-tumbling-narwhal`）—— IndexedDB CRUD + 4 桶时间分组 + 行级菜单
@@ -26,7 +25,7 @@
 ## 接棒读哪一份
 
 **先读**：`docs/superpowers/plans/2026-05-04-project-sidebar-flat-collapse.md`
-本轮的精简落地版本，含拆刀对照表、新交互模型、经验总结。
+平铺折叠卡的精简落地版本（也含 F 续作的进度尾巴）。
 
 **前情提要**：
 - `docs/superpowers/plans/2026-05-04-project-sidebar-codex-rewrite.md` — 上一轮 sidebar 重构（CRUD + 4 桶 + 菜单），本轮改的是它的视觉结构

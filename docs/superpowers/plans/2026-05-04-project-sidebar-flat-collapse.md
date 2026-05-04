@@ -23,7 +23,22 @@ slug: `clever-swimming-pumpkin`  完成: 2026-05-04
 | Cut 3 | `e025eff` | 重写 ProjectSidebar 主体（删 ProjectHeader 单卡 + 删「其他项目」switcher + map ProjectCard）；改 sidebar 6 用例 | +131 -303 |
 | Cut 4 | `ed6bb8f` | CRUD 测试适配（kebab 现在每卡一份，用 scoped getKebabIn helper） | +24 -7 |
 | Cut 5 | `8a3460f` | creator-shell 切换用例适配（点 header 改 toggle / 点全部对话切 active） | +41 -16 |
-| Cut 6 | (this) | 文档同步 + 推 main | 5+ |
+| Cut 6 | `620394d` | 文档同步 + 推 main | 5+ |
+
+## 续作 · 每卡「+ 新对话」 + Sidebar fork/派生实做（F 选项）
+
+平铺折叠卡落地后又叠了几刀，把 SessionRowMenu 11 项菜单的 fork 类两项实做：
+
+| 刀 | commit | 内容 |
+| --- | --- | --- |
+| 每卡「+ 新对话」 | `da95a7e` | ProjectCard header 加 MessageSquarePlus button：折叠/展开都可见，stopPropagation 不冒到 toggle；click → onSelectProject + onSelectConversation("new") |
+| F · Cut 1 | `a7f1c43` | SessionRowMenu / ProjectCard / ProjectSidebar 加 fork 通路（onForkSame? / onForkNew? optional callbacks，不传时 fallback 走 onPlaceholder） + context-menu 测试 +3 用例 |
+| F · Cut 2 | `4027f8d` | 「分叉到同一工作树」实做：handleForkSession 等价于 startVersionFork；切 active project + branch + setForkParentId(latestNode.id) + restoreVersionNodeParams + sidebar toast |
+| F · Cut 3 | `4fba1fa` | 「派生到新工作树」实做：handleDeriveSession 创建 `${源项目} · 派生` 项目 → 切 new + 回填 prompt/params；jsdom 无 IndexedDB 走 fallback 仅填 Composer |
+| F · Cut 4 | (this) | 文档同步 + 推 main |
+
+至此 SessionRowMenu 11 项菜单实做 4 项（复制会话 ID / 复制深度链接 /
+分叉到同一工作树 / 派生到新工作树），剩 7 项 placeholder。
 
 ## 落地结构
 
