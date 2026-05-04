@@ -1,13 +1,18 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import ProjectSidebar from "@/components/creator/studio/ProjectSidebar";
 import type { SidebarProjectGroup } from "@/lib/creator/projects";
 
 /**
- * Cut 5 验收：项目 CRUD UI（kebab DropdownMenu + 3 dialog + toast 占位）。
- * 不直接打 IndexedDB —— callback spy 验证调用，dialog state 自闭。
+ * Cut 5（plan slug cosmic-tumbling-narwhal）→ 在 plan slug
+ * clever-swimming-pumpkin · Cut 4 适配为平铺折叠卡：
+ *
+ * - kebab 现在挂在每个 ProjectCard 上而不是顶部 header；测试用
+ *   `within(getByTestId("project-card-{id}"))` 把 kebab 查询锁到目标
+ *   项目的那张卡（避免 multiple matches）。
+ * - active project 默认展开，所以 kebab 直接可见，无需额外 toggle。
  */
 
 const TEST_PROJECTS: SidebarProjectGroup[] = [
@@ -50,6 +55,18 @@ function makeProps(overrides: Partial<React.ComponentProps<typeof ProjectSidebar
   };
 }
 
+/** 取指定项目卡里的 kebab trigger（绕开多卡导致的 multiple matches）。 */
+function getKebabIn(projectId: string): HTMLElement {
+  const card = screen.getByTestId(`project-card-${projectId}`);
+  return within(card).getByTestId("project-kebab-button");
+}
+
+beforeEach(() => {
+  // 平铺折叠卡 sidebar 通过 useCollapsedProjects 持久化折叠状态；
+  // 用例间清理避免串状态。
+  window.localStorage.clear();
+});
+
 describe("ProjectSidebar CRUD UI", () => {
   it("creates a project via the new-project dialog", async () => {
     const onCreateProject = vi.fn(async () => {});
@@ -72,7 +89,7 @@ describe("ProjectSidebar CRUD UI", () => {
     const user = userEvent.setup();
     render(<ProjectSidebar {...makeProps({ onRenameProject })} />);
 
-    await user.click(screen.getByTestId("project-kebab-button"));
+    await user.click(getKebabIn("commercial"));
     await user.click(await screen.findByTestId("project-kebab-rename"));
 
     const dialog = await screen.findByTestId("project-rename-dialog");
@@ -89,7 +106,7 @@ describe("ProjectSidebar CRUD UI", () => {
     const user = userEvent.setup();
     render(<ProjectSidebar {...makeProps({ onDeleteProject })} />);
 
-    await user.click(screen.getByTestId("project-kebab-button"));
+    await user.click(getKebabIn("commercial"));
     await user.click(await screen.findByTestId("project-kebab-delete"));
 
     const alert = await screen.findByTestId("project-delete-alert");
@@ -108,7 +125,7 @@ describe("ProjectSidebar CRUD UI", () => {
       />
     );
 
-    await user.click(screen.getByTestId("project-kebab-button"));
+    await user.click(getKebabIn("commercial"));
     await user.click(await screen.findByTestId("project-kebab-delete"));
 
     const alert = await screen.findByTestId("project-delete-alert");
@@ -123,7 +140,7 @@ describe("ProjectSidebar CRUD UI", () => {
     const user = userEvent.setup();
     render(<ProjectSidebar {...makeProps()} />);
 
-    await user.click(screen.getByTestId("project-kebab-button"));
+    await user.click(getKebabIn("commercial"));
     await user.click(await screen.findByTestId("project-kebab-pin"));
 
     const region = await screen.findByTestId("sidebar-toast-region");
