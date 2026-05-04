@@ -36,15 +36,22 @@ import { Button } from "@/components/ui/button";
 /**
  * 会话级菜单：右键（桌面）+ 三点按钮（移动 / hover 兜底）。
  *
- * 11 项菜单，实做 2 项 / 占位 9 项：
+ * 11 项菜单，实做 4 项 / 占位 7 项：
  *   ✅ 复制会话 ID
  *   ✅ 复制深度链接
+ *   ✅ 分叉到同一工作树（onForkSame）
+ *   ✅ 派生到新工作树（onForkNew）
  *   占位 → onPlaceholder("xxx")：父级转 SidebarToast.show()
+ *
+ * onForkSame / onForkNew 是 optional —— 没传时 fork 项继续走
+ * onPlaceholder（保持向后兼容，老 ProjectSidebar consumer 不会爆）。
  */
 export type SessionMenuItemsProps = {
   onCopyId: () => void;
   onCopyLink: () => void;
   onPlaceholder: (action: string) => void;
+  onForkSame?: () => void;
+  onForkNew?: () => void;
 };
 
 export type SessionContextMenuProps = SessionMenuItemsProps & {
@@ -55,6 +62,8 @@ export function SessionContextMenu({
   onCopyId,
   onCopyLink,
   onPlaceholder,
+  onForkSame,
+  onForkNew,
   children
 }: SessionContextMenuProps) {
   return (
@@ -67,6 +76,8 @@ export function SessionContextMenu({
         <SessionMenuBody
           onCopyId={onCopyId}
           onCopyLink={onCopyLink}
+          onForkNew={onForkNew}
+          onForkSame={onForkSame}
           onPlaceholder={onPlaceholder}
           variant="context"
         />
@@ -78,7 +89,9 @@ export function SessionContextMenu({
 export function SessionDropdownTrigger({
   onCopyId,
   onCopyLink,
-  onPlaceholder
+  onPlaceholder,
+  onForkSame,
+  onForkNew
 }: SessionMenuItemsProps) {
   return (
     <DropdownMenu>
@@ -101,6 +114,8 @@ export function SessionDropdownTrigger({
         <SessionMenuBody
           onCopyId={onCopyId}
           onCopyLink={onCopyLink}
+          onForkNew={onForkNew}
+          onForkSame={onForkSame}
           onPlaceholder={onPlaceholder}
           variant="dropdown"
         />
@@ -121,6 +136,8 @@ function SessionMenuBody({
   onCopyId,
   onCopyLink,
   onPlaceholder,
+  onForkSame,
+  onForkNew,
   variant
 }: SessionMenuBodyProps) {
   const Item = variant === "context" ? ContextMenuItem : DropdownMenuItem;
@@ -191,14 +208,18 @@ function SessionMenuBody({
       <Separator />
       <Item
         data-testid="session-menu-fork-same"
-        onSelect={() => onPlaceholder("分叉到同一工作树")}
+        onSelect={() =>
+          onForkSame ? onForkSame() : onPlaceholder("分叉到同一工作树")
+        }
       >
         <GitBranchIcon aria-hidden="true" size={14} />
         <span>分叉到同一工作树</span>
       </Item>
       <Item
         data-testid="session-menu-fork-new"
-        onSelect={() => onPlaceholder("派生到新工作树")}
+        onSelect={() =>
+          onForkNew ? onForkNew() : onPlaceholder("派生到新工作树")
+        }
       >
         <FolderGit2 aria-hidden="true" size={14} />
         <span>派生到新工作树</span>

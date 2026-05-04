@@ -9,6 +9,7 @@ import type {
 } from "@/lib/creator/types";
 import type {
   CreatorProjectMeta,
+  SidebarProjectBranchSummary,
   SidebarProjectGroup
 } from "@/lib/creator/projects";
 import { useCollapsedProjects } from "@/lib/creator/use-collapsed-projects";
@@ -55,6 +56,17 @@ export type ProjectSidebarProps = {
     title: string
   ) => Promise<unknown> | unknown;
   onDeleteProject?: (projectId: CreatorProjectId) => Promise<unknown> | unknown;
+  /** 「分叉到同一工作树」—— 在该项目下从 branch.latestNode 起新分叉。 */
+  onForkSession?: (
+    projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) => Promise<unknown> | unknown;
+  /** 「派生到新工作树」—— 创建新项目并以 branch.latestNode 的
+   *  prompt+params 作为新项目的 Composer 起点。 */
+  onDeriveSession?: (
+    projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) => Promise<unknown> | unknown;
 };
 
 export default function ProjectSidebar(props: ProjectSidebarProps) {
@@ -73,7 +85,9 @@ function ProjectSidebarContent({
   onSelectConversation,
   onCreateProject,
   onRenameProject,
-  onDeleteProject
+  onDeleteProject,
+  onForkSession,
+  onDeriveSession
 }: ProjectSidebarProps) {
   const toast = useSidebarToast();
 
@@ -163,6 +177,8 @@ function ProjectSidebarContent({
             isCollapsed={isCollapsed(group.project.id)}
             key={group.project.id}
             onDelete={() => setDeleteTarget(group.project)}
+            onDeriveSession={onDeriveSession}
+            onForkSession={onForkSession}
             onKebabPlaceholder={handleKebabPlaceholder}
             onRename={() => setRenameTarget(group.project)}
             onSelectConversation={onSelectConversation}

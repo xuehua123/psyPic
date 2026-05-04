@@ -66,6 +66,15 @@ export type ProjectCardProps = {
   onRename: () => void;
   onDelete: () => void;
   onKebabPlaceholder: (label: string) => void;
+  /** 「分叉到同一工作树」—— 在该 card 项目下从 branch.latestNode 起新分叉。
+   *  optional：不传则 SessionRowMenu 走 onPlaceholder。 */
+  onForkSession?: (projectId: CreatorProjectId, branch: SidebarProjectBranchSummary) => void;
+  /** 「派生到新工作树」—— 创建新项目，把 branch.latestNode 的 prompt+params
+   *  作为新项目的起点。 optional：同上。 */
+  onDeriveSession?: (
+    projectId: CreatorProjectId,
+    branch: SidebarProjectBranchSummary
+  ) => void;
 };
 
 export default function ProjectCard({
@@ -79,7 +88,9 @@ export default function ProjectCard({
   onSelectConversation,
   onRename,
   onDelete,
-  onKebabPlaceholder
+  onKebabPlaceholder,
+  onForkSession,
+  onDeriveSession
 }: ProjectCardProps) {
   const buckets = React.useMemo(
     () => bucketByActivity(group.branchSummaries),
@@ -251,6 +262,16 @@ export default function ProjectCard({
                       branch={branch}
                       isProjectActive={isActive}
                       key={branch.id}
+                      onDeriveSession={
+                        onDeriveSession
+                          ? () => onDeriveSession(projectId, branch)
+                          : undefined
+                      }
+                      onForkSession={
+                        onForkSession
+                          ? () => onForkSession(projectId, branch)
+                          : undefined
+                      }
                       onSelect={handleSelectBranch}
                     />
                   ))}
@@ -271,6 +292,8 @@ type SessionRowProps = {
   /** 该 row 所属的卡是否是 active 项目；非 active 卡的 row 永远不高亮 */
   isProjectActive: boolean;
   onSelect: (id: CreatorConversationId) => void;
+  onForkSession?: () => void;
+  onDeriveSession?: () => void;
 };
 
 function SessionRow({
@@ -278,7 +301,9 @@ function SessionRow({
   activeConversationId,
   activeProjectId,
   isProjectActive,
-  onSelect
+  onSelect,
+  onForkSession,
+  onDeriveSession
 }: SessionRowProps) {
   const toast = useSidebarToast();
   const id: CreatorConversationId = `branch:${branch.id}`;
@@ -317,6 +342,8 @@ function SessionRow({
     <SessionContextMenu
       onCopyId={handleCopyId}
       onCopyLink={handleCopyLink}
+      onForkNew={onDeriveSession}
+      onForkSame={onForkSession}
       onPlaceholder={handlePlaceholder}
     >
       <div className="group/row relative">
@@ -344,6 +371,8 @@ function SessionRow({
           <SessionDropdownTrigger
             onCopyId={handleCopyId}
             onCopyLink={handleCopyLink}
+            onForkNew={onDeriveSession}
+            onForkSame={onForkSession}
             onPlaceholder={handlePlaceholder}
           />
         </div>

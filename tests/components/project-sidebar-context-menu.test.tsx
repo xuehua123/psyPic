@@ -120,4 +120,45 @@ describe("Session row menu (Cut 6)", () => {
     expect(writeText).not.toHaveBeenCalled();
     writeText.mockRestore();
   });
+
+  it("calls onForkSession with the project id and branch when 「分叉到同一工作树」 is clicked", async () => {
+    const onForkSession = vi.fn();
+    const user = userEvent.setup();
+    render(<ProjectSidebar {...baseProps} onForkSession={onForkSession} />);
+
+    await user.click(screen.getByTestId("session-row-menu-button"));
+    await user.click(await screen.findByTestId("session-menu-fork-same"));
+
+    expect(onForkSession).toHaveBeenCalledTimes(1);
+    const [projectId, branch] = onForkSession.mock.calls[0];
+    expect(projectId).toBe("commercial");
+    expect(branch).toMatchObject({ id: "br_test_1" });
+  });
+
+  it("calls onDeriveSession with the project id and branch when 「派生到新工作树」 is clicked", async () => {
+    const onDeriveSession = vi.fn();
+    const user = userEvent.setup();
+    render(<ProjectSidebar {...baseProps} onDeriveSession={onDeriveSession} />);
+
+    await user.click(screen.getByTestId("session-row-menu-button"));
+    await user.click(await screen.findByTestId("session-menu-fork-new"));
+
+    expect(onDeriveSession).toHaveBeenCalledTimes(1);
+    const [projectId, branch] = onDeriveSession.mock.calls[0];
+    expect(projectId).toBe("commercial");
+    expect(branch).toMatchObject({ id: "br_test_1" });
+  });
+
+  it("falls back to placeholder toast for fork items when handlers are not provided", async () => {
+    const user = userEvent.setup();
+    render(<ProjectSidebar {...baseProps} />);
+
+    await user.click(screen.getByTestId("session-row-menu-button"));
+    await user.click(await screen.findByTestId("session-menu-fork-same"));
+
+    const region = await screen.findByTestId("sidebar-toast-region");
+    expect(
+      within(region).getByText(/分叉到同一工作树.*桌面端功能/)
+    ).toBeInTheDocument();
+  });
 });
