@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronRight, Folder, FolderOpen } from "lucide-react";
+import { ChevronRight, Folder, FolderOpen, MessageSquarePlus } from "lucide-react";
 
 import type {
   CreatorConversationId,
@@ -165,6 +165,26 @@ export default function ProjectCard({
         <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground">
           {totalSessions}
         </span>
+        <button
+          aria-label={`在「${group.project.title}」下新建对话`}
+          className={cn(
+            "shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors",
+            "hover:bg-accent/20 hover:text-accent-strong",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          )}
+          data-testid={`project-card-new-conversation-${projectId}`}
+          onClick={(event) => {
+            // 阻止冒到 header（不然会同时折叠/展开），并把 active 切到该卡 +
+            // 起一条新对话。
+            event.stopPropagation();
+            onSelectProject(projectId);
+            onSelectConversation("new");
+          }}
+          onKeyDown={(event) => event.stopPropagation()}
+          type="button"
+        >
+          <MessageSquarePlus aria-hidden="true" size={14} />
+        </button>
         <div
           // 关键：阻止冒到 header 的 toggle，否则点 kebab 同时折叠/展开
           onClick={(event) => event.stopPropagation()}

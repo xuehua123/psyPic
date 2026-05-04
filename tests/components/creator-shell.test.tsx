@@ -40,8 +40,14 @@ describe("CreatorWorkspace", () => {
     render(<CreatorWorkspace />);
 
     expect(screen.getByRole("button", { name: "新建对话" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /社媒内容项目/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /广告投放项目/ })).toBeInTheDocument();
+    // 平铺折叠卡 sidebar：卡 header 的 aria-label = `${title} · 已折叠/展开`；
+    // 用 ` · ` 锚点把 header 和「+ 新对话」按钮区分开。
+    expect(
+      screen.getByRole("button", { name: /社媒内容项目 ·/ })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /广告投放项目 ·/ })
+    ).toBeInTheDocument();
     expect(screen.queryByText(/^对话$/)).not.toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "设置" })).toHaveLength(1);
     expect(screen.queryByRole("link", { name: "社区" })).not.toBeInTheDocument();
