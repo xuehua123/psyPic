@@ -5,37 +5,39 @@
 
 ## 当前重点工作
 
-**ProjectSidebar Codex 风重构**（plan slug `cosmic-tumbling-narwhal`）—— 把左侧栏从 4 个 hardcoded 项目折叠树改成「项目软种子（IndexedDB CRUD）+ session 时间分组（今天/昨天/本周/更早）+ 行级右键菜单」。
+**ProjectSidebar 平铺折叠卡重构**（plan slug `clever-swimming-pumpkin`）—— 把侧栏从「单 active 顶部 + 其他项目切换列表」改成「所有项目平铺成可折叠卡 + 每卡独立 collapse + active 与折叠状态完全解耦」。参考 [desktop-cc-gui Sidebar.tsx](https://github.com/zhukunpenglinyutong/desktop-cc-gui/blob/main/src/features/app/components/Sidebar.tsx) + [WorkspaceCard.tsx](https://github.com/zhukunpenglinyutong/desktop-cc-gui/blob/main/src/features/app/components/WorkspaceCard.tsx)。
 
-**状态**：**Cut 7/7 ✅ 全部出库 🎉**
+**状态**：**Cut 6/6 ✅ 全部出库 🎉**
 
 **进度**：
-- Cut 1 ✅ `44589cf`：useProjects hook + projects-store IndexedDB CRUD + CreatorWorkspace 接通；CreatorProjectId 加 `proj_${string}`
-- Cut 2 ✅：装 shadcn dropdown-menu / context-menu / alert-dialog + SidebarToast Provider（不引 sonner，自写极简 inline toast）
-- Cut 3 ✅ `a8fdea7`：bucketByActivity 时间分组工具 + 6 用例（周一为周首）
-- Cut 4 ✅ `95afcfe`：ProjectSidebar 视觉骨架重写（4 桶 today/yesterday/thisWeek/earlier）+ 5 用例
-- Cut 5 ✅：项目 CRUD UI（kebab DropdownMenu + 3 个 dialog: New/Rename/DeleteAlert）+ 5 用例；最后 1 个项目时禁用删除防呆
-- Cut 6 ✅ `a848851`：会话级 ContextMenu + DropdownMenu（共用 11 项菜单 body）+ 复制 ID/深度链接 + 9 个 placeholder + 3 用例
-- Cut 7 ✅：文档同步（本文 + extraction-map + docs/14 + docs/17 + 新 plan 文件）+ 全套验收
+- Cut 1 ✅ `5e9f8fe`：useCollapsedProjects hook（localStorage 持久化，SSR safe，垃圾值兜底）+ 7 单测
+- Cut 2 ✅ `b4301bd`：ProjectCard 组件（collapsible header + 内嵌 4 桶 session list +「全部对话」row + kebab）+ 6 用例
+- Cut 3 ✅ `e025eff`：重写 ProjectSidebar 主体（删 ProjectHeader 单卡 + 删「其他项目」switcher + map ProjectCard），370 → 198 行；改 sidebar 6 用例
+- Cut 4 ✅ `ed6bb8f`：CRUD 测试适配（kebab 现在每卡一份，新增 getKebabIn scope helper）
+- Cut 5 ✅ `8a3460f`：creator-shell 切换用例适配（点 header 改 toggle / 点全部对话切 active）
+- Cut 6 ✅：文档同步 + push origin main
 
-**整体增减**：sidebar 159 → ~370 行（-X +X 实是结构换骨）；新增 9 个 component + 2 个 lib + 5 个测试文件；54 files / 245 tests pass。
+**整体增减**：56 files / 259 tests pass（比上轮 +2 files +14 tests）；ProjectSidebar 主体 -172 行（结构换骨）；新增 ProjectCard 318 行 + hook 86 行 + 测试 ~250 行。CreatorWorkspace.tsx 零修改 —— props 契约不变。
 
-**之前重点（已封板，保留作历史）**：PsyPic UI 全面深度优化（plan slug `linear-stirring-acorn`）—— Phase 4-6 + Plan Task 6/7 全部出库。
+**之前重点（已封板，保留作历史）**：
+- ProjectSidebar Codex 风重构（plan slug `cosmic-tumbling-narwhal`）—— IndexedDB CRUD + 4 桶时间分组 + 行级菜单
+- PsyPic UI 全面深度优化（plan slug `linear-stirring-acorn`）—— Phase 4-6 + Plan Task 6/7 全部出库
 
 ## 接棒读哪一份
 
-**先读**：`docs/superpowers/plans/2026-05-04-project-sidebar-codex-rewrite.md`
-落地的精简版本 plan，含拆刀对照表、文件清单、经验总结。
+**先读**：`docs/superpowers/plans/2026-05-04-project-sidebar-flat-collapse.md`
+本轮的精简落地版本，含拆刀对照表、新交互模型、经验总结。
 
-**前情提要**：`docs/superpowers/plans/2026-05-03-creatorworkspace-extraction-map.md`
-顶部 **「📍 下次会话从这里开始」** 章节是上一个 plan（UI 重构）的入口；该 plan 已封板。
+**前情提要**：
+- `docs/superpowers/plans/2026-05-04-project-sidebar-codex-rewrite.md` — 上一轮 sidebar 重构（CRUD + 4 桶 + 菜单），本轮改的是它的视觉结构
+- `docs/superpowers/plans/2026-05-03-creatorworkspace-extraction-map.md` — 更上一轮 UI 重构入口
 
 **辅助**：
 - `docs/superpowers/plans/2026-05-02-psypic-ui-system-implementation.md` — Phase 0-8 完整 plan
 - `docs/superpowers/specs/2026-05-02-psypic-ui-system-design.md` — 视觉/信息架构 spec
 - `docs/superpowers/specs/2026-05-02-codex-chat-studio-design.md` — chat-studio 设计
-- `docs/14-视觉与竞品对标标准.md` — 含暗色 + 移动端 + sidebar Codex 风 UI 验收标准
-- `docs/17-测试与验收用例.md` — 含 UI 重构落地后回归 + 6 路由人工走查表 + sidebar Codex 重构回归
+- `docs/14-视觉与竞品对标标准.md` — 含暗色 + 移动端 + sidebar 平铺折叠卡 UI 验收标准
+- `docs/17-测试与验收用例.md` — 含 sidebar 平铺折叠卡回归 + 6 路由人工走查表
 
 ## 项目硬约束（出自 spec / plan）
 
