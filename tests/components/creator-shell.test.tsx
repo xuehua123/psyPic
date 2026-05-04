@@ -233,6 +233,57 @@ describe("CreatorWorkspace", () => {
     ).toBeInTheDocument();
   });
 
+  it("derives a session into a new project via 派生到新工作树", async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(
+        generationResponse({
+          taskId: "task_derive_1",
+          assetId: "asset_derive_1",
+          requestId: "psypic_req_derive_1"
+        })
+      )
+      .mockResolvedValueOnce(
+        taskResponse({
+          taskId: "task_derive_1",
+          status: "succeeded",
+          requestId: "psypic_req_task_derive_1"
+        })
+      );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    render(<CreatorWorkspace />);
+    const user = userEvent.setup();
+
+    // 生成一条 session 作为 derive 的源
+    await user.type(
+      screen.getByRole("textbox", { name: "Prompt" }),
+      "Source for derive."
+    );
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+    await screen.findByText("asset_derive_1");
+
+    // 打开菜单 → 点「派生到新工作树」
+    const kebabs = await screen.findAllByTestId("session-row-menu-button");
+    await user.click(kebabs[0]);
+    await user.click(await screen.findByTestId("session-menu-fork-new"));
+
+    // jsdom 无 IndexedDB，createProject 返回 null 走 fallback 分支：
+    // - 仍清掉 forkParentId（不留分叉上下文）
+    // - 切 activeConversationId="new"
+    // - 填回 latestNode 的 prompt → Composer textarea value
+    // - toast「已派生到新项目...」
+    const region = await screen.findByTestId("sidebar-toast-region");
+    expect(
+      within(region).getByText(/已派生到新项目/)
+    ).toBeInTheDocument();
+
+    // Composer textarea 已回填源 prompt
+    expect(
+      screen.getByRole("textbox", { name: "Prompt" })
+    ).toHaveValue("Source for derive.");
+  });
+
   it("loads server library assets and toggles favorite metadata", async () => {
     const fetchSpy = vi
       .fn()

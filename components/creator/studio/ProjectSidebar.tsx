@@ -162,8 +162,7 @@ function ProjectSidebarContent({
         branch: SidebarProjectBranchSummary
       ) => {
         await onDeriveSession(projectId, branch);
-        // 派生 toast 文案在 CreatorWorkspace 里有新项目名，那边已经 show；
-        // 这里不重复 show，避免双 toast。
+        toast.show("已派生到新项目，可在 Composer 中继续", "success");
       }
     : undefined;
 
