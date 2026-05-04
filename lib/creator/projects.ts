@@ -2,8 +2,20 @@ import type { CreatorProjectId } from "@/lib/creator/types";
 import type { CreatorVersionNode } from "@/lib/creator/version-graph";
 
 /**
- * 创作台的"项目"元数据：固定 4 项预设（商业 / 社媒 / 广告 / 社区同款），
- * 在 ProjectSidebar 与若干派生 useMemo 中共享。
+ * 创作台的"项目"元数据。
+ *
+ * 历史：原本是 hardcoded 4 项 (commercial / social / campaign / same)
+ * 静态 export，作为创作台一级菜单。
+ *
+ * 现状（项目 CRUD 接入后）：
+ * - 4 项保留，作为首次进入的 default seed（写入 IndexedDB
+ *   `psypic_projects` store）
+ * - 用户可新建 / 重命名 / 删除项目（包括内置项目，符合"完整 CRUD"语义）
+ * - emptyTitle / emptyDescription 仍由 seed 提供；用户自定义项目使用
+ *   fallback 文案（见 lib/creator/use-projects.ts toMeta()）
+ *
+ * 真实数据流：
+ *   IndexedDB StoredProject ─ useProjects() ─ toMeta() ─→ CreatorProjectMeta
  */
 export type CreatorProjectMeta = {
   id: CreatorProjectId;
@@ -13,7 +25,9 @@ export type CreatorProjectMeta = {
   emptyDescription: string;
 };
 
-export const creatorProjects: CreatorProjectMeta[] = [
+/** 首次进入时写入 IndexedDB 的 default 项目种子。同时为 ChatEmptyState 提
+ *  供文案 fallback（用户重命名或新建项目时仍可借用）。 */
+export const defaultProjectSeeds: CreatorProjectMeta[] = [
   {
     id: "commercial",
     title: "商业图库项目",
