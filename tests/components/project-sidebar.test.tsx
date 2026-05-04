@@ -167,8 +167,7 @@ describe("ProjectSidebar (Codex session list)", () => {
     expect(screen.queryByTestId("session-bucket-today")).not.toBeInTheDocument();
   });
 
-  it("invokes onPlaceholderAction for the kebab and new-project buttons", () => {
-    const onPlaceholderAction = vi.fn();
+  it("opens the new-project dialog when 「+ 新建项目」 is clicked", () => {
     render(
       <ProjectSidebar
         sidebarProjects={TEST_PROJECTS}
@@ -177,14 +176,10 @@ describe("ProjectSidebar (Codex session list)", () => {
         activeProjectTitle="商业图库项目"
         onSelectProject={vi.fn()}
         onSelectConversation={vi.fn()}
-        onPlaceholderAction={onPlaceholderAction}
       />
     );
 
-    fireEvent.click(screen.getByTestId("project-kebab-button"));
-    expect(onPlaceholderAction).toHaveBeenCalledWith("project-kebab");
-
     fireEvent.click(screen.getByTestId("new-project-button"));
-    expect(onPlaceholderAction).toHaveBeenCalledWith("new-project");
+    expect(screen.getByTestId("new-project-dialog")).toBeInTheDocument();
   });
 });

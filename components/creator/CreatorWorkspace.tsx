@@ -190,7 +190,12 @@ export default function CreatorWorkspace({
   const [nodeProjectIds, setNodeProjectIds] = useState<
     Record<string, CreatorProjectId>
   >({});
-  const { projects: creatorProjects } = useProjects();
+  const {
+    projects: creatorProjects,
+    createProject,
+    renameProject: renameProjectInStore,
+    deleteProject: deleteProjectInStore
+  } = useProjects();
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const maskDrawingRef = useRef(false);
 
@@ -1385,6 +1390,23 @@ export default function CreatorWorkspace({
     setErrorMessage("");
   }
 
+  /**
+   * 删除项目；如果删的是当前 active 项目，重置回 creatorProjects[0] 或
+   * 首个 default seed 兜底，并清空当前会话状态，避免空指针。
+   */
+  async function handleDeleteProject(projectId: CreatorProjectId) {
+    await deleteProjectInStore(projectId);
+    if (projectId === activeProjectId) {
+      const fallback = creatorProjects.find((meta) => meta.id !== projectId);
+      const nextId = fallback?.id ?? defaultProjectSeeds[0].id;
+      setActiveProjectId(nextId);
+      setActiveConversationId("new");
+      setActiveNodeId(null);
+      setForkParentId(null);
+      setErrorMessage("");
+    }
+  }
+
   function selectConversation(conversationId: CreatorConversationId) {
     if (conversationId === "new") {
       setActiveConversationId("new");
@@ -1517,6 +1539,9 @@ export default function CreatorWorkspace({
         activeConversationId={activeConversationId}
         activeProjectId={activeProjectId}
         activeProjectTitle={activeProject.title}
+        onCreateProject={createProject}
+        onDeleteProject={handleDeleteProject}
+        onRenameProject={renameProjectInStore}
         onSelectConversation={selectConversation}
         onSelectProject={selectProject}
         sidebarProjects={sidebarProjects}
@@ -1608,6 +1633,9 @@ export default function CreatorWorkspace({
               activeConversationId={activeConversationId}
               activeProjectId={activeProjectId}
               activeProjectTitle={activeProject.title}
+              onCreateProject={createProject}
+              onDeleteProject={handleDeleteProject}
+              onRenameProject={renameProjectInStore}
               onSelectConversation={(conversationId) => {
                 selectConversation(conversationId);
                 setMobileSidebarOpen(false);

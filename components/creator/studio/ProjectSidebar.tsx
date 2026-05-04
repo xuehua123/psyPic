@@ -1,39 +1,42 @@
 "use client";
 
-import {
-  Folder,
-  MessageSquarePlus,
-  MoreHorizontal,
-  Plus
-} from "lucide-react";
+import * as React from "react";
+import { Folder, MessageSquarePlus, Plus } from "lucide-react";
 
 import type {
   CreatorConversationId,
   CreatorProjectId
 } from "@/lib/creator/types";
 import type {
+  CreatorProjectMeta,
   SidebarProjectBranchSummary,
   SidebarProjectGroup
 } from "@/lib/creator/projects";
 import { bucketByActivity } from "@/lib/creator/session-buckets";
 import { formatVersionNodeTime } from "@/lib/creator/version-graph";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+import NewProjectDialog from "./NewProjectDialog";
+import ProjectDeleteAlert from "./ProjectDeleteAlert";
+import ProjectKebabMenu from "./ProjectKebabMenu";
+import ProjectRenameDialog from "./ProjectRenameDialog";
+import {
+  SidebarToastProvider,
+  useSidebarToast
+} from "./SidebarToast";
 
 /**
  * 工作台左侧栏：Codex 风 Session List。
  *
  * 结构：
  *   顶部条       创作台 + 新建对话
- *   项目头       icon + 项目名 + kebab（Cut 5 接通）
- *   项目切换    其他项目 row 列表 + [+ 新建项目]（Cut 5 接通）
+ *   项目头       icon + 项目名 + kebab（DropdownMenu）
+ *   项目切换    其他项目 row 列表 + [+ 新建项目]
  *   session 列  按 today / yesterday / thisWeek / earlier 分组
  *
- * Cut 4 视觉骨架版本：菜单按钮渲染但 onClick 走 onPlaceholderAction
- * 占位回调（Cut 5 / 6 接 useSidebarToast 真正吐 toast）。
- *
- * 数据流来自 props：sidebarProjects / activeProjectId / activeConversationId
- * 来自 CreatorWorkspace 的 useMemo（保留原 wiring，最小侵入）。
+ * 数据流：sidebarProjects / activeProjectId / activeConversationId 从 props
+ * 来；CRUD 通过 onCreateProject / onRenameProject / onDeleteProject 三个
+ * callback 由 CreatorWorkspace 转发到 useProjects hook。
  */
 export type ProjectSidebarProps = {
   sidebarProjects: SidebarProjectGroup[];
@@ -42,8 +45,12 @@ export type ProjectSidebarProps = {
   activeProjectTitle: string;
   onSelectProject: (projectId: CreatorProjectId) => void;
   onSelectConversation: (conversationId: CreatorConversationId) => void;
-  /** Cut 5 / 6 placeholder：渲染按钮但点了什么都不做（占位）。 */
-  onPlaceholderAction?: (action: string) => void;
+  onCreateProject?: (title: string) => Promise<unknown> | unknown;
+  onRenameProject?: (
+    projectId: CreatorProjectId,
+    title: string
+  ) => Promise<unknown> | unknown;
+  onDeleteProject?: (projectId: CreatorProjectId) => Promise<unknown> | unknown;
 };
 
 const BUCKET_LABELS: Array<{
@@ -56,14 +63,32 @@ const BUCKET_LABELS: Array<{
   { key: "earlier", label: "更早" }
 ];
 
-export default function ProjectSidebar({
+export default function ProjectSidebar(props: ProjectSidebarProps) {
+  return (
+    <SidebarToastProvider>
+      <ProjectSidebarContent {...props} />
+    </SidebarToastProvider>
+  );
+}
+
+function ProjectSidebarContent({
   sidebarProjects,
   activeProjectId,
   activeConversationId,
   onSelectProject,
   onSelectConversation,
-  onPlaceholderAction
+  onCreateProject,
+  onRenameProject,
+  onDeleteProject
 }: ProjectSidebarProps) {
+  const toast = useSidebarToast();
+
+  const [newProjectOpen, setNewProjectOpen] = React.useState(false);
+  const [renameTarget, setRenameTarget] =
+    React.useState<CreatorProjectMeta | null>(null);
+  const [deleteTarget, setDeleteTarget] =
+    React.useState<CreatorProjectMeta | null>(null);
+
   const activeGroup =
     sidebarProjects.find((group) => group.project.id === activeProjectId) ??
     sidebarProjects[0] ??
@@ -73,10 +98,46 @@ export default function ProjectSidebar({
   );
 
   const buckets = bucketByActivity(activeGroup?.branchSummaries ?? []);
-
   const isNewConversation = activeConversationId === "new";
   const isAllConversation = activeConversationId === "all";
   const totalSessions = activeGroup?.branchSummaries.length ?? 0;
+
+  const handleKebabPlaceholder = React.useCallback(
+    (label: string) => {
+      const isDesktopOnly =
+        label.includes("资源管理器") || label.includes("工作树");
+      toast.show(
+        `「${label}」${isDesktopOnly ? "为桌面端功能" : "即将上线"}`
+      );
+    },
+    [toast]
+  );
+
+  async function handleCreateProject(title: string) {
+    if (!onCreateProject) {
+      toast.show("「新建项目」即将上线");
+      return;
+    }
+    await onCreateProject(title);
+    toast.show(`项目「${title}」已创建`, "success");
+  }
+
+  async function handleRenameProject(title: string) {
+    if (!renameTarget || !onRenameProject) {
+      return;
+    }
+    await onRenameProject(renameTarget.id, title);
+    toast.show(`已重命名为「${title}」`, "success");
+  }
+
+  async function handleDeleteProject() {
+    if (!deleteTarget || !onDeleteProject) {
+      return;
+    }
+    const title = deleteTarget.title;
+    await onDeleteProject(deleteTarget.id);
+    toast.show(`项目「${title}」已移除`, "success");
+  }
 
   return (
     <aside
@@ -118,16 +179,11 @@ export default function ProjectSidebar({
                 : activeGroup.project.description}
             </div>
           </div>
-          <Button
-            aria-label="项目操作"
-            data-testid="project-kebab-button"
-            onClick={() => onPlaceholderAction?.("project-kebab")}
-            size="icon"
-            type="button"
-            variant="ghost"
-          >
-            <MoreHorizontal size={16} aria-hidden="true" />
-          </Button>
+          <ProjectKebabMenu
+            onDelete={() => setDeleteTarget(activeGroup.project)}
+            onPlaceholder={handleKebabPlaceholder}
+            onRename={() => setRenameTarget(activeGroup.project)}
+          />
         </div>
       ) : null}
 
@@ -165,7 +221,7 @@ export default function ProjectSidebar({
           <button
             className="mt-1 flex items-center gap-2 rounded-md border border-dashed border-border px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:border-accent hover:text-accent"
             data-testid="new-project-button"
-            onClick={() => onPlaceholderAction?.("new-project")}
+            onClick={() => setNewProjectOpen(true)}
             type="button"
           >
             <Plus aria-hidden="true" className="size-3.5 shrink-0" />
@@ -227,7 +283,6 @@ export default function ProjectSidebar({
                     branch={branch}
                     key={branch.id}
                     onSelect={onSelectConversation}
-                    onPlaceholderAction={onPlaceholderAction}
                   />
                 ))}
               </section>
@@ -235,6 +290,33 @@ export default function ProjectSidebar({
           })
         )}
       </div>
+
+      <NewProjectDialog
+        onOpenChange={setNewProjectOpen}
+        onSubmit={handleCreateProject}
+        open={newProjectOpen}
+      />
+      <ProjectRenameDialog
+        initialTitle={renameTarget?.title ?? ""}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRenameTarget(null);
+          }
+        }}
+        onSubmit={handleRenameProject}
+        open={renameTarget !== null}
+      />
+      <ProjectDeleteAlert
+        onConfirm={handleDeleteProject}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+          }
+        }}
+        open={deleteTarget !== null}
+        projectCount={sidebarProjects.length}
+        projectTitle={deleteTarget?.title ?? ""}
+      />
     </aside>
   );
 }
@@ -243,14 +325,12 @@ type SessionRowProps = {
   branch: SidebarProjectBranchSummary;
   activeConversationId: CreatorConversationId;
   onSelect: (id: CreatorConversationId) => void;
-  onPlaceholderAction?: (action: string) => void;
 };
 
 function SessionRow({
   branch,
   activeConversationId,
-  onSelect,
-  onPlaceholderAction
+  onSelect
 }: SessionRowProps) {
   const id: CreatorConversationId = `branch:${branch.id}`;
   const isActive = activeConversationId === id;
@@ -281,17 +361,6 @@ function SessionRow({
           </div>
         </div>
       </button>
-      <Button
-        aria-label="会话操作"
-        className="absolute right-1 top-1 opacity-0 transition-opacity group-hover/row:opacity-100 focus-visible:opacity-100 md:hidden"
-        data-testid="session-row-mobile-menu"
-        onClick={() => onPlaceholderAction?.(`session-menu:${branch.id}`)}
-        size="icon"
-        type="button"
-        variant="ghost"
-      >
-        <MoreHorizontal size={14} aria-hidden="true" />
-      </Button>
     </div>
   );
 }
