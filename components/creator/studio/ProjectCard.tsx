@@ -116,7 +116,18 @@ export default function ProjectCard({
   onToggleArchiveSession,
   onMarkSessionUnread
 }: ProjectCardProps) {
-  const visibleBranches = group.branchSummaries;
+  const [showArchived, setShowArchived] = React.useState(false);
+  const archivedCount = React.useMemo(
+    () => group.branchSummaries.filter((branch) => branch.isArchived).length,
+    [group.branchSummaries]
+  );
+  const visibleBranches = React.useMemo(
+    () =>
+      showArchived
+        ? group.branchSummaries
+        : group.branchSummaries.filter((branch) => !branch.isArchived),
+    [group.branchSummaries, showArchived]
+  );
   const pinnedBranches = React.useMemo(
     () =>
       visibleBranches
@@ -396,6 +407,16 @@ export default function ProjectCard({
               })}
             </>
           )}
+          {archivedCount > 0 ? (
+            <button
+              className="mt-1 flex items-center justify-center gap-1 rounded-md border border-dashed border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:border-accent hover:text-accent"
+              data-testid={`toggle-archived-${projectId}`}
+              onClick={() => setShowArchived((prev) => !prev)}
+              type="button"
+            >
+              {showArchived ? `隐藏归档` : `显示归档（${archivedCount}）`}
+            </button>
+          ) : null}
         </div>
       )}
     </div>

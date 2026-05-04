@@ -260,4 +260,84 @@ describe("Session row menu (Cut 6)", () => {
     expect(screen.getByText("我的自定义会话")).toBeInTheDocument();
     expect(screen.queryByText("今天的会话")).not.toBeInTheDocument();
   });
+
+  it("calls onToggleArchiveSession with toast and hides archived branches by default", async () => {
+    const onToggleArchiveSession = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ProjectSidebar
+        {...baseProps}
+        onToggleArchiveSession={onToggleArchiveSession}
+      />
+    );
+
+    await user.click(screen.getByTestId("session-row-menu-button"));
+    await user.click(await screen.findByTestId("session-menu-archive"));
+
+    expect(onToggleArchiveSession).toHaveBeenCalledTimes(1);
+    const [projectId, branch] = onToggleArchiveSession.mock.calls[0];
+    expect(projectId).toBe("commercial");
+    expect(branch).toMatchObject({ id: "br_test_1" });
+
+    const region = await screen.findByTestId("sidebar-toast-region");
+    expect(within(region).getByText("已归档对话")).toBeInTheDocument();
+  });
+
+  it("hides archived branches by default and reveals them via 「显示归档」 toggle", async () => {
+    const archivedBranch = {
+      ...TEST_PROJECTS[0].branchSummaries[0],
+      isArchived: true
+    };
+    const archivedProjects = [
+      {
+        ...TEST_PROJECTS[0],
+        branchSummaries: [archivedBranch]
+      }
+    ];
+    const user = userEvent.setup();
+    render(
+      <ProjectSidebar {...baseProps} sidebarProjects={archivedProjects} />
+    );
+
+    // 默认隐藏：会话标题不可见
+    expect(screen.queryByText("今天的会话")).not.toBeInTheDocument();
+
+    // 「显示归档（1）」可见
+    const toggle = screen.getByTestId("toggle-archived-commercial");
+    expect(toggle).toHaveTextContent("显示归档（1）");
+
+    await user.click(toggle);
+    expect(screen.getByText("今天的会话")).toBeInTheDocument();
+    expect(toggle).toHaveTextContent("隐藏归档");
+  });
+
+  it("renders 「恢复对话」 label and toast when the branch is already archived", async () => {
+    const onToggleArchiveSession = vi.fn();
+    const archivedBranch = {
+      ...TEST_PROJECTS[0].branchSummaries[0],
+      isArchived: true
+    };
+    const archivedProjects = [
+      {
+        ...TEST_PROJECTS[0],
+        branchSummaries: [archivedBranch]
+      }
+    ];
+    const user = userEvent.setup();
+    render(
+      <ProjectSidebar
+        {...baseProps}
+        onToggleArchiveSession={onToggleArchiveSession}
+        sidebarProjects={archivedProjects}
+      />
+    );
+
+    // 必须先打开归档区才能点到 row 的 menu
+    await user.click(screen.getByTestId("toggle-archived-commercial"));
+    await user.click(screen.getByTestId("session-row-menu-button"));
+    await user.click(await screen.findByTestId("session-menu-archive"));
+
+    const region = await screen.findByTestId("sidebar-toast-region");
+    expect(within(region).getByText("已恢复对话")).toBeInTheDocument();
+  });
 });
