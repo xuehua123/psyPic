@@ -1,30 +1,33 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode
-} from "react";
+import { ThemeProvider as NextThemeProvider, useTheme as useNextTheme } from "next-themes";
+import type { ReactNode } from "react";
 
 /**
- * Phase 6 暗色模式：
+ * Phase 6 暗色模式（next-themes 迁移版）：
  * - `light` / `dark` 显式选择
  * - `system` 跟随 OS prefers-color-scheme
  *
- * SSR 安全策略：
- * - 服务端始终渲染为「无 .dark 类、theme="system"、resolvedTheme="light"」初始态
- * - app/layout.tsx 的 <ThemeNoFlashScript /> 在 React hydrate 前 inline 注入脚本，
- *   同步把 localStorage 状态写到 <html class="dark"> + colorScheme，避免 FOUC
- * - 客户端 mount 后第一个 effect 从 localStorage + matchMedia 读真实状态，
- *   后续渲染保持 React state 与 DOM 一致
- * - 用 `hydrated` flag 让 DOM apply effect 只在 hydrate 之后跑，避免与
- *   no-flash script 抢 documentElement.className
+ * 由 `next-themes` 提供 SSR 安全 + 抗 FOUC + 持久化能力，本文件保持
+ * 同样的 export 形态（ThemeProvider / useTheme / Theme / ResolvedTheme /
+ * THEME_STORAGE_KEY），供 ThemeToggle 与测试在迁移前后无感知。
+ *
+ * 关键约束：
+ * - `attribute="class"`：切 <html class="dark">，与 globals.css `.dark { ... }`
+ *   token block 直接对应，不变更样式入口。
+ * - `storageKey="psypic-theme"`：与历史 localStorage key 兼容，老用户偏好不丢。
+ * - `enableSystem` + `defaultTheme="system"`：保留三态语义。
+ * - `useTheme()` 包了一层兼容 wrapper：
+ *   ① 把 next-themes 的可空字段（mount 前 / Provider 外）规整为非空
+ *      `{ theme: "light", resolvedTheme: "light", setTheme: noop }`，让独立
+ *      预览组件 / vitest 用例不受 Provider 缺失影响。
+ *   ② setTheme 类型收敛为 `(next: Theme) => void`，调用方无需关心
+ *      next-themes 的 `string | undefined` 联合类型。
  */
 export type Theme = "light" | "dark" | "system";
 export type ResolvedTheme = "light" | "dark";
+
+export const THEME_STORAGE_KEY = "psypic-theme";
 
 type ThemeContextValue = {
   theme: Theme;
@@ -32,110 +35,38 @@ type ThemeContextValue = {
   setTheme: (next: Theme) => void;
 };
 
-const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
-
-export const THEME_STORAGE_KEY = "psypic-theme";
-
-function readSystemTheme(): ResolvedTheme {
-  if (typeof window === "undefined") return "light";
-  const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
-  return mq?.matches ? "dark" : "light";
-}
-
-function applyTheme(resolved: ResolvedTheme) {
-  if (typeof document === "undefined") return;
-  const root = document.documentElement;
-  root.classList.toggle("dark", resolved === "dark");
-  root.style.colorScheme = resolved;
-}
-
-function readStoredTheme(): Theme {
-  if (typeof window === "undefined") return "system";
-  try {
-    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-    if (stored === "light" || stored === "dark" || stored === "system") return stored;
-  } catch {
-    /* localStorage 可能被 disabled，静默退回 default */
-  }
-  return "system";
-}
-
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("system");
-  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>("light");
-  const [hydrated, setHydrated] = useState(false);
-
-  // mount：从外部源（localStorage + matchMedia）同步进 React state
-  // 这是 React 文档推荐的 SSR-safe 「hydrate from external store」标准模式：
-  // 服务端 useState 给 default → 客户端 mount 后 effect 同步真实值。
-  // react-hooks/set-state-in-effect 规则对此模式过于严格，此处显式豁免。
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    setThemeState(readStoredTheme());
-    setSystemTheme(readSystemTheme());
-    setHydrated(true);
-  }, []);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  // 订阅 OS prefers-color-scheme 变化；setState 只在 change handler 里
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
-    if (!mq) return;
-    const onChange = (event: MediaQueryListEvent) => {
-      setSystemTheme(event.matches ? "dark" : "light");
-    };
-    mq.addEventListener?.("change", onChange);
-    return () => mq.removeEventListener?.("change", onChange);
-  }, []);
-
-  // resolvedTheme 同步 derived，不用 state，不用 effect
-  const resolvedTheme: ResolvedTheme = theme === "system" ? systemTheme : theme;
-
-  // 把 resolvedTheme 写到 documentElement.classList + style.colorScheme
-  // hydrated 之前不动 DOM，让 no-flash script 的初始 class 留着
-  useEffect(() => {
-    if (!hydrated) return;
-    applyTheme(resolvedTheme);
-  }, [hydrated, resolvedTheme]);
-
-  const setTheme = useCallback((next: Theme) => {
-    if (typeof window !== "undefined") {
-      try {
-        window.localStorage.setItem(THEME_STORAGE_KEY, next);
-      } catch {
-        /* localStorage 可能被 disabled，静默忽略 */
-      }
-    }
-    setThemeState(next);
-  }, []);
-
   return (
-    <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme }}>
+    <NextThemeProvider
+      attribute="class"
+      defaultTheme="system"
+      disableTransitionOnChange
+      enableSystem
+      storageKey={THEME_STORAGE_KEY}
+      themes={["light", "dark"]}
+    >
       {children}
-    </ThemeContext.Provider>
+    </NextThemeProvider>
   );
 }
 
-export function useTheme(): ThemeContextValue {
-  const ctx = useContext(ThemeContext);
-  if (!ctx) {
-    // 测试环境或独立预览组件可能没有 <ThemeProvider> 包裹；
-    // 返回 noop 默认值（亮色 + setTheme 静默丢弃），避免抛错让组件树挂掉。
-    return {
-      theme: "light",
-      resolvedTheme: "light",
-      setTheme: () => {}
-    };
-  }
-  return ctx;
+function normalizeTheme(value: string | undefined): Theme {
+  if (value === "light" || value === "dark" || value === "system") return value;
+  return "light";
 }
 
-/**
- * 在 <head> 顶部 inline 注入：在 React hydrate 之前同步把
- * <html class="dark"> + colorScheme 设好，避免暗色用户首次进入时白屏一闪。
- */
-export function ThemeNoFlashScript() {
-  const code = `(function(){try{var k='${THEME_STORAGE_KEY}';var t=localStorage.getItem(k);if(t!=='light'&&t!=='dark'&&t!=='system')t='system';var r=t==='system'?(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):t;var c=document.documentElement.classList;if(r==='dark')c.add('dark');else c.remove('dark');document.documentElement.style.colorScheme=r;}catch(e){}})();`;
-  return <script dangerouslySetInnerHTML={{ __html: code }} suppressHydrationWarning />;
+function normalizeResolved(value: string | undefined): ResolvedTheme {
+  return value === "dark" ? "dark" : "light";
+}
+
+export function useTheme(): ThemeContextValue {
+  const next = useNextTheme();
+  return {
+    theme: normalizeTheme(next.theme),
+    resolvedTheme: normalizeResolved(next.resolvedTheme),
+    setTheme: (value: Theme) => {
+      // next-themes 的 setTheme 在 Provider 外是 noop，可直接转发
+      next.setTheme(value);
+    }
+  };
 }

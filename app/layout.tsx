@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { ThemeNoFlashScript, ThemeProvider } from "@/components/theme/ThemeProvider";
+import { ThemeProvider } from "@/components/theme/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "PsyPic",
@@ -14,9 +14,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
-      <head>
-        <ThemeNoFlashScript />
-      </head>
       <body className="psypic-root">
         <ThemeProvider>{children}</ThemeProvider>
       </body>

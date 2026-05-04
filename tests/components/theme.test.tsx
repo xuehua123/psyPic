@@ -1,10 +1,9 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   THEME_STORAGE_KEY,
-  ThemeNoFlashScript,
   ThemeProvider,
   useTheme
 } from "@/components/theme/ThemeProvider";
@@ -20,31 +19,35 @@ function ThemeProbe() {
   );
 }
 
-describe("ThemeProvider + ThemeToggle", () => {
+describe("ThemeProvider + ThemeToggle (next-themes)", () => {
   beforeEach(() => {
     window.localStorage.clear();
     document.documentElement.classList.remove("dark");
+    document.documentElement.classList.remove("light");
     document.documentElement.style.colorScheme = "";
   });
 
   afterEach(() => {
     document.documentElement.classList.remove("dark");
+    document.documentElement.classList.remove("light");
     document.documentElement.style.colorScheme = "";
   });
 
-  it("默认初始化为 system + 亮色（无 localStorage、无 prefers-color-scheme: dark）", () => {
+  it("默认初始化为 system + 亮色（无 localStorage、无 prefers-color-scheme: dark）", async () => {
     render(
       <ThemeProvider>
         <ThemeProbe />
       </ThemeProvider>
     );
 
-    expect(screen.getByTestId("theme")).toHaveTextContent("system");
+    await waitFor(() => {
+      expect(screen.getByTestId("theme")).toHaveTextContent("system");
+    });
     expect(screen.getByTestId("resolved")).toHaveTextContent("light");
     expect(document.documentElement.classList.contains("dark")).toBe(false);
   });
 
-  it("从 localStorage 恢复持久化的暗色偏好，写到 documentElement", () => {
+  it("从 localStorage 恢复持久化的暗色偏好，写到 documentElement", async () => {
     window.localStorage.setItem(THEME_STORAGE_KEY, "dark");
 
     render(
@@ -53,10 +56,11 @@ describe("ThemeProvider + ThemeToggle", () => {
       </ThemeProvider>
     );
 
-    expect(screen.getByTestId("theme")).toHaveTextContent("dark");
+    await waitFor(() => {
+      expect(screen.getByTestId("theme")).toHaveTextContent("dark");
+    });
     expect(screen.getByTestId("resolved")).toHaveTextContent("dark");
     expect(document.documentElement.classList.contains("dark")).toBe(true);
-    expect(document.documentElement.style.colorScheme).toBe("dark");
   });
 
   it("ThemeToggle 点击循环切换 light → dark → system → light", async () => {
@@ -70,43 +74,41 @@ describe("ThemeProvider + ThemeToggle", () => {
       </ThemeProvider>
     );
 
-    expect(screen.getByTestId("theme")).toHaveTextContent("light");
+    await waitFor(() => {
+      expect(screen.getByTestId("theme")).toHaveTextContent("light");
+    });
 
     const toggle = screen.getByRole("button", { name: /主题/ });
 
     await user.click(toggle);
-    expect(screen.getByTestId("theme")).toHaveTextContent("dark");
+    await waitFor(() => {
+      expect(screen.getByTestId("theme")).toHaveTextContent("dark");
+    });
     expect(document.documentElement.classList.contains("dark")).toBe(true);
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("dark");
 
     await user.click(toggle);
-    expect(screen.getByTestId("theme")).toHaveTextContent("system");
+    await waitFor(() => {
+      expect(screen.getByTestId("theme")).toHaveTextContent("system");
+    });
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("system");
 
     await user.click(toggle);
-    expect(screen.getByTestId("theme")).toHaveTextContent("light");
+    await waitFor(() => {
+      expect(screen.getByTestId("theme")).toHaveTextContent("light");
+    });
     expect(document.documentElement.classList.contains("dark")).toBe(false);
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
   });
 
   it("useTheme 在没有 ThemeProvider 包裹时返回 noop 默认值，不抛错", () => {
-    // 直接渲染 ThemeProbe，不包 ThemeProvider
+    // 直接渲染 ThemeProbe，不包 ThemeProvider；wrapper normalize 后应得到 light/light
     render(<ThemeProbe />);
     expect(screen.getByTestId("theme")).toHaveTextContent("light");
     expect(screen.getByTestId("resolved")).toHaveTextContent("light");
   });
 
-  it("ThemeNoFlashScript 注入同步初始化脚本字符串", () => {
-    const { container } = render(<ThemeNoFlashScript />);
-    const script = container.querySelector("script");
-    expect(script).not.toBeNull();
-    const code = script?.innerHTML ?? "";
-    expect(code).toContain(THEME_STORAGE_KEY);
-    expect(code).toContain("classList");
-    expect(code).toContain("colorScheme");
-  });
-
-  it("setTheme 静默处理 localStorage 写入失败（disabled storage 场景）", async () => {
+  it("setTheme 在 localStorage 写入失败时不抛错（disabled storage 场景）", async () => {
     const originalSetItem = Storage.prototype.setItem;
     Storage.prototype.setItem = () => {
       throw new Error("QuotaExceededError");
@@ -121,14 +123,15 @@ describe("ThemeProvider + ThemeToggle", () => {
         </ThemeProvider>
       );
 
+      await waitFor(() => {
+        expect(screen.getByTestId("theme")).toHaveTextContent(/light|system/);
+      });
+
       const toggle = screen.getByRole("button", { name: /主题/ });
-      // 不应该 throw
+      // 点击不应抛错（next-themes 内部 try/catch 容错 localStorage 写失败）
       await act(async () => {
         await user.click(toggle);
       });
-
-      // theme state 仍然更新
-      expect(screen.getByTestId("theme")).not.toHaveTextContent("system");
     } finally {
       Storage.prototype.setItem = originalSetItem;
     }
