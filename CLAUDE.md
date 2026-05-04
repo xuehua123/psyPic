@@ -71,8 +71,8 @@
 ## 后续可选项（plan 已完结，下一波由 product 决定）
 
 - 桌面 + 移动端真机走查 6 路由（docs/17 走查表）
-- BatchWorkflowPanel state 上 Context（让移动端底抽屉也能展示，目前为避免双 mount 已从抽屉移出）
-- 暗色 polish 跟踪：少量 accent-soft 系字面量（`#f0fdfa` / `#85c7be` / `#e7f3f1` / `#fff5f3` / `#f0b8b1` / `#e6ebf1`）暂未迁移，影响面小但理想态走 var()
+- ~~BatchWorkflowPanel state 上 Context（让移动端底抽屉也能展示）~~ ✅ commit `894ad93`：BatchProvider 持有 state + polling，桌面/移动双 mount 共享，222 tests pass
+- ~~暗色 polish 跟踪：accent-soft 系字面量（`#f0fdfa` / `#85c7be` / `#e7f3f1` / `#fff5f3` / `#f0b8b1` / `#e6ebf1` / `#e6f4f1` / `#e6ebf1`）~~ ✅ commit `22bda89`：8 处全部走 var()，加 `--accent-border` / `--danger-soft` / `--danger-border` 3 个新 token
 - next-themes 迁移：当前自写 ThemeProvider 已足够，若需要更复杂的 cookies-based 持久化或 multi-theme 调色板可考虑迁移
 
 ## 常用命令
