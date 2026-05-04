@@ -50,10 +50,10 @@
   --radius-lg: 12px;
   --radius-xl: 16px;
 
-  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.07);
-  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.06);
-  --shadow-lg: 0 18px 42px rgba(15, 23, 42, 0.1);
+  --shadow-xs: 0 1px 2px rgba(var(--shadow-rgb), 0.05);
+  --shadow-sm: 0 1px 2px rgba(var(--shadow-rgb), 0.07);
+  --shadow-md: 0 4px 12px rgba(var(--shadow-rgb), 0.06);
+  --shadow-lg: 0 18px 42px rgba(var(--shadow-rgb), 0.1);
 
   --font-sans: Aptos, "Segoe UI Variable", "Segoe UI", "Microsoft YaHei",
     "PingFang SC", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -61,11 +61,63 @@
 }
 
 /*
+ * 亮色默认 token（历史 :root 变量系，与上面 @theme 的 --color-* 系并行）。
+ *
+ * ⚠️ 顺序重要：此 :root block 必须在 .dark block **之前**定义。
+ *
+ * CSS specificity：:root 与 .dark 同为 (0,0,1,0)，相同 specificity 时
+ * source-order 后定义胜出 → .dark 必须后定义才能在 <html class="dark">
+ * 上正确覆盖 :root 的亮色默认值。
+ *
+ * 历史 bug：之前 .dark 写在 :root 之前，导致暗色模式下 :root 反向覆盖
+ * .dark 的暗色 token，全站 161 处 var(--bg)/var(--surface)/var(--ink)/
+ * ... 永远读到亮色，与 shadcn 走 @theme 系（--color-*）的元件不同步，
+ * 出现「shadcn 元件暗色 + 老样式亮色」的黑白相加视觉裂痕。
+ */
+:root {
+  color-scheme: light;
+  --bg: #eef3f7;
+  --surface: #ffffff;
+  --surface-muted: #f5f7fa;
+  --ink: #101620;
+  --muted: #617086;
+  --line: #d6dee8;
+  --line-strong: #aab8ca;
+  --accent: #0c7a6f;
+  --accent-strong: #075f57;
+  --accent-soft: #e5f4f1;
+  --accent-border: #85c7be;
+  --accent-alt: #2563eb;
+  --control: #f8fafc;
+  --control-hover: #eef3f8;
+  --danger: #b42318;
+  --danger-soft: #fff5f3;
+  --danger-border: #f0b8b1;
+  --shadow: 0 18px 42px rgba(var(--shadow-rgb), 0.1);
+  --shadow-soft: 0 1px 2px rgba(var(--shadow-rgb), 0.07);
+  --shadow-panel: 0 12px 30px rgba(var(--shadow-rgb), 0.08);
+
+  /* —— RGB triplets for rgba() composition (translucent surfaces / shadows) —— */
+  --surface-rgb: 255, 255, 255;
+  --shadow-rgb: 15, 23, 42;
+  --accent-rgb: 12, 122, 111;
+
+  /* —— Translucent surface variants (毛玻璃 / 弹层背景；自动跟随 --surface-rgb 在 .dark 下翻暗) —— */
+  --scrim-strong: rgba(var(--surface-rgb), 0.96);
+  --scrim: rgba(var(--surface-rgb), 0.92);
+  --scrim-soft: rgba(var(--surface-rgb), 0.82);
+  --scrim-light: rgba(var(--surface-rgb), 0.68);
+}
+
+/*
  * 暗色模式 token —— Phase 6 启用。
+ *
  * 包含两套：① Tailwind v4 @theme 系新 tokens（--color-*）；② 历史 :root
  * 老变量（--surface / --ink / --muted / 等）。两套都覆盖才能让 globals.css
  * 中现有 161 处 var() 引用 + 全部走 semantic class 的 shadcn 元件 一次性翻
  * 暗色，无需 grep-replace。
+ *
+ * ⚠️ 必须放在 :root 之后（见 :root 上方注释解释 cascade 顺序）。
  */
 .dark {
   color-scheme: dark;
@@ -112,33 +164,14 @@
   --danger: #f87171;
   --danger-soft: rgba(248, 113, 113, 0.15);
   --danger-border: #f87171;
-  --shadow: 0 18px 42px rgba(0, 0, 0, 0.45);
-  --shadow-soft: 0 1px 2px rgba(0, 0, 0, 0.5);
-  --shadow-panel: 0 12px 30px rgba(0, 0, 0, 0.45);
-}
+  --shadow: 0 18px 42px rgba(var(--shadow-rgb), 0.45);
+  --shadow-soft: 0 1px 2px rgba(var(--shadow-rgb), 0.5);
+  --shadow-panel: 0 12px 30px rgba(var(--shadow-rgb), 0.45);
 
-:root {
-  color-scheme: light;
-  --bg: #eef3f7;
-  --surface: #ffffff;
-  --surface-muted: #f5f7fa;
-  --ink: #101620;
-  --muted: #617086;
-  --line: #d6dee8;
-  --line-strong: #aab8ca;
-  --accent: #0c7a6f;
-  --accent-strong: #075f57;
-  --accent-soft: #e5f4f1;
-  --accent-border: #85c7be;
-  --accent-alt: #2563eb;
-  --control: #f8fafc;
-  --control-hover: #eef3f8;
-  --danger: #b42318;
-  --danger-soft: #fff5f3;
-  --danger-border: #f0b8b1;
-  --shadow: 0 18px 42px rgba(15, 23, 42, 0.1);
-  --shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.07);
-  --shadow-panel: 0 12px 30px rgba(15, 23, 42, 0.08);
+  /* —— RGB triplets override（与 :root 同名 token 仅覆盖 RGB 值；scrim-* 自动跟随）—— */
+  --surface-rgb: 17, 23, 31;
+  --shadow-rgb: 0, 0, 0;
+  --accent-rgb: 45, 212, 191;
 }
 
 * {
@@ -172,186 +205,10 @@ body {
   line-height: 1.5;
 }
 
-.product-shell {
-  height: 100dvh;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: row;
-  overflow: hidden;
-}
 
-.product-shell-body {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
+/* .product-sidebar-nav 系老 css 已于 Phase 4 重构后弃用，移除（138 行 dead code，
+   含大量暗色字面量在亮色态下会污染视觉，且无 .tsx 引用） */
 
-.product-page-body {
-  min-height: 0;
-  overflow: auto;
-  padding: 20px 18px 32px;
-}
-
-.product-page-body > * {
-  width: 100%;
-}
-
-.product-workbench-body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  overflow: hidden;
-  padding: 12px;
-}
-
-.product-workbench-body > * {
-  flex: 1;
-  min-height: 0;
-}
-
-.legacy-workbench-shell {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
-}
-
-.product-sidebar-nav {
-  width: 188px;
-  flex: 0 0 188px;
-  min-height: 0;
-  border-right: 1px solid #1e2a38;
-  background: #111820;
-  color: #e8eef5;
-  padding: 12px;
-}
-
-.product-sidebar-nav-inner {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.product-brand {
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.product-sidebar-nav .product-brand {
-  border-bottom: 1px solid #263342;
-  color: #f8fafc;
-  padding: 4px 4px 14px;
-}
-
-.product-brand-copy {
-  min-width: 0;
-  display: grid;
-}
-
-.product-nav,
-.product-utility-nav {
-  display: grid;
-  gap: 6px;
-}
-
-.product-nav {
-  min-height: 0;
-  align-content: start;
-}
-
-.product-utility-nav {
-  margin-top: auto;
-  margin-bottom: 48px;
-  border-top: 1px solid #263342;
-  padding-top: 10px;
-}
-
-.product-nav-section {
-  color: #8191a5;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0;
-  padding: 0 8px 4px;
-  text-transform: uppercase;
-}
-
-.product-nav-link,
-.product-utility-link {
-  width: 100%;
-  min-height: 38px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 9px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  padding: 0 10px;
-  color: #b8c4d3;
-  font-size: 13px;
-  font-weight: 700;
-  transition:
-    background-color 160ms ease,
-    border-color 160ms ease,
-    color 160ms ease;
-}
-
-.product-nav-link:hover,
-.product-utility-link:hover {
-  border-color: #2f3e4f;
-  background: #1a2430;
-  color: #f8fafc;
-}
-
-.product-nav-link.active,
-.product-utility-link.active {
-  border-color: rgba(30, 143, 132, 0.8);
-  background: rgba(26, 143, 132, 0.14);
-  color: #f8fafc;
-  box-shadow: inset 3px 0 0 #1a8f84;
-}
-
-.product-utility-card {
-  min-height: 68px;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-  border: 1px solid #2a3747;
-  border-radius: 10px;
-  background: #151f2a;
-  color: #d8e1ec;
-  padding: 10px;
-}
-
-.product-utility-card strong,
-.product-utility-card small {
-  display: block;
-}
-
-.product-utility-card strong {
-  font-size: 12px;
-}
-
-.product-utility-card small {
-  color: #8fa0b4;
-  font-size: 11px;
-  margin-top: 2px;
-}
-
-.product-nav-meta {
-  min-height: 30px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-left: 1px solid rgba(170, 184, 202, 0.5);
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
-  padding-left: 10px;
-}
 
 button,
 input,
@@ -382,7 +239,7 @@ a {
   justify-content: space-between;
   padding: 0 18px;
   border-bottom: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(var(--surface-rgb), 0.92);
   backdrop-filter: blur(12px);
   position: sticky;
   top: 0;
@@ -406,7 +263,7 @@ a {
   color: white;
   font-size: 14px;
   font-weight: 700;
-  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.18);
+  box-shadow: inset 0 -1px 0 rgba(var(--shadow-rgb), 0.18);
 }
 
 .brand-title {
@@ -445,9 +302,9 @@ a {
   background: var(--bg);
   color: var(--ink);
   overflow: hidden;
-  border: 1px solid rgba(192, 202, 215, 0.9);
+  border: 1px solid var(--line-strong);
   border-radius: 22px;
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 20px 48px rgba(var(--shadow-rgb), 0.08);
 }
 
 .chat-studio-shell .mobile-bottom-bar {
@@ -687,7 +544,7 @@ a {
   justify-content: space-between;
   gap: 14px;
   border-bottom: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(var(--surface-rgb), 0.96);
   padding: 10px 20px;
 }
 
@@ -806,9 +663,9 @@ a {
 }
 
 .chat-turn.active .generation-bubble {
-  border-color: #75b9b1;
+  border-color: var(--accent-border);
   box-shadow:
-    0 0 0 3px rgba(15, 118, 110, 0.08),
+    0 0 0 3px rgba(var(--accent-rgb), 0.08),
     var(--shadow-soft);
 }
 
@@ -833,7 +690,7 @@ a {
 
 .assistant-avatar {
   background: var(--accent);
-  color: #ffffff;
+  color: var(--color-accent-foreground);
 }
 
 .chat-bubble {
@@ -846,7 +703,7 @@ a {
 }
 
 .user-message .chat-bubble {
-  background: #f4f7fa;
+  background: var(--surface-muted);
 }
 
 .chat-message-meta {
@@ -896,10 +753,10 @@ a {
 
 .chat-composer {
   border-top: 1px solid var(--line);
-  background: rgba(248, 250, 252, 0.97);
+  background: rgba(var(--surface-rgb), 0.97);
   backdrop-filter: blur(12px);
   padding: 12px 20px 14px;
-  box-shadow: 0 -12px 28px rgba(15, 23, 42, 0.07);
+  box-shadow: 0 -12px 28px rgba(var(--shadow-rgb), 0.07);
 }
 
 .composer-inner {
@@ -909,7 +766,7 @@ a {
   border-radius: 8px;
   background: var(--surface);
   padding: 8px;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 8px 20px rgba(var(--shadow-rgb), 0.06);
 }
 
 .composer-context-row {
@@ -930,7 +787,7 @@ a {
   align-items: center;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: #f6f8fb;
+  background: var(--control);
   color: var(--muted);
   font-size: 12px;
   padding: 0 7px;
@@ -952,7 +809,7 @@ a {
 }
 
 .chat-prompt-input:focus {
-  box-shadow: inset 0 -2px 0 rgba(12, 122, 111, 0.52);
+  box-shadow: inset 0 -2px 0 rgba(var(--accent-rgb), 0.52);
 }
 
 .composer-actions {
@@ -1037,8 +894,8 @@ a {
 .primary-button {
   background: var(--accent);
   border-color: var(--accent);
-  color: #ffffff;
-  box-shadow: 0 1px 2px rgba(12, 122, 111, 0.28);
+  color: var(--color-accent-foreground);
+  box-shadow: 0 1px 2px rgba(var(--accent-rgb), 0.28);
 }
 
 .secondary-button:hover,
@@ -1158,7 +1015,7 @@ a {
 
 .textarea:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(12, 122, 111, 0.13);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.13);
 }
 
 .segmented {
@@ -1193,11 +1050,11 @@ a {
   background: var(--surface);
   color: var(--accent-strong);
   font-weight: 700;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.11);
+  box-shadow: 0 1px 2px rgba(var(--shadow-rgb), 0.11);
 }
 
 .segment:hover {
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(var(--surface-rgb), 0.72);
 }
 
 .toggle-row {
@@ -1355,7 +1212,7 @@ a {
 .reference-dropzone:focus-within,
 .reference-dropzone:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.12);
 }
 
 .reference-upload {
@@ -1436,12 +1293,12 @@ a {
   height: 20px;
   border: 0;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(var(--surface-rgb), 0.92);
   color: var(--ink);
   display: inline-grid;
   place-items: center;
   padding: 0;
-  box-shadow: 0 1px 4px rgba(16, 24, 40, 0.18);
+  box-shadow: 0 1px 4px rgba(var(--shadow-rgb), 0.18);
 }
 
 .mask-editor {
@@ -1493,13 +1350,13 @@ a {
   touch-action: none;
   cursor: crosshair;
   background:
-    linear-gradient(rgba(15, 118, 110, 0.24), rgba(15, 118, 110, 0.24)),
+    linear-gradient(rgba(var(--accent-rgb), 0.24), rgba(var(--accent-rgb), 0.24)),
     repeating-linear-gradient(
       45deg,
-      #e8edf3 0,
-      #e8edf3 8px,
-      #ffffff 8px,
-      #ffffff 16px
+      var(--control) 0,
+      var(--control) 8px,
+      var(--surface) 8px,
+      var(--surface) 16px
     );
 }
 
@@ -1508,13 +1365,13 @@ a {
   border: 1px dashed var(--line-strong);
   border-radius: 8px;
   background:
-    linear-gradient(0deg, rgba(255, 255, 255, 0.68), rgba(255, 255, 255, 0.68)),
+    linear-gradient(0deg, rgba(var(--surface-rgb), 0.68), rgba(var(--surface-rgb), 0.68)),
     repeating-linear-gradient(
       45deg,
-      #edf1f5 0,
-      #edf1f5 8px,
-      #f7f9fb 8px,
-      #f7f9fb 16px
+      var(--surface-muted) 0,
+      var(--surface-muted) 8px,
+      var(--control) 8px,
+      var(--control) 16px
     );
   display: grid;
   place-items: center;
@@ -1572,7 +1429,7 @@ a {
 
 .task-status-pill {
   border-radius: 999px;
-  background: #e8edf3;
+  background: var(--control);
   color: var(--ink);
   font-size: 12px;
   padding: 4px 8px;
@@ -1593,7 +1450,7 @@ a {
 
 .task-status-canceled {
   border-color: var(--line);
-  background: #f3f6f9;
+  background: var(--control);
 }
 
 .task-status-meta {
@@ -1670,7 +1527,7 @@ a {
   min-height: min(56vh, 680px);
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #f7f9fb;
+  background: var(--control);
   padding: 12px;
 }
 
@@ -1702,9 +1559,9 @@ a {
   z-index: 5;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(var(--surface-rgb), 0.96);
   padding: 12px;
-  box-shadow: 0 10px 28px rgba(17, 24, 39, 0.1);
+  box-shadow: 0 10px 28px rgba(var(--shadow-rgb), 0.1);
 }
 
 .result-card-body {
@@ -2015,29 +1872,6 @@ a {
   background: transparent;
 }
 
-.product-page-header,
-.library-page-header {
-  max-width: 1180px;
-  width: 100%;
-  margin: 0 auto;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.product-page-header h1,
-.library-page-header h1 {
-  margin: 4px 0 0;
-  font-size: 26px;
-}
-
-.product-page-header p,
-.library-page-header p {
-  margin: 6px 0 0;
-  color: var(--muted);
-  font-size: 13px;
-}
 
 .library-metric-grid {
   max-width: 1180px;
@@ -2053,10 +1887,10 @@ a {
   display: grid;
   align-content: center;
   gap: 6px;
-  border: 1px solid rgba(208, 217, 228, 0.88);
+  border: 1px solid var(--line);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
+  background: rgba(var(--surface-rgb), 0.82);
+  box-shadow: 0 12px 28px rgba(var(--shadow-rgb), 0.05);
   padding: 14px;
 }
 
@@ -2083,10 +1917,10 @@ a {
 .library-page-card {
   min-width: 0;
   overflow: hidden;
-  border: 1px solid rgba(208, 217, 228, 0.9);
+  border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--surface);
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 16px 32px rgba(var(--shadow-rgb), 0.06);
 }
 
 .library-page-card img {
@@ -2130,7 +1964,7 @@ a {
   display: inline-flex;
   align-items: center;
   border-radius: 999px;
-  background: #eef4f8;
+  background: var(--control);
   color: var(--muted);
   font-size: 11px;
   font-weight: 700;
@@ -2161,10 +1995,10 @@ a {
 .template-catalog-card,
 .tasks-guidance-panel,
 .tasks-workflow-panel {
-  border: 1px solid rgba(208, 217, 228, 0.9);
+  border: 1px solid var(--line);
   border-radius: 14px;
   background: var(--surface);
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 16px 32px rgba(var(--shadow-rgb), 0.05);
 }
 
 .template-catalog-card {
@@ -2210,7 +2044,7 @@ a {
   align-items: center;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: #f4f7fa;
+  background: var(--surface-muted);
   color: var(--muted);
   font-size: 12px;
   font-weight: 700;
@@ -2273,10 +2107,10 @@ a {
   margin: 0 auto;
   display: grid;
   gap: 10px;
-  border: 1px solid rgba(208, 217, 228, 0.88);
+  border: 1px solid var(--line);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.05);
+  background: rgba(var(--surface-rgb), 0.82);
+  box-shadow: 0 16px 32px rgba(var(--shadow-rgb), 0.05);
   padding: 14px;
 }
 
@@ -2322,7 +2156,7 @@ a {
   border-radius: 18px;
   background: var(--surface);
   overflow: hidden;
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 16px 32px rgba(var(--shadow-rgb), 0.06);
 }
 
 .community-work-card img {
@@ -2353,7 +2187,7 @@ a {
 
 .community-work-title-row span {
   border-radius: 999px;
-  background: #e8edf3;
+  background: var(--control);
   color: var(--ink);
   font-size: 12px;
   padding: 4px 8px;
@@ -2381,7 +2215,7 @@ a {
   border: 1px dashed var(--line-strong);
   border-radius: 18px;
   background: var(--surface);
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 16px 32px rgba(var(--shadow-rgb), 0.04);
   padding: 28px;
 }
 
@@ -2398,7 +2232,7 @@ a {
   border-radius: 18px;
   background: var(--surface);
   overflow: hidden;
-  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 18px 36px rgba(var(--shadow-rgb), 0.06);
 }
 
 .community-detail-preview img {
@@ -2415,7 +2249,7 @@ a {
   gap: 12px;
   padding: 14px;
   border-radius: 18px;
-  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 18px 36px rgba(var(--shadow-rgb), 0.05);
 }
 
 .community-detail-panel h1 {
@@ -2479,7 +2313,7 @@ a {
   border: 1px solid var(--line);
   border-radius: 18px;
   background: var(--surface);
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 16px 32px rgba(var(--shadow-rgb), 0.05);
 }
 
 .admin-metric {
@@ -2568,7 +2402,7 @@ a {
 .library-preview-panel {
   overflow: hidden;
   border-radius: 20px;
-  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 18px 36px rgba(var(--shadow-rgb), 0.06);
 }
 
 .library-preview-panel img {
@@ -2582,7 +2416,7 @@ a {
 .library-detail-panel {
   padding: 14px;
   border-radius: 20px;
-  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 18px 36px rgba(var(--shadow-rgb), 0.05);
 }
 
 .mobile-bottom-bar {
@@ -2591,7 +2425,7 @@ a {
   bottom: 0;
   z-index: 30;
   border-top: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.94);
+  background: rgba(var(--surface-rgb), 0.94);
   backdrop-filter: blur(12px);
   padding: 10px 12px;
   gap: 8px;
@@ -2612,7 +2446,7 @@ a {
 .settings-panel {
   padding: 18px;
   border-radius: 18px;
-  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.05);
+  box-shadow: 0 18px 36px rgba(var(--shadow-rgb), 0.05);
 }
 
 .settings-title {
@@ -2731,72 +2565,6 @@ a {
 }
 
 @media (max-width: 760px) {
-  .product-shell {
-    flex-direction: column;
-  }
-
-  .product-sidebar-nav {
-    width: auto;
-    flex: 0 0 auto;
-    min-height: auto;
-    border-right: 0;
-    border-bottom: 1px solid #1e2a38;
-    padding: 10px 12px;
-  }
-
-  .product-sidebar-nav-inner {
-    display: grid;
-    grid-template-columns: minmax(120px, auto) minmax(0, 1fr);
-    gap: 10px;
-    height: auto;
-  }
-
-  .product-sidebar-nav .product-brand {
-    border-bottom: 0;
-    padding: 0;
-  }
-
-  .product-nav,
-  .product-utility-nav {
-    display: flex;
-    gap: 6px;
-    overflow-x: auto;
-  }
-
-  .product-nav {
-    grid-column: 1 / -1;
-  }
-
-  .product-utility-nav {
-    justify-content: flex-end;
-    margin-top: 0;
-    margin-bottom: 0;
-    border-top: 0;
-    padding-top: 0;
-  }
-
-  .product-nav-section,
-  .product-utility-card {
-    display: none;
-  }
-
-  .product-nav-link,
-  .product-utility-link {
-    width: auto;
-    min-height: 34px;
-    padding: 0 10px;
-    font-size: 12px;
-    white-space: nowrap;
-    box-shadow: none;
-  }
-
-  .product-page-body {
-    padding: 16px 12px 24px;
-  }
-
-  .product-workbench-body {
-    padding: 10px 12px 12px;
-  }
 
   .chat-studio-shell {
     min-height: 0;
@@ -2901,10 +2669,6 @@ a {
     flex-direction: column;
   }
 
-  .product-page-header {
-    align-items: stretch;
-    flex-direction: column;
-  }
 
   .library-metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

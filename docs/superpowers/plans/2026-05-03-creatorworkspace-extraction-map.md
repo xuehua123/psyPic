@@ -2,6 +2,11 @@
 
 ## 📍 下次会话从这里开始（READ ME FIRST）
 
+> **2026-05-04 更新**：本 plan 已封板。**新会话应先读
+> [`2026-05-04-project-sidebar-codex-rewrite.md`](2026-05-04-project-sidebar-codex-rewrite.md)
+> （slug `cosmic-tumbling-narwhal`，ProjectSidebar Codex 风重构，已 7/7
+> 全部出库）**；本文件仅作历史参考。
+
 **当前进度**：**plan slug `linear-stirring-acorn` 全部封板** 🎉🎉🎉
 - Phase 4 ✅：17 / 17 子组件 + 1 / 1 legacy fallback + Context 91 → 81 字段
 - Phase 5 ✅：6 / 6 视觉打磨刀（详见下面 Phase 5 完成清单）

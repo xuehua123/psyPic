@@ -171,7 +171,17 @@ export type TemplateFieldValue = string | boolean;
 export type TemplateFieldValues = Record<string, TemplateFieldValue>;
 
 // 项目与对话
-export type CreatorProjectId = "commercial" | "social" | "campaign" | "same";
+//
+// 4 个内置 ID 是 IndexedDB 首次进入的 default seed（commercial / social /
+// campaign / same，见 lib/creator/projects.ts defaultProjectSeeds）；用户
+// 新建的项目 ID 走 `proj_` 前缀（见 lib/creator/projects-store.ts
+// createUserProjectId）。两者都是合法 CreatorProjectId。
+export type CreatorProjectId =
+  | "commercial"
+  | "social"
+  | "campaign"
+  | "same"
+  | `proj_${string}`;
 export type CreatorConversationId = "all" | "new" | `branch:${string}`;
 
 export type CreatorProjectMeta = {

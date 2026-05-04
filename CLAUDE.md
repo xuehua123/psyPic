@@ -5,42 +5,37 @@
 
 ## 当前重点工作
 
-**PsyPic UI 全面深度优化**（plan slug `linear-stirring-acorn`）—— 把整站前端调到 Linear / Figma / Codex 风格的专业创作 IDE 水准。
+**ProjectSidebar Codex 风重构**（plan slug `cosmic-tumbling-narwhal`）—— 把左侧栏从 4 个 hardcoded 项目折叠树改成「项目软种子（IndexedDB CRUD）+ session 时间分组（今天/昨天/本周/更早）+ 行级右键菜单」。
 
-**状态**：**Phase 4 ✅ + Phase 5 ✅ + 衍生项 5/5 ✅ + 收尾扫荡 ✅ + Phase 6 ✅ + Plan Task 6 ✅ + Plan Task 7 ✅ —— 整 plan 全部出库 🎉🎉🎉**
+**状态**：**Cut 7/7 ✅ 全部出库 🎉**
 
 **进度**：
-- Phase 4 ✅：17 / 17 子组件 + 1 / 1 legacy fallback + Context 91 → 81 字段。CreatorWorkspace.tsx 4116 → ~1607 行（-61%）。
-- Phase 5 ✅：6 / 6 视觉打磨刀（chat 中性白底层级 / SectionHeading / Linear 风 active / Empty 4 卡 / chips 单行 / shadcn Button ×32）。
-- 衍生项 ①-⑤ ✅：删 legacy fallback / shadcn Input ×7 / Select ×8 / Checkbox ×12 / Slider ×1。
-- 收尾扫荡 ✅：ChatHeader Board onClick / globals.css 孤儿规则清理。
-- **Phase 6 暗色模式 ✅**（commits `4d8b16a` / `8ff2b3c` / `bfc98ff`）：
-  - `4d8b16a`：ThemeProvider + ThemeToggle 三态切换（亮 / 暗 / 跟随系统），SSR 安全 + ThemeNoFlashScript 抗 FOUC，AppTopNav UtilityNav 加切换按钮
-  - `8ff2b3c`：globals.css `.dark` block 扩展覆盖 17 个 legacy var；全量 hex 字面量迁移到 var()（`#ffffff` → `var(--surface)`、`#f8fafc` → `var(--control)`、`#e8eef5` → `var(--bg)` 等共 70+ 处）；3 处 raw `bg-white/8X` Badge → `bg-card/8X`
-  - `bfc98ff`：tests/components/theme.test.tsx（6 用例）+ vitest.setup.ts 加 matchMedia polyfill
-- **Plan Task 6 移动端结构重排 ✅**（commits `bad24be` / `9ec3201`）：
-  - `bad24be`：工作台移动端左 / 底 shadcn Sheet 抽屉接通（汉堡按钮 + 「打开参数面板」），globals.css 加 `[data-mobile-drawer]` 范围样式让 Inspector 在抽屉内可见，creator-shell.test.tsx 加 2 个抽屉用例
-  - `9ec3201`：CommunityFeedPage chip 行 mobile 单行横滚 / 详情页主图 mobile ≤ 55vh 让 CTA 首屏可达
-- **Plan Task 7 文档收尾 + 全套验收 ✅**（commit `bb08205` + 验收）：
-  - docs/14 增加暗色模式 + 移动端两个标准章节
-  - docs/17 增加 UI 重构落地后回归章节 + 6 路由人工走查表
-  - docs/文档索引.md 加 extraction-map 路径指针
-  - README 更新 UI 重构条目 + 技术栈
-  - 全套验收通过：`git diff --check` clean / `pnpm lint` ✅ / `pnpm typecheck` ✅ / `pnpm test` 49 files / 220 tests ✅ / `pnpm build` ✅
+- Cut 1 ✅ `44589cf`：useProjects hook + projects-store IndexedDB CRUD + CreatorWorkspace 接通；CreatorProjectId 加 `proj_${string}`
+- Cut 2 ✅：装 shadcn dropdown-menu / context-menu / alert-dialog + SidebarToast Provider（不引 sonner，自写极简 inline toast）
+- Cut 3 ✅ `a8fdea7`：bucketByActivity 时间分组工具 + 6 用例（周一为周首）
+- Cut 4 ✅ `95afcfe`：ProjectSidebar 视觉骨架重写（4 桶 today/yesterday/thisWeek/earlier）+ 5 用例
+- Cut 5 ✅：项目 CRUD UI（kebab DropdownMenu + 3 个 dialog: New/Rename/DeleteAlert）+ 5 用例；最后 1 个项目时禁用删除防呆
+- Cut 6 ✅ `a848851`：会话级 ContextMenu + DropdownMenu（共用 11 项菜单 body）+ 复制 ID/深度链接 + 9 个 placeholder + 3 用例
+- Cut 7 ✅：文档同步（本文 + extraction-map + docs/14 + docs/17 + 新 plan 文件）+ 全套验收
 
-**整体增减**：CreatorWorkspace.tsx 4116 → ~1607 行（-2509 / -61%），legacy 1244 行整目录出库，shadcn 元件全站收敛，暗色 + 移动端封板。
+**整体增减**：sidebar 159 → ~370 行（-X +X 实是结构换骨）；新增 9 个 component + 2 个 lib + 5 个测试文件；54 files / 245 tests pass。
+
+**之前重点（已封板，保留作历史）**：PsyPic UI 全面深度优化（plan slug `linear-stirring-acorn`）—— Phase 4-6 + Plan Task 6/7 全部出库。
 
 ## 接棒读哪一份
 
-**先读**：`docs/superpowers/plans/2026-05-03-creatorworkspace-extraction-map.md`
-顶部 **「📍 下次会话从这里开始」** 章节是行动入口，含开场白、下一刀、铁律、套路。
+**先读**：`docs/superpowers/plans/2026-05-04-project-sidebar-codex-rewrite.md`
+落地的精简版本 plan，含拆刀对照表、文件清单、经验总结。
+
+**前情提要**：`docs/superpowers/plans/2026-05-03-creatorworkspace-extraction-map.md`
+顶部 **「📍 下次会话从这里开始」** 章节是上一个 plan（UI 重构）的入口；该 plan 已封板。
 
 **辅助**：
 - `docs/superpowers/plans/2026-05-02-psypic-ui-system-implementation.md` — Phase 0-8 完整 plan
 - `docs/superpowers/specs/2026-05-02-psypic-ui-system-design.md` — 视觉/信息架构 spec
 - `docs/superpowers/specs/2026-05-02-codex-chat-studio-design.md` — chat-studio 设计
-- `docs/14-视觉与竞品对标标准.md` — 含暗色 + 移动端 UI 验收标准
-- `docs/17-测试与验收用例.md` — 含 UI 重构落地后回归 + 6 路由人工走查表
+- `docs/14-视觉与竞品对标标准.md` — 含暗色 + 移动端 + sidebar Codex 风 UI 验收标准
+- `docs/17-测试与验收用例.md` — 含 UI 重构落地后回归 + 6 路由人工走查表 + sidebar Codex 重构回归
 
 ## 项目硬约束（出自 spec / plan）
 

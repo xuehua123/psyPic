@@ -86,9 +86,10 @@ import {
   type CreatorVersionNode
 } from "@/lib/creator/version-graph";
 import {
-  creatorProjects,
+  defaultProjectSeeds,
   type SidebarProjectGroup
 } from "@/lib/creator/projects";
+import { useProjects } from "@/lib/creator/use-projects";
 import {
   listPromptFavorites,
   savePromptFavorite,
@@ -189,6 +190,12 @@ export default function CreatorWorkspace({
   const [nodeProjectIds, setNodeProjectIds] = useState<
     Record<string, CreatorProjectId>
   >({});
+  const {
+    projects: creatorProjects,
+    createProject,
+    renameProject: renameProjectInStore,
+    deleteProject: deleteProjectInStore
+  } = useProjects();
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const maskDrawingRef = useRef(false);
 
@@ -235,13 +242,16 @@ export default function CreatorWorkspace({
           )
         };
       }),
-    [nodeProjectIds, versionNodes]
+    [creatorProjects, nodeProjectIds, versionNodes]
   );
   const activeProjectGroup = useMemo<SidebarProjectGroup>(
     () =>
       sidebarProjects.find((item) => item.project.id === activeProjectId) ??
       sidebarProjects[0] ?? {
-        project: creatorProjects[0],
+        // 极端兜底：用户把所有项目（含 default seed）都删了，IndexedDB
+        // 又因为某种原因没把 seed 重新写回 —— 拿首个静态 seed 顶上，
+        // 避免空指针。
+        project: defaultProjectSeeds[0],
         nodes: [],
         branchSummaries: []
       },
@@ -1380,6 +1390,23 @@ export default function CreatorWorkspace({
     setErrorMessage("");
   }
 
+  /**
+   * 删除项目；如果删的是当前 active 项目，重置回 creatorProjects[0] 或
+   * 首个 default seed 兜底，并清空当前会话状态，避免空指针。
+   */
+  async function handleDeleteProject(projectId: CreatorProjectId) {
+    await deleteProjectInStore(projectId);
+    if (projectId === activeProjectId) {
+      const fallback = creatorProjects.find((meta) => meta.id !== projectId);
+      const nextId = fallback?.id ?? defaultProjectSeeds[0].id;
+      setActiveProjectId(nextId);
+      setActiveConversationId("new");
+      setActiveNodeId(null);
+      setForkParentId(null);
+      setErrorMessage("");
+    }
+  }
+
   function selectConversation(conversationId: CreatorConversationId) {
     if (conversationId === "new") {
       setActiveConversationId("new");
@@ -1512,6 +1539,9 @@ export default function CreatorWorkspace({
         activeConversationId={activeConversationId}
         activeProjectId={activeProjectId}
         activeProjectTitle={activeProject.title}
+        onCreateProject={createProject}
+        onDeleteProject={handleDeleteProject}
+        onRenameProject={renameProjectInStore}
         onSelectConversation={selectConversation}
         onSelectProject={selectProject}
         sidebarProjects={sidebarProjects}
@@ -1603,6 +1633,9 @@ export default function CreatorWorkspace({
               activeConversationId={activeConversationId}
               activeProjectId={activeProjectId}
               activeProjectTitle={activeProject.title}
+              onCreateProject={createProject}
+              onDeleteProject={handleDeleteProject}
+              onRenameProject={renameProjectInStore}
               onSelectConversation={(conversationId) => {
                 selectConversation(conversationId);
                 setMobileSidebarOpen(false);
