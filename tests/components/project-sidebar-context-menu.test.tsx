@@ -211,4 +211,53 @@ describe("Session row menu (Cut 6)", () => {
     const region = await screen.findByTestId("sidebar-toast-region");
     expect(within(region).getByText("已取消置顶")).toBeInTheDocument();
   });
+
+  it("opens the SessionRenameDialog and submits a new label via 「重命名对话」", async () => {
+    const onRenameSession = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <ProjectSidebar
+        {...baseProps}
+        onRenameSession={onRenameSession}
+      />
+    );
+
+    await user.click(screen.getByTestId("session-row-menu-button"));
+    await user.click(await screen.findByTestId("session-menu-rename"));
+
+    const dialog = await screen.findByTestId("session-rename-dialog");
+    const input = within(dialog).getByTestId("session-rename-input");
+    await user.clear(input);
+    await user.type(input, "我的新标题");
+    await user.click(within(dialog).getByTestId("session-rename-submit"));
+
+    expect(onRenameSession).toHaveBeenCalledTimes(1);
+    const [projectId, branch, label] = onRenameSession.mock.calls[0];
+    expect(projectId).toBe("commercial");
+    expect(branch).toMatchObject({ id: "br_test_1" });
+    expect(label).toBe("我的新标题");
+
+    const region = await screen.findByTestId("sidebar-toast-region");
+    expect(within(region).getByText("已重命名")).toBeInTheDocument();
+  });
+
+  it("renders the custom label when a branch has one", () => {
+    const labeledProjects = [
+      {
+        ...TEST_PROJECTS[0],
+        branchSummaries: [
+          {
+            ...TEST_PROJECTS[0].branchSummaries[0],
+            customLabel: "我的自定义会话"
+          }
+        ]
+      }
+    ];
+    render(
+      <ProjectSidebar {...baseProps} sidebarProjects={labeledProjects} />
+    );
+
+    expect(screen.getByText("我的自定义会话")).toBeInTheDocument();
+    expect(screen.queryByText("今天的会话")).not.toBeInTheDocument();
+  });
 });

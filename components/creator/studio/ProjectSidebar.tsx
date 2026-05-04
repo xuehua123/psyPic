@@ -19,6 +19,7 @@ import NewProjectDialog from "./NewProjectDialog";
 import ProjectCard from "./ProjectCard";
 import ProjectDeleteAlert from "./ProjectDeleteAlert";
 import ProjectRenameDialog from "./ProjectRenameDialog";
+import SessionRenameDialog from "./SessionRenameDialog";
 import {
   SidebarToastProvider,
   useSidebarToast
@@ -111,7 +112,7 @@ function ProjectSidebarContent({
   onForkSession,
   onDeriveSession,
   onTogglePinSession,
-  onRenameSession: _onRenameSession,
+  onRenameSession,
   onToggleArchiveSession,
   onMarkSessionUnread
 }: ProjectSidebarProps) {
@@ -122,6 +123,10 @@ function ProjectSidebarContent({
     React.useState<CreatorProjectMeta | null>(null);
   const [deleteTarget, setDeleteTarget] =
     React.useState<CreatorProjectMeta | null>(null);
+  const [renameSessionTarget, setRenameSessionTarget] = React.useState<{
+    projectId: CreatorProjectId;
+    branch: SidebarProjectBranchSummary;
+  } | null>(null);
 
   const projectIds = React.useMemo(
     () => sidebarProjects.map((group) => group.project.id),
@@ -224,6 +229,32 @@ function ProjectSidebarContent({
       }
     : undefined;
 
+  /** Rename 走 Dialog —— 不直接调上层 callback；上层最终通过 dialog
+   *  submit 接到带 label 的 onRenameSession。 */
+  const handleOpenRenameSession = onRenameSession
+    ? (projectId: CreatorProjectId, branch: SidebarProjectBranchSummary) => {
+        setRenameSessionTarget({ projectId, branch });
+      }
+    : undefined;
+
+  async function handleSubmitSessionRename(label: string) {
+    if (!renameSessionTarget || !onRenameSession) {
+      return;
+    }
+    const { projectId, branch } = renameSessionTarget;
+    await onRenameSession(projectId, branch, label);
+    toast.show(
+      label.trim().length > 0 ? "已重命名" : "已恢复默认标题",
+      "success"
+    );
+  }
+
+  const renameSessionInitialTitle =
+    renameSessionTarget?.branch.customLabel ??
+    renameSessionTarget?.branch.latestNode?.prompt.slice(0, 80) ??
+    renameSessionTarget?.branch.label ??
+    "";
+
   return (
     <aside
       aria-label="项目与对话"
@@ -259,6 +290,7 @@ function ProjectSidebarContent({
             onDeriveSession={handleDeriveSessionWithToast}
             onForkSession={handleForkSessionWithToast}
             onMarkSessionUnread={handleMarkUnreadWithToast}
+            onRenameSession={handleOpenRenameSession}
             onToggleArchiveSession={handleToggleArchiveWithToast}
             onTogglePinSession={handleTogglePinWithToast}
             onKebabPlaceholder={handleKebabPlaceholder}
@@ -305,6 +337,16 @@ function ProjectSidebarContent({
         open={deleteTarget !== null}
         projectCount={sidebarProjects.length}
         projectTitle={deleteTarget?.title ?? ""}
+      />
+      <SessionRenameDialog
+        initialTitle={renameSessionInitialTitle}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRenameSessionTarget(null);
+          }
+        }}
+        onSubmit={handleSubmitSessionRename}
+        open={renameSessionTarget !== null}
       />
     </aside>
   );
