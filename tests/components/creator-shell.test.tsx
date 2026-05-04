@@ -124,7 +124,12 @@ describe("CreatorWorkspace", () => {
     });
     await user.click(communityProject);
 
-    expect(communityProject).toHaveAttribute("aria-pressed", "true");
+    // Codex 风 sidebar 重构后：active project 进入 project-header，
+    // 切换项目通过验证 header title 是否更新（不再用 aria-pressed，
+    // 因为 switch-row 是动作按钮不是 toggle）。
+    expect(screen.getByTestId("project-header-title")).toHaveTextContent(
+      "社区同款草稿"
+    );
     expect(screen.getAllByText("社区同款草稿").length).toBeGreaterThan(0);
 
     await user.click(screen.getByRole("button", { name: /商业图库项目/ }));
@@ -136,14 +141,15 @@ describe("CreatorWorkspace", () => {
 
     expect(await screen.findByText("asset_switchable_123")).toBeInTheDocument();
     const branchConversation = await screen.findByRole("button", {
-      name: /主线 · 1 个历史节点/
+      // 新副标题文案：「{branchLabel} · {count} 个节点 · {time}」
+      name: /主线.*1 个节点/
     });
     await user.click(branchConversation);
 
     expect(branchConversation).toHaveAttribute("aria-pressed", "true");
 
     const allConversation = screen.getByRole("button", {
-      name: /全部对话 · 1 次生成/
+      name: /全部对话/
     });
     await user.click(allConversation);
 
