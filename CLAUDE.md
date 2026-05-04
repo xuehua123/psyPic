@@ -68,12 +68,12 @@
 - 不动 `prisma/`、`scripts/`
 - 不在本轮做 i18n
 
-## 后续可选项（plan 已完结，下一波由 product 决定）
+## 后续可选项（4 / 4 已收口，真机走查 checklist 已备待走）
 
-- 桌面 + 移动端真机走查 6 路由（docs/17 走查表）
+- 📋 桌面 + 移动端真机走查 6 路由（commit `9028827`）：docs/17 加 6 路由 ✕ 桌面/移动/暗色 详细 checklist + 18 格走查日志骨架，等走查者拿浏览器逐项打钩回填
 - ~~BatchWorkflowPanel state 上 Context（让移动端底抽屉也能展示）~~ ✅ commit `894ad93`：BatchProvider 持有 state + polling，桌面/移动双 mount 共享，222 tests pass
 - ~~暗色 polish 跟踪：accent-soft 系字面量（`#f0fdfa` / `#85c7be` / `#e7f3f1` / `#fff5f3` / `#f0b8b1` / `#e6ebf1` / `#e6f4f1` / `#e6ebf1`）~~ ✅ commit `22bda89`：8 处全部走 var()，加 `--accent-border` / `--danger-soft` / `--danger-border` 3 个新 token
-- next-themes 迁移：当前自写 ThemeProvider 已足够，若需要更复杂的 cookies-based 持久化或 multi-theme 调色板可考虑迁移
+- ~~next-themes 迁移~~ ✅ commit `e6ee979`：自写 ThemeProvider → next-themes 0.4.6 wrapper，140 → 70 行（-71），221 tests pass，build ✅；保 useTheme noop fallback、storageKey 兼容老用户、`<html class="dark">` 切法不变
 
 ## 常用命令
 
