@@ -5,36 +5,39 @@
 
 ## 当前重点工作
 
-**SessionRowMenu 11 项菜单全部完结**（plan slug `gentle-spinning-walnut`）—— 剩 7 项 placeholder 全部处理：4 项实做（置顶 / 重命名 / 归档 / 标记未读）+ 3 项桌面端独占占位文案明确化。
+**Composer quick-pick row + 模板/参数 上提**（plan slug `quiet-glittering-prism`）—— 把模板入口从右 Inspector 上提到 Composer 的「+ 模板」chip + 高级参数收进 AdvancedParamsDrawer，让创作台首屏聚焦在「写 prompt + 选模板 + 选比例」三件事。
 
-**状态**：**Cut 7/7 ✅ 全部出库 🎉**
+**状态**：**Cut 7-14 ✅ 一刀出库（commit `c6a8f5f`）🎉**
 
-**进度**：
-- Cut 1 ✅ `8bea756`：branch-meta-store + useBranchMeta hook（IndexedDB 合并 store：customLabel / isPinned / isArchived / lastReadAt）+ 12 单测
-- Cut 2 ✅ `bec56be`：**置顶对话实做** + 一次铺好 4 项 callback 通路
-- Cut 3 ✅ `5646787`：**重命名对话实做** —— SessionRenameDialog + customLabel 优先于 prompt 渲染
-- Cut 4 ✅ `0d57501`：**归档对话实做** + 「显示归档（N）」toggle
-- Cut 5 ✅ `aac1811`：**标记未读实做** —— hasUnread 派生 + 蓝点 indicator + 自动 markRead
-- Cut 6 ✅ `680f0b7`：桌面端独占 placeholder 文案升级（Tauri 客户端）
-- Cut 7 ✅：文档同步 + push origin main
+**这一刀干了啥**：
+- 新增 `components/creator/studio/composer/`：
+  - `QuickPickRow.tsx` — 模式 / + 模板 / 比例 / 高级 4-chip 行（mode chip 用 `aria-pressed` 不是 `role=radio`）
+  - `TemplatePickerDialog.tsx` — 14 个商业模板按 ecommerce / marketing / content / portrait_brand 4 大分类的 Modal
+  - `AdvancedParamsDrawer.tsx` — 质量 / 数量 / 流式 / 模板细节字段 抽屉
+  - `TemplateFieldEditor.tsx` — 通用字段编辑器（按 `placement: primary | advanced` 分流渲染）
+- 新增 `components/creator/studio/PromptExpandedDialog.tsx` — prompt 长文展开编辑
+- 删除 `components/creator/studio/inspector/{ParamsSection,TemplatesSection}.tsx` — 能力全部并入 Composer
+- 调整 `commercial-size-presets`：扩到 11 个平台尺寸 + aspect 分组（1:1 / 16:9 / 9:16 / auto）
+- 调整 `commercial-templates`：14 个模板，字段加 `placement: primary | advanced`
+- 测试：`composer-prompt-upgrade.test.tsx` 新增；`creator-shell.test.tsx` 跟随 UI 重组迁移（quickpick-size-trigger 显示业务标签 + 比例不再是原始 size 字符串、mask 局部编辑改成「点 + 模板 chip → 点 mask card」两步）
 
-**整体增减**：59 files / 292 tests pass（比上轮 +3 files +27 tests）。SessionRowMenu 11 项菜单实做 **8 项** + 桌面端独占 3 项占位（资源管理器 / 工作目录 / 迷你窗口）。
+**整体规模**：23 files / +3604 −785 / **324 tests pass**（typecheck ✅、lint ✅）。
 
-至此创作台 sidebar **从「单 active + 4 hardcoded 项目」演进到「平铺折叠卡 + IndexedDB 项目 CRUD + 完整会话级菜单（置顶 / 重命名 / 归档 / 未读 / 复制 ID·链接 / 分叉 / 派生）+ Tauri 桌面端独占功能明确占位」**。
+至此创作台首屏 **从「右 Inspector 一栏挤模板 + 全部参数」演进到「Composer 顶 4-chip 快捷行（模式 / 模板 / 比例 / 高级）+ TemplatePickerDialog + AdvancedParamsDrawer 收纳 + prompt 展开编辑」**，右 Inspector 不再承载主流程参数。
 
 **之前重点（已封板，保留作历史）**：
+- SessionRowMenu 11 项菜单完结（plan slug `gentle-spinning-walnut`）—— commits `8bea756` → `680f0b7` → 合并 `75bfce9`
 - Sidebar fork / 派生 实做 + 平铺折叠卡（plan slug `clever-swimming-pumpkin`）
 - ProjectSidebar Codex 风重构（plan slug `cosmic-tumbling-narwhal`）
 - PsyPic UI 全面深度优化（plan slug `linear-stirring-acorn`）
 
 ## 接棒读哪一份
 
-**先读**：`docs/superpowers/plans/2026-05-05-session-row-menu-finishing.md`
-本轮的精简落地版本（合并 store 设计 + 拆刀对照表 + 经验总结）。
+**先读**：`docs/superpowers/plans/2026-05-05-session-row-menu-finishing.md`（上一轮的精简落地版本，含合并 store 设计 + 拆刀对照表 + 经验总结）—— 本轮 `quiet-glittering-prism` 暂未单独落 plan 文档，落地痕迹见 commit `c6a8f5f` + 代码注释里的 `plan slug quiet-glittering-prism · Cut N` 锚点。
 
 **前情提要**：
-- `docs/superpowers/plans/2026-05-04-project-sidebar-flat-collapse.md` — 上一轮平铺折叠卡 + fork/派生
-- `docs/superpowers/plans/2026-05-04-project-sidebar-codex-rewrite.md` — 更上一轮 sidebar 重构
+- `docs/superpowers/plans/2026-05-04-project-sidebar-flat-collapse.md` — 平铺折叠卡 + fork/派生
+- `docs/superpowers/plans/2026-05-04-project-sidebar-codex-rewrite.md` — sidebar 重构
 - `docs/superpowers/plans/2026-05-03-creatorworkspace-extraction-map.md` — 更早一轮 UI 重构入口
 
 **辅助**：
