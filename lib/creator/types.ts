@@ -166,8 +166,14 @@ export type ApiSameGenerationDraftResponse = {
   };
 };
 
-// Template field
-export type TemplateFieldValue = string | boolean;
+// Template field（plan slug quiet-glittering-prism · Cut 3）：
+// 字段值扩到 4 类，兼容新字段类型：
+// - string  → text / select / segmented / color
+// - boolean → boolean
+// - string[] → multi-select
+// - number → slider
+// constant 类型不进 fieldValues，渲染层直接用 field.constantValue。
+export type TemplateFieldValue = string | boolean | string[] | number;
 export type TemplateFieldValues = Record<string, TemplateFieldValue>;
 
 // 项目与对话

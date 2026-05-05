@@ -796,7 +796,14 @@ a {
 .chat-prompt-input {
   width: 100%;
   min-height: 74px;
-  max-height: 170px;
+  /* max-height 170 → 240，给长 prompt 多 70px 呼吸；溢出后 textarea 内部
+     滚动，溢出超出感知时由 composer 「展开编辑器」按钮兜底进 Modal 写。 */
+  max-height: 240px;
+  /* field-sizing: content 让 textarea 自动按内容算高度（modern CSS，
+     Chrome 123+ / Safari 17.4+）；旧浏览器 fallback 到固定 min-height
+     的非 autosize 行为，仍可写但不撑高 —— 不影响功能。
+     plan slug calm-squishing-globe · Cut 2。 */
+  field-sizing: content;
   resize: none;
   border: 0;
   border-radius: 6px;
@@ -810,6 +817,81 @@ a {
 
 .chat-prompt-input:focus {
   box-shadow: inset 0 -2px 0 rgba(var(--accent-rgb), 0.52);
+}
+
+/* === composer 多参考图缩略图条（plan slug calm-squishing-globe · Cut 3） ===
+   chat-prompt-input 上方的水平 chip 列表，最多 8 张，未达上限时尾部
+   显示 .composer-reference-add 作为 file picker 的入口；
+   chat-composer 在 dnd 悬停时（data-dragging="true"）边框虚线高亮
+   作为视觉反馈。 */
+.composer-reference-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 6px;
+}
+
+.composer-reference-chip {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.composer-reference-chip img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.composer-reference-chip button {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  cursor: pointer;
+  padding: 0;
+}
+
+.composer-reference-chip button:hover {
+  background: rgba(0, 0, 0, 0.75);
+}
+
+.composer-reference-add {
+  width: 56px;
+  height: 56px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: var(--ink-muted);
+  flex-shrink: 0;
+  transition: border-color 120ms ease, color 120ms ease;
+}
+
+.composer-reference-add:hover {
+  border-color: rgba(var(--accent-rgb), 0.6);
+  color: var(--ink);
+}
+
+.chat-composer[data-dragging="true"] {
+  outline: 2px dashed rgba(var(--accent-rgb), 0.7);
+  outline-offset: -4px;
+  border-radius: 8px;
 }
 
 .composer-actions {
@@ -2623,6 +2705,9 @@ a {
 
   .chat-prompt-input {
     min-height: 70px;
+    /* 窄屏 max-height 调到 200px，避免占满小屏 */
+    max-height: 200px;
+    field-sizing: content;
   }
 
   .brand-subtitle {
@@ -2707,4 +2792,342 @@ a {
   .tasks-page-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* ==========================================================================
+   QuickPickRow / TemplatePickerDialog / AdvancedParamsDrawer / TemplateFieldEditor
+   plan slug quiet-glittering-prism · Cut 13
+   ========================================================================== */
+
+.quickpick-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 6px;
+}
+
+.quickpick-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+  white-space: nowrap;
+}
+
+.quickpick-chip:hover {
+  background: rgba(var(--accent-rgb), 0.08);
+  border-color: rgba(var(--accent-rgb), 0.4);
+}
+
+.quickpick-chip:focus-visible {
+  outline: 2px solid rgba(var(--accent-rgb), 0.5);
+  outline-offset: 1px;
+}
+
+.quickpick-chip-active {
+  background: rgba(var(--accent-rgb), 0.12);
+  border-color: rgba(var(--accent-rgb), 0.6);
+  color: var(--ink);
+}
+
+.quickpick-chip-secondary {
+  color: var(--ink-muted);
+  background: transparent;
+}
+
+.quickpick-chip-hint {
+  color: var(--ink-muted);
+  font-size: 11px;
+}
+
+/* TemplatePickerDialog 卡片 */
+.template-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+.template-card:hover {
+  border-color: rgba(var(--accent-rgb), 0.6);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.template-card-active {
+  border-color: rgba(var(--accent-rgb), 0.85);
+  box-shadow: inset 0 0 0 2px rgba(var(--accent-rgb), 0.4);
+}
+
+.template-card-thumb {
+  height: 96px;
+  display: grid;
+  place-items: center;
+  position: relative;
+}
+
+.template-card-emoji {
+  font-size: 38px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.1));
+}
+
+.template-card-body {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.template-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.template-card-header strong {
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.template-card-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--ink);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.template-card-desc {
+  font-size: 11px;
+  color: var(--ink-muted);
+  line-height: 1.4;
+}
+
+.template-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--ink-muted);
+  margin-top: 2px;
+}
+
+/* AdvancedParamsDrawer 内布局 */
+.advanced-drawer-body {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 20px;
+}
+
+.advanced-drawer-footer {
+  border-top: 1px solid var(--line);
+  padding: 12px 20px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.advanced-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.advanced-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.advanced-section-value {
+  font-size: 11px;
+  color: var(--ink-muted);
+  font-weight: normal;
+}
+
+.advanced-section-hint {
+  font-size: 10px;
+  color: var(--ink-muted);
+  line-height: 1.4;
+}
+
+.advanced-section-error {
+  font-size: 11px;
+  color: var(--danger, #c0392b);
+  margin-top: 2px;
+}
+
+.advanced-section-nested {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.advanced-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+/* TemplateFieldEditor */
+.template-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.template-field-label-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.template-field-required {
+  color: var(--danger, #c0392b);
+}
+
+.template-field-hint {
+  font-size: 10px;
+  color: var(--ink-muted);
+}
+
+.template-field-control {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.template-field-color {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.template-field-color-swatch {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent;
+}
+
+.template-field-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.template-field-segmented {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 2px;
+  background: rgba(0, 0, 0, 0.03);
+  border-radius: 6px;
+}
+
+.template-field-segment {
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  cursor: pointer;
+  font-size: 11px;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.template-field-segment:hover {
+  color: var(--ink);
+}
+
+.template-field-segment-active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.template-field-multiselect {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.template-field-chip {
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.template-field-chip:hover {
+  border-color: rgba(var(--accent-rgb), 0.4);
+}
+
+.template-field-chip-active {
+  background: rgba(var(--accent-rgb), 0.12);
+  border-color: rgba(var(--accent-rgb), 0.6);
+  color: var(--ink);
+}
+
+.template-field-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.template-field-slider > :first-child {
+  flex: 1 1 auto;
+}
+
+.template-field-slider-value {
+  min-width: 24px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--ink-muted);
 }

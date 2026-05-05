@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   GENERATION_SIZE_OPTIONS,
+  STYLE_OPTIONS,
+  STYLE_LABEL,
   imageGenerationDefaults,
   parseGenerationParams
 } from "@/lib/validation/image-params";
@@ -36,10 +38,37 @@ describe("image generation parameter schema", () => {
     expect(result.error.details.field).toBe("prompt");
   });
 
-  it("rejects transparent backgrounds for gpt-image-2", () => {
+  it("accepts transparent background when output_format is PNG (plan slug quiet-glittering-prism · Cut 1)", () => {
     const result = parseGenerationParams({
       prompt: "Create a clean product image.",
-      background: "transparent"
+      background: "transparent",
+      output_format: "png"
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) {
+      throw new Error("expected valid parameters");
+    }
+
+    expect(result.data.background).toBe("transparent");
+    expect(result.data.output_format).toBe("png");
+  });
+
+  it("accepts transparent background with WebP", () => {
+    const result = parseGenerationParams({
+      prompt: "Create a clean product image.",
+      background: "transparent",
+      output_format: "webp"
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects transparent background with JPEG (cross-field constraint)", () => {
+    const result = parseGenerationParams({
+      prompt: "Create a clean product image.",
+      background: "transparent",
+      output_format: "jpeg"
     });
 
     expect(result.success).toBe(false);
@@ -50,10 +79,10 @@ describe("image generation parameter schema", () => {
     expect(result.error.details.field).toBe("background");
   });
 
-  it("accepts the product-level max n and lets runtime limits enforce lower caps", () => {
+  it("accepts the new product-level max n=10 (was 8)", () => {
     const result = parseGenerationParams({
       prompt: "Create a clean product image.",
-      n: 8
+      n: 10
     });
 
     expect(result.success).toBe(true);
@@ -61,7 +90,51 @@ describe("image generation parameter schema", () => {
       throw new Error("expected valid parameters");
     }
 
-    expect(result.data.n).toBe(8);
+    expect(result.data.n).toBe(10);
+  });
+
+  it("rejects n=11 (above OpenAI max)", () => {
+    const result = parseGenerationParams({
+      prompt: "Create a clean product image.",
+      n: 11
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) {
+      throw new Error("expected invalid parameters");
+    }
+
+    expect(result.error.details.field).toBe("n");
+  });
+
+  it("accepts input_fidelity=high for edit requests", () => {
+    const result = parseGenerationParams({
+      prompt: "Edit the masked region.",
+      input_fidelity: "high"
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) {
+      throw new Error("expected valid parameters");
+    }
+
+    expect(result.data.input_fidelity).toBe("high");
+  });
+
+  it("rejects invalid input_fidelity values", () => {
+    const result = parseGenerationParams({
+      prompt: "Edit something.",
+      input_fidelity: "ultra"
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  it("STYLE_OPTIONS exposes 8 commercial styles with labels", () => {
+    expect(STYLE_OPTIONS).toHaveLength(8);
+    for (const style of STYLE_OPTIONS) {
+      expect(STYLE_LABEL[style]).toBeTruthy();
+    }
   });
 
   it("keeps documented preset size options and accepts normalized custom sizes", () => {

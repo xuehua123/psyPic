@@ -26,7 +26,11 @@ describe("CreatorWorkspace", () => {
     expect(screen.getByTestId("left-parameter-panel")).toBeInTheDocument();
     expect(screen.getByTestId("center-workspace")).toBeInTheDocument();
     expect(screen.getByTestId("right-history-panel")).toBeInTheDocument();
-    expect(screen.getByTestId("commercial-template-list")).toBeInTheDocument();
+    // 模板入口在 Composer 顶部 quickpick chip（plan slug
+    // quiet-glittering-prism · Cut 11+12 起，TemplatesSection 已从 inspector 移除）
+    expect(
+      screen.getByTestId("quickpick-template-trigger")
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("textbox", { name: "Prompt" })
     ).toBeInTheDocument();
@@ -53,12 +57,17 @@ describe("CreatorWorkspace", () => {
     expect(screen.queryByRole("link", { name: "社区" })).not.toBeInTheDocument();
   });
 
-  it("keeps advanced parameters collapsed by default", () => {
+  it("keeps the AdvancedParamsDrawer closed by default (plan slug quiet-glittering-prism · Cut 11)", () => {
     render(<CreatorWorkspace />);
 
+    // QuickPickRow 顶部「⚙ 高级」chip 始终存在，但 drawer 默认关闭
     expect(
-      screen.getByRole("button", { name: /高级参数/ })
-    ).toHaveAttribute("aria-expanded", "false");
+      screen.getByTestId("quickpick-advanced-trigger")
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("advanced-params-drawer")
+    ).not.toBeInTheDocument();
+    // ParamsSection 已删，inspector 不再有 Moderation label
     expect(screen.queryByLabelText("Moderation")).not.toBeInTheDocument();
   });
 
@@ -432,10 +441,10 @@ describe("CreatorWorkspace", () => {
     render(<CreatorWorkspace />);
 
     const user = userEvent.setup();
-    await user.click(screen.getByLabelText("商业尺寸"));
-    await user.click(
-      screen.getByRole("option", { name: "广告 Banner · 1536x1024" })
-    );
+    // 切换到广告 Banner 尺寸 —— quickpick-size-trigger 打开 dropdown 后选项
+    // （plan slug quiet-glittering-prism · Cut 14：商业尺寸已移到 QuickPickRow）
+    await user.click(screen.getByTestId("quickpick-size-trigger"));
+    await user.click(screen.getByTestId("quickpick-size-ad_banner_wide"));
     await user.type(
       screen.getByRole("textbox", { name: "Prompt" }),
       "Create a premium product photo."
@@ -646,11 +655,18 @@ describe("CreatorWorkspace", () => {
     render(<CreatorWorkspace />);
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("checkbox", { name: "流式预览" }));
+    // 先输入 prompt 再开 drawer —— 否则 Sheet portal 会 inert main content
+    // 让 prompt textbox 暂时不可访问（plan slug quiet-glittering-prism · Cut 14）
     await user.type(
       screen.getByRole("textbox", { name: "Prompt" }),
       "Create a premium product photo."
     );
+    // 启用流式预览 —— 在 AdvancedParamsDrawer 内
+    await user.click(screen.getByTestId("quickpick-advanced-trigger"));
+    await user.click(
+      await screen.findByTestId("advanced-stream-checkbox")
+    );
+    await user.click(screen.getByTestId("advanced-close"));
     await user.click(screen.getByRole("button", { name: /生成图片/ }));
 
     expect(await screen.findByText("asset_partial_123")).toBeInTheDocument();
@@ -702,7 +718,10 @@ describe("CreatorWorkspace", () => {
       screen.getByRole("textbox", { name: "Prompt" }),
       "AI 生图社区"
     );
-    await user.click(screen.getByRole("button", { name: /社媒封面/ }));
+    // 模板入口现在是 Composer 顶部 quickpick-template-trigger（plan slug
+    // quiet-glittering-prism · Cut 14）—— 点开 TemplatePickerDialog 选模板
+    await user.click(screen.getByTestId("quickpick-template-trigger"));
+    await user.click(await screen.findByTestId("template-card-tpl_social_cover"));
     await user.click(screen.getByRole("button", { name: /生成图片/ }));
 
     const requestBody = JSON.parse(fetchSpy.mock.calls[0][1].body as string);
@@ -711,27 +730,26 @@ describe("CreatorWorkspace", () => {
     expect(requestBody.prompt).toContain("AI 生图社区");
   });
 
-  it("applies structured commercial template fields to the prompt", async () => {
+  it("applies a commercial template to the prompt with default field values (plan slug quiet-glittering-prism · Cut 14)", async () => {
     render(<CreatorWorkspace />);
 
     const user = userEvent.setup();
-    const templatesPanel = screen.getByTestId("commercial-template-list");
-    await user.click(
-      within(templatesPanel).getByRole("button", { name: /广告 Banner/ })
-    );
-    await user.clear(screen.getByLabelText("活动主题"));
-    await user.type(screen.getByLabelText("活动主题"), "618 新品首发");
-    await user.clear(screen.getByLabelText("产品类型"));
-    await user.type(screen.getByLabelText("产品类型"), "降噪蓝牙耳机");
-    await user.click(screen.getByRole("button", { name: "应用模板" }));
+    // 新 IA：点 quickpick-template-trigger → TemplatePickerDialog → 点模板卡。
+    // 选中即 apply 默认字段值（不再有「应用模板」中间步骤），随后用户可在
+    // prompt 输入框直接微调全文。
+    await user.click(screen.getByTestId("quickpick-template-trigger"));
+    await user.click(await screen.findByTestId("template-card-tpl_ad_banner"));
 
     const promptBox = screen.getByRole("textbox", {
       name: "Prompt"
     }) as HTMLTextAreaElement;
 
-    expect(promptBox.value).toContain("618 新品首发");
-    expect(promptBox.value).toContain("降噪蓝牙耳机");
-    expect(promptBox.value).toContain("Create a commercial advertising banner visual");
+    // 模板的 promptTemplate 渲染后包含核心关键词
+    expect(promptBox.value).toContain(
+      "Create a commercial advertising banner visual"
+    );
+    // 默认字段值（campaign_theme = "新品上市"）也被渲染
+    expect(promptBox.value).toContain("新品上市");
   });
 
   it("optimizes a Chinese prompt from the creator workspace", async () => {
@@ -1055,7 +1073,13 @@ describe("CreatorWorkspace", () => {
           { type: "image/png" }
         )
       );
-      await user.click(screen.getByRole("button", { name: /局部编辑/ }));
+      // 模板入口已上提到 Composer 的 + 模板 chip，点 trigger 打开
+      // TemplatePickerDialog 后再点局部编辑卡（plan slug
+      // quiet-glittering-prism · Cut 14）。
+      await user.click(screen.getByTestId("quickpick-template-trigger"));
+      await user.click(
+        await screen.findByTestId("template-card-tpl_mask_local_edit")
+      );
 
       expect(screen.getByRole("checkbox", { name: "遮罩编辑" })).toBeChecked();
       expect(
@@ -1228,7 +1252,12 @@ describe("CreatorWorkspace", () => {
         "/api/community/works/work_same_query_123/same",
         { method: "POST" }
       );
-      expect(screen.getByLabelText("尺寸")).toHaveTextContent("1536x1024");
+      // size 显示位置改成 quickpick-size-trigger（plan slug
+      // quiet-glittering-prism · Cut 14）。trigger 显示业务标签 + 比例，
+      // 不含原始 size 字符串；用 aspect 标签 "横版 16:9" 断言覆盖正确性。
+      expect(screen.getByTestId("quickpick-size-trigger")).toHaveTextContent(
+        "横版 16:9"
+      );
     } finally {
       window.history.pushState({}, "", "/");
     }
@@ -1300,9 +1329,16 @@ describe("CreatorWorkspace", () => {
 
     expect(screen.getByRole("button", { name: "图生图" })).toHaveClass("active");
     expect(screen.getByText("asset_history_123.png")).toBeInTheDocument();
-    expect(
-      screen.getByRole("img", { name: "参考图 asset_history_123.png" })
-    ).toHaveAttribute("src", "blob:history-reference");
+    // Composer 缩略图条 + Inspector ReferenceSection 都会渲染同一张参考图
+    // （plan slug calm-squishing-globe · Cut 3 起 Composer 也展示缩略图）—— 用
+    // getAllByRole 取所有匹配并验证全部 src 一致
+    const referenceImgs = screen.getAllByRole("img", {
+      name: "参考图 asset_history_123.png"
+    });
+    expect(referenceImgs.length).toBeGreaterThanOrEqual(1);
+    referenceImgs.forEach((img) =>
+      expect(img).toHaveAttribute("src", "blob:history-reference")
+    );
     expect(createObjectUrl).toHaveBeenCalledWith(expect.any(File));
     createObjectUrl.mockRestore();
     revokeObjectUrl.mockRestore();
@@ -1420,8 +1456,10 @@ describe("CreatorWorkspace", () => {
 
     await user.clear(promptBox);
     await user.type(promptBox, "Create a wide banner product photo.");
-    await user.click(screen.getByLabelText("尺寸"));
-    await user.click(screen.getByRole("option", { name: "1536x1024" }));
+    // size 切换通过 quickpick-size dropdown（plan slug
+    // quiet-glittering-prism · Cut 14）。1536x1024 对应预设 ad_banner_wide。
+    await user.click(screen.getByTestId("quickpick-size-trigger"));
+    await user.click(screen.getByTestId("quickpick-size-ad_banner_wide"));
     await user.click(screen.getByRole("button", { name: /生成图片/ }));
 
     expect(
@@ -1436,7 +1474,9 @@ describe("CreatorWorkspace", () => {
     expect((promptBox as HTMLTextAreaElement).value).toBe(
       "Create a square hero product photo."
     );
-    expect(screen.getByLabelText("尺寸")).toHaveTextContent("1024x1024");
+    expect(screen.getByTestId("quickpick-size-trigger")).toHaveTextContent(
+      "方图 1:1"
+    );
   });
 
   it("creates a non-destructive branch from an older version", async () => {

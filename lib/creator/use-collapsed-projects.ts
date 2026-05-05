@@ -5,13 +5,13 @@
  *
  * 行为：
  *   - 内部 state: `Set<CreatorProjectId>`，存「折叠的」项目 id
- *   - 首次 mount：读 localStorage（key `psypic_sidebar_collapsed_projects`）
- *     - 有 ⇒ 用存的状态
- *     - 无 / 解析失败 ⇒ 默认「除 active 外全部折叠」
+ *   - SSR / mount 前：固定走默认「除 active 外全部折叠」，保证 SSR 输出与
+ *     客户端首次 paint 完全一致（不读 localStorage，避免 hydration mismatch）
+ *   - mount 后：useEffect 同步 localStorage（key
+ *     `psypic_sidebar_collapsed_projects`）—— 有则覆盖默认，无 / 解析失败维持默认
  *   - toggle(id)：在 set 里加/删，并写 localStorage
  *   - active 变化时**不**自动展开新 active —— 用户已经手动 toggle 过的状态优先；
  *     默认值仅在 first mount 且 localStorage 空时生效
- *   - SSR safe：`typeof window === "undefined"` 直接走默认逻辑，不读 localStorage
  *
  * 不引外部依赖；和 use-projects.ts 一样自写 mountedRef 兜底。
  */
@@ -72,16 +72,13 @@ export function useCollapsedProjects(
   projectIds: CreatorProjectId[],
   activeProjectId: CreatorProjectId
 ): UseCollapsedProjectsReturn {
-  // 第一次 mount 时确定初值；后续 projects 变化不再覆盖（避免新增/删除项目把
-  // 用户手动 toggle 的状态冲掉）。
-  const [collapsed, setCollapsed] = useState<Set<CreatorProjectId>>(() => {
-    const stored = readStored();
-    if (stored !== null) {
-      return new Set(stored);
-    }
-    // 默认：除 active 外全部折叠
-    return new Set(projectIds.filter((id) => id !== activeProjectId));
-  });
+  // 初值固定走默认「除 active 外全部折叠」—— 服务端 SSR 与客户端首次 paint
+  // 都得到同一份输出，hydrate 不抖。真正的持久化值在下面的 useEffect 里
+  // mount 完成后才同步过来（相当于 first-paint → restore-from-storage 的
+  // 两阶段 transition，与 next-themes 的 mount guard 同型）。
+  const [collapsed, setCollapsed] = useState<Set<CreatorProjectId>>(
+    () => new Set(projectIds.filter((id) => id !== activeProjectId))
+  );
 
   /** 防止 setState on unmounted。 */
   const isMountedRef = useRef(true);
@@ -90,6 +87,18 @@ export function useCollapsedProjects(
     return () => {
       isMountedRef.current = false;
     };
+  }, []);
+
+  // mount 后从 localStorage 恢复：有持久化值就覆盖默认，没有就维持。
+  // 之所以放到 effect 而不是 useState initializer：initializer 会在服务端
+  // 与客户端各跑一次，两边环境不一致（服务端读不到 localStorage）会导致
+  // hydration mismatch；effect 只在客户端 mount 后跑一次，安全。
+  useEffect(() => {
+    const stored = readStored();
+    if (stored === null || !isMountedRef.current) {
+      return;
+    }
+    setCollapsed(new Set(stored));
   }, []);
 
   const isCollapsed = useCallback(

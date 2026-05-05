@@ -19,9 +19,7 @@ import Composer from "@/components/creator/studio/Composer";
 import { CreatorStudioProvider, type CreatorStudioContextValue } from "@/components/creator/studio/CreatorStudioContext";
 import Inspector from "@/components/creator/studio/inspector/Inspector";
 import LibrarySection from "@/components/creator/studio/inspector/LibrarySection";
-import ParamsSection from "@/components/creator/studio/inspector/ParamsSection";
 import ReferenceSection from "@/components/creator/studio/inspector/ReferenceSection";
-import TemplatesSection from "@/components/creator/studio/inspector/TemplatesSection";
 import NodeInspectorSection from "@/components/creator/studio/NodeInspectorSection";
 import ProjectSidebar from "@/components/creator/studio/ProjectSidebar";
 import VersionStreamSection from "@/components/creator/studio/VersionStreamSection";
@@ -105,11 +103,20 @@ import {
 } from "@/lib/templates/commercial-templates";
 import {
   imageGenerationDefaults,
-  type ImageGenerationParams
+  type ImageGenerationParams,
+  type Style
 } from "@/lib/validation/image-params";
 
 const maskCanvasSize = 512;
 const defaultTemplateId = "tpl_ecommerce_main";
+/**
+ * Composer / Inspector 参考图的最大数量上限（plan slug
+ * calm-squishing-globe · Cut 1）。三入口（file picker / drop / paste）
+ * 共享一份 funnel `selectReferenceImages`，本常量是该 funnel 的截尾点。
+ * 历史 v0.4 是 4 张；本轮升级到 8 张并改成「追加而非覆盖」，与 chat 类
+ * 产品（多素材输入）习惯对齐。
+ */
+const MAX_REFERENCE_IMAGES = 8;
 
 export default function CreatorWorkspace({
   showAdminLink = false
@@ -142,6 +149,15 @@ export default function CreatorWorkspace({
   const [outputCompression, setOutputCompression] = useState("");
   const [moderation, setModeration] =
     useState<ImageGenerationParams["moderation"]>("auto");
+  // background / inputFidelity / style 三个新字段（plan slug
+  // quiet-glittering-prism · Cut 5）。background 解锁 transparent；
+  // inputFidelity 仅 mode === "image" 时进 edit 请求；style 是 UI 偏好，
+  // 由 prompt 渲染层注入，不进 API payload。
+  const [background, setBackground] =
+    useState<ImageGenerationParams["background"]>("auto");
+  const [inputFidelity, setInputFidelity] =
+    useState<NonNullable<ImageGenerationParams["input_fidelity"]>>("low");
+  const [style, setStyle] = useState<Style>("photography");
   const [streamEnabled, setStreamEnabled] = useState(false);
   const [partialImageCount, setPartialImageCount] = useState(2);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -973,15 +989,22 @@ export default function CreatorWorkspace({
   }
 
   function selectReferenceImages(files: File[]) {
-    const images = files
-      .filter((file) => file.type.startsWith("image/"))
-      .slice(0, 4);
+    const incoming = files.filter((file) => file.type.startsWith("image/"));
 
-    if (images.length === 0) {
+    if (incoming.length === 0) {
       return;
     }
 
-    setReferenceImages(images);
+    // 追加而非覆盖；截尾到 MAX_REFERENCE_IMAGES（plan slug calm-squishing-globe ·
+    // Cut 1）。三入口（input / drop / paste）共享，inspector 区与 composer 区
+    // 行为一致。其他 5 处直接 setReferenceImages([reference]) 的语义是「从历史
+    // / 模板 / 资产卡 _replace_ 当前参考图」，不走这条路径，保持原行为。
+    setReferenceImages((prev) => {
+      const merged = [...prev, ...incoming];
+      return merged.slice(0, MAX_REFERENCE_IMAGES);
+    });
+    // 拖 / 粘 / 选图自动切到图生图模式 —— 用户拖图的意图就是切模式。
+    setMode("image");
     setMaskEnabled(
       Boolean(
         commercialTemplates.find((template) => template.id === selectedTemplateId)
@@ -1601,6 +1624,12 @@ export default function CreatorWorkspace({
     setOutputCompression,
     moderation,
     setModeration,
+    background,
+    setBackground,
+    inputFidelity,
+    setInputFidelity,
+    style,
+    setStyle,
     selectedCommercialSizeId,
     selectCommercialSize,
     referenceImages,
@@ -1699,11 +1728,7 @@ export default function CreatorWorkspace({
       </section>
 
       <Inspector>
-          <ParamsSection />
-
           <ReferenceSection />
-
-          <TemplatesSection />
 
           <VersionStreamSection
             activeNodeId={activeNodeId}
@@ -1805,11 +1830,7 @@ export default function CreatorWorkspace({
           </SheetHeader>
           <div data-mobile-drawer="inspector">
             <Inspector>
-              <ParamsSection />
-
               <ReferenceSection />
-
-              <TemplatesSection />
 
               <VersionStreamSection
                 activeNodeId={activeNodeId}

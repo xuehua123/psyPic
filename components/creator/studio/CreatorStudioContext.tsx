@@ -46,7 +46,10 @@ import type { CreatorVersionNode } from "@/lib/creator/version-graph";
 import type { LocalHistoryItem } from "@/lib/history/local-history";
 import type { PromptFavoriteItem } from "@/lib/prompts/prompt-favorites";
 import type { CommercialTemplate } from "@/lib/templates/commercial-templates";
-import type { ImageGenerationParams } from "@/lib/validation/image-params";
+import type {
+  ImageGenerationParams,
+  Style
+} from "@/lib/validation/image-params";
 
 export type CreatorStudioContextValue = {
   // version graph 选择 / 操作
@@ -95,6 +98,21 @@ export type CreatorStudioContextValue = {
   setOutputCompression: Dispatch<SetStateAction<string>>;
   moderation: ImageGenerationParams["moderation"];
   setModeration: Dispatch<SetStateAction<ImageGenerationParams["moderation"]>>;
+  /** background（plan slug quiet-glittering-prism · Cut 4）：解锁
+   *  transparent / opaque / auto，配合 AdvancedParamsDrawer。 */
+  background: ImageGenerationParams["background"];
+  setBackground: Dispatch<SetStateAction<ImageGenerationParams["background"]>>;
+  /** input_fidelity（plan slug quiet-glittering-prism · Cut 4）：仅
+   *  mode === "image"（图生图 / edit）有效；high 提升人脸 / 主体一致性。 */
+  inputFidelity: NonNullable<ImageGenerationParams["input_fidelity"]>;
+  setInputFidelity: Dispatch<
+    SetStateAction<NonNullable<ImageGenerationParams["input_fidelity"]>>
+  >;
+  /** style（plan slug quiet-glittering-prism · Cut 4）：UI 偏好，不发给
+   *  OpenAI；renderCommercialPrompt / submitGeneration 在 prompt 末尾
+   *  注入「Style: ...」hint。 */
+  style: Style;
+  setStyle: Dispatch<SetStateAction<Style>>;
   selectedCommercialSizeId: string;
   selectCommercialSize: (presetId: string) => void;
 
