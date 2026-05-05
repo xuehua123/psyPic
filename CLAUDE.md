@@ -33,9 +33,10 @@
 
 ## 接棒读哪一份
 
-**先读**：`docs/superpowers/plans/2026-05-05-session-row-menu-finishing.md`（上一轮的精简落地版本，含合并 store 设计 + 拆刀对照表 + 经验总结）—— 本轮 `quiet-glittering-prism` 暂未单独落 plan 文档，落地痕迹见 commit `c6a8f5f` + 代码注释里的 `plan slug quiet-glittering-prism · Cut N` 锚点。
+**先读**：`docs/superpowers/plans/2026-05-06-composer-quick-pick-finishing.md` —— 本轮的精简落地版本（合并 quiet-glittering-prism 14 刀 + calm-squishing-globe 5 刀的拆刀对照表 + 7 项关键设计决定 + UI 重组前后对比 + 9 条经验总结）。落地痕迹见 commit `c6a8f5f` + 代码注释里的 `plan slug quiet-glittering-prism · Cut N` 与 `plan slug calm-squishing-globe · Cut N` 锚点。
 
 **前情提要**：
+- `docs/superpowers/plans/2026-05-05-session-row-menu-finishing.md` — 上一轮 SessionRowMenu 11 项菜单完结
 - `docs/superpowers/plans/2026-05-04-project-sidebar-flat-collapse.md` — 平铺折叠卡 + fork/派生
 - `docs/superpowers/plans/2026-05-04-project-sidebar-codex-rewrite.md` — sidebar 重构
 - `docs/superpowers/plans/2026-05-03-creatorworkspace-extraction-map.md` — 更早一轮 UI 重构入口
