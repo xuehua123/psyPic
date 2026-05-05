@@ -14,6 +14,8 @@ slug: `cosmic-tumbling-narwhal`  完成: 2026-05-04
 
 目标：把 sidebar 调成「项目软种子（IndexedDB CRUD）+ 项目内 session 按时间分组 + 行级右键菜单」，全程不动 prisma / API 契约。
 
+在 `docs/19-图片工作台改造蓝图.md` 的语境里，这一轮是 Project Workspace 的第一层落地：先把 project/session 从 hardcoded UI 变成可演进的工作台对象。
+
 ## 拆刀（一刀一 commit）
 
 | 刀 | commit | 内容 | 文件数 / 行数 |

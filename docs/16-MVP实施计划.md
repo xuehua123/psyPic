@@ -476,3 +476,28 @@
 - 手工跑主流程。
 - 更新 [07-验收清单.md](./07-验收清单.md) 的通过项。
 - 记录未完成项和下一阶段任务。
+
+## `v1.1` 图片工作台平台化
+
+### 目标
+
+把已经完成的 V1.0 功能收敛成稳定的 project / session / version node / asset / job 体系，让 PsyPic 从“能生成图片”变成“能持续经营图片项目的工作台”。
+
+### 任务
+
+- [ ] Project Sidebar 语义稳定化：项目、会话、分支、折叠状态、active 状态和移动端抽屉统一。
+- [ ] 版本图服务端化：版本节点、父子关系、分叉、继续编辑和同款草稿全部能回溯。
+- [ ] Job runtime 一体化：queued / running / partial / succeeded / failed / canceled / timed_out 统一进入任务 dock。
+- [ ] 搜索 / 命令面板：跨项目、会话、版本、资产、模板、任务和 request id 搜索。
+- [ ] Board Mode：BoardDocument local-first、图片层、手绘层、mask 层、reference PNG 导出和 edits 接入。
+- [ ] Provider 边界：generation / utility / storage / queue 通过 adapter 解耦，不让 Sub2API 字段污染上层。
+- [ ] 工作台快照：prompt、params、reference、mask、board snapshot、output 和 usage 能在版本节点上完整落盘。
+
+### 验收
+
+- [ ] 项目切换不会打乱版本流和任务状态。
+- [ ] 从旧节点分叉不会覆盖原历史。
+- [ ] Task Dock 能看见运行中、失败、取消和超时任务。
+- [ ] 搜索命中能一键回到对应 project / session / version node。
+- [ ] Board Mode 能从素材库添加图片、手绘标注、导出 reference/mask，并通过 `/api/images/edits` 生成新版本节点。
+- [ ] 移动端通过抽屉完成同样的工作台操作，不丢上下文。

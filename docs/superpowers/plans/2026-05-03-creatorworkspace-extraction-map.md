@@ -6,6 +6,8 @@
 > [`2026-05-04-project-sidebar-codex-rewrite.md`](2026-05-04-project-sidebar-codex-rewrite.md)
 > （slug `cosmic-tumbling-narwhal`，ProjectSidebar Codex 风重构，已 7/7
 > 全部出库）**；本文件仅作历史参考。
+>
+> 文档侧继续演进时，还应补读 `docs/19-图片工作台改造蓝图.md`。本文件记录的是工作台巨型组件拆分历史，不是新的平台化实施计划。
 
 **当前进度**：**plan slug `linear-stirring-acorn` 全部封板** 🎉🎉🎉
 - Phase 4 ✅：17 / 17 子组件 + 1 / 1 legacy fallback + Context 91 → 81 字段

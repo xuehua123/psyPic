@@ -4,6 +4,8 @@
 
 把 PsyPic 创作台从画廊表单改成项目制 Chat Studio。用户进入首页后看到的是一个固定高度的创作 IDE：左侧管理项目和对话，中间是当前对话流，右侧是参数、模板、素材、批量、版本和分支 Inspector。Prompt Composer 永远固定在中间底部，不再需要滚动页面寻找输入区。
 
+这也是 `19-图片工作台改造蓝图.md` 里最核心的落地形态之一：Project Workspace + Panel Shell + Job Runtime + Versioned Asset System 在这里第一次被完整具象化。
+
 ## 布局
 
 ```text

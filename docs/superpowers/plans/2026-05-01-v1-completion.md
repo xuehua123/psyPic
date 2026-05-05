@@ -4,6 +4,8 @@
 
 **Goal:** 将 PsyPic 从当前 v0.9/V1 基础能力推进到可封板 V1.0，覆盖管理端、社区互动、批量工作流、任务队列、多参考图、E2E、移动端和生产封板。
 
+本计划仍是 V1.0 收口历史文档；V1.0 之后的产品演进入口见 `docs/19-图片工作台改造蓝图.md`，不要把本计划误读成工作台平台化的完整实施计划。
+
 **Architecture:** 采用纵向切片推进，每个切片都包含 Prisma/内存开发服务、BFF Route Handler、前端页面、测试和文档验收更新。短期继续沿用当前 in-memory dev store + Prisma schema 的双轨模式，生产持久化入口通过 Prisma 模型和清晰的服务边界预留。所有前端只调用 PsyPic `/api/*`，不直接接触 Sub2API。
 
 **Tech Stack:** Next.js App Router、TypeScript、Prisma、Vitest、Testing Library、Playwright、Tailwind CSS、lucide-react。

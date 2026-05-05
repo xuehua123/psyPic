@@ -14,6 +14,8 @@ slug: `clever-swimming-pumpkin`  完成: 2026-05-04
 
 参考 [desktop-cc-gui Sidebar.tsx](https://github.com/zhukunpenglinyutong/desktop-cc-gui/blob/main/src/features/app/components/Sidebar.tsx) + [WorkspaceCard.tsx](https://github.com/zhukunpenglinyutong/desktop-cc-gui/blob/main/src/features/app/components/WorkspaceCard.tsx) 的做法重构：项目们平铺成可折叠卡，每个独立 collapse，session 列表内嵌在卡内 —— 位置永远不变，"active" 仅外观，点行只 toggle 展开。
 
+这份落地版也应作为 `docs/19-图片工作台改造蓝图.md` 的 UI 证据：desktop-cc-gui 里最值得学的不是样式，而是 workspace-first、位置稳定和独立折叠的工作台心智。
+
 ## 拆刀（一刀一 commit）
 
 | 刀 | commit | 内容 | 行数 |

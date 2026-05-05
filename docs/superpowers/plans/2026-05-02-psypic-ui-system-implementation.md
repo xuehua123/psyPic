@@ -4,6 +4,8 @@
 
 **Goal:** 将 `docs/superpowers/specs/2026-05-02-psypic-ui-system-design.md` 落成可交付的整站 UI 重构，统一工作台、社区、详情、设置、管理台的产品壳、导航、视觉语义和移动端结构，同时不破坏当前新版 chat studio 的核心交互。
 
+它现在也被视为 `19-图片工作台改造蓝图.md` 的实施层配套：这里只负责把工作台壳、版本流、任务 runtime、命令面板和项目侧栏做成一致的 UI 事实，不再单独假设它们是彼此无关的页面能力。
+
 **Architecture:** 采用“全局产品壳优先、页面分层接入、工作台最后深调”的纵向切片策略。先建立站点级 shell 和导航，再把社区、详情、设置、管理台接入统一壳，最后收敛工作台内部重复入口和视觉系统，避免一开始就在 `CreatorWorkspace.tsx` 上进行过大的耦合改动。
 
 **Tech Stack:** Next.js App Router、React Client Components、TypeScript、Vitest、Testing Library、CSS via `app/globals.css`、lucide-react。

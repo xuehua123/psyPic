@@ -4,6 +4,8 @@
 
 **Goal:** Build a gallery-first creator workspace where each generation becomes a recoverable version node and generating from an older node creates a non-destructive branch.
 
+This plan is now the implementation predecessor of the broader image workbench blueprint in `docs/19-图片工作台改造蓝图.md`: its `CreatorVersionNode` model should be read as the first local-first version node layer.
+
 **Architecture:** Keep the first implementation client-side inside the existing CreatorWorkspace flow, but extract version graph logic into a focused library. The UI changes preserve existing API contracts and reuse current generation, history, library, batch, and community actions.
 
 **Tech Stack:** Next.js App Router, React client components, TypeScript, IndexedDB local history, Vitest + Testing Library, CSS modules via `app/globals.css`.

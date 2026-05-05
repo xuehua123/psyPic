@@ -169,6 +169,21 @@ Sub2API 当前已支持：
 - `moderation`
 - 删除 `gpt-image-2` 不支持的 `input_fidelity` 和透明背景
 
+## Provider 边界
+
+当前默认上游仍是 Sub2API，但工作台文档不应把所有能力写死到这一层。
+
+建议按能力拆成几类 provider：
+
+- generation provider：Sub2API / OpenAI Images API / Responses API image tool。
+- image utility provider：背景移除、超分、压缩、OCR、审核等未来工具。
+- storage provider：local / S3 / R2 / MinIO。
+- queue provider：in-memory / Redis / DB-backed worker。
+
+PsyPic BFF 只依赖统一的 provider interface，再由配置决定走哪条实现。这样工作台、历史、版本图和任务 runtime 都能保持同一套数据语义，而不会被某个具体网关绑死。
+
+Board Mode 也遵守这个边界：拼图画布只在 PsyPic 内部导出 reference PNG / mask PNG，上游仍只接收标准 Images API 的 `image` 和 `mask`。Sub2API 不需要理解 BoardDocument、BoardLayer 或 Konva 状态。
+
 ## 计费调整
 
 当前 Sub2API 图片计费按图片档位近似：

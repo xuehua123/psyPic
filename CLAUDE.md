@@ -39,7 +39,7 @@
 
 **辅助**：
 - `docs/19-图片工作台改造蓝图.md` — 文档侧总蓝图：project / session / version node / asset / job 的工作台化语言
-- `docs/20-多素材多图层画布（Board Mode）改造方案.md` — Board Mode 专项：多素材多图层画布、手绘标注、mask、导出到 edits、version node snapshot
+- `docs/20-多素材多图层画布（BoardMode）改造方案.md` — Board Mode 专项：多素材多图层画布、手绘标注、mask、导出到 edits、version node snapshot
 - `docs/superpowers/plans/2026-05-02-psypic-ui-system-implementation.md` — Phase 0-8 完整 plan
 - `docs/superpowers/specs/2026-05-02-psypic-ui-system-design.md` — 视觉/信息架构 spec
 - `docs/superpowers/specs/2026-05-02-codex-chat-studio-design.md` — chat-studio 设计
@@ -53,7 +53,7 @@
 - 主导航**严格 2 项**（工作台 / 灵感社区）；spec 命令不要把素材/模板/任务塞进顶栏
 - **不引入新状态库**（不上 Zustand / Jotai，用 React Context）
 - **不引入新图标库**（继续 lucide-react）
-- Board Mode 若进入实现，优先按 `docs/20-多素材多图层画布（Board Mode）改造方案.md` 用 `components/creator/board/*` + `lib/creator/board/*` 隔离，不把 canvas 交互塞回 `CreatorWorkspace.tsx`
+- Board Mode 若进入实现，优先按 `docs/20-多素材多图层画布（BoardMode）改造方案.md` 用 `components/creator/board/*` + `lib/creator/board/*` 隔离，不把 canvas 交互塞回 `CreatorWorkspace.tsx`
 - 所有改动必须 `pnpm typecheck` 通过；建议 commit 前还跑 `pnpm lint && pnpm test`
 - 主题切换：通过 `<ThemeProvider>` + `useTheme()` hook，**不再加任何 raw 字面量颜色**（统一走 CSS var 或 Tailwind semantic class）
 
