@@ -78,4 +78,44 @@ describe("Prisma v0.2 data model", () => {
     expect(schema).toContain("retryCount");
     expect(schema).toContain("queueStatus");
   });
+
+  it("defines Phase B workbench tri-table + ImageTask association columns", () => {
+    const schema = readFileSync("prisma/schema.prisma", "utf8");
+
+    // 三件套
+    expect(schema).toContain("model WorkbenchProject");
+    expect(schema).toContain("model CreativeSession");
+    expect(schema).toContain("model VersionNode");
+
+    // VersionNodeStatus enum 含 Task Dock 7 状态全集 + partial_image
+    expect(schema).toContain("enum VersionNodeStatus");
+    expect(schema).toContain("partial_image");
+
+    // ImageTaskStatus 顺手加 timed_out（Cut 1 决议）
+    expect(schema).toMatch(/enum ImageTaskStatus[\s\S]+?timed_out/);
+
+    // CreativeSession 容纳 BranchMeta 4 字段（决议 2026-05-06：搬到 server）
+    expect(schema).toContain("customLabel");
+    expect(schema).toContain("isPinned");
+    expect(schema).toContain("isArchived");
+    expect(schema).toContain("lastReadAt");
+
+    // ImageTask 关联字段全 nullable（决议 3：不回填假数据）
+    expect(schema).toMatch(/projectId\s+String\?\s+@map\("project_id"\)/);
+    expect(schema).toMatch(/sessionId\s+String\?\s+@map\("session_id"\)/);
+    expect(schema).toMatch(/versionNodeId\s+String\?\s+@unique/);
+
+    // VersionNode 链接到 board 字段（为 Phase C 预留）
+    expect(schema).toContain("boardDocumentId");
+    expect(schema).toContain("boardSnapshot");
+    expect(schema).toContain("boardExportAssetId");
+
+    // 级联约束：删 project → 删 session / version_node；删 session → 删 version_node
+    expect(schema).toMatch(/CreativeSession\s+@relation[\s\S]+?onDelete:\s*Cascade/);
+
+    // 索引：常用查询路径
+    expect(schema).toContain("@@index([userId, sortOrder])");
+    expect(schema).toContain("@@index([projectId, updatedAt])");
+    expect(schema).toContain("@@index([sessionId, createdAt])");
+  });
 });

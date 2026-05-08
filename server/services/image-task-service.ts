@@ -3,6 +3,8 @@ import { createId, redactSensitiveValue } from "@/server/services/key-binding-se
 import type { Sub2APIUsage } from "@/server/services/sub2api-client";
 
 export type ImageTaskType = "generation" | "edit";
+// NOTE: Phase B Cut 1 给 Prisma enum 加了 `timed_out`，server 端 union 留 5 值，
+// 等 Cut 5（JobRuntimeEvent + Task Dock 7 状态）统一 widen。
 export type ImageTaskStatus =
   | "queued"
   | "running"

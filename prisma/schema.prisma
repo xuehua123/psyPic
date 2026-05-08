@@ -28,6 +28,7 @@ enum ImageTaskStatus {
   succeeded
   failed
   canceled
+  timed_out
 }
 
 enum CommunityWorkVisibility {
@@ -49,41 +50,52 @@ enum CommunityReportStatus {
   dismissed
 }
 
+enum VersionNodeStatus {
+  queued
+  running
+  succeeded
+  failed
+  canceled
+  timed_out
+  partial_image
+}
+
 model User {
-  id            String       @id
-  sub2apiUserId String?      @map("sub2api_user_id")
-  displayName   String?      @map("display_name")
-  avatarUrl     String?      @map("avatar_url")
-  role          UserRole     @default(user)
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
-  sessions      Session[]
-  keyBindings   KeyBinding[]
-  auditLogs     AuditLog[]
-  imageTasks    ImageTask[]
-  imageBatches  ImageBatch[]
-  imageAssets   ImageAsset[]
-  imageAssetTags ImageAssetTag[]
-  albums        Album[]
-  communityWorks CommunityWork[]
-  communityReports CommunityReport[] @relation("CommunityReportsMade")
-  reviewedCommunityReports CommunityReport[] @relation("CommunityReportsReviewed")
-  runtimeSettingsUpdated RuntimeSetting[] @relation("RuntimeSettingsUpdatedBy")
-  communityWorkLikes CommunityWorkLike[]
-  communityWorkFavorites CommunityWorkFavorite[]
+  id                       String                  @id
+  sub2apiUserId            String?                 @map("sub2api_user_id")
+  displayName              String?                 @map("display_name")
+  avatarUrl                String?                 @map("avatar_url")
+  role                     UserRole                @default(user)
+  createdAt                DateTime                @default(now()) @map("created_at")
+  updatedAt                DateTime                @updatedAt @map("updated_at")
+  sessions                 Session[]
+  keyBindings              KeyBinding[]
+  auditLogs                AuditLog[]
+  imageTasks               ImageTask[]
+  imageBatches             ImageBatch[]
+  imageAssets              ImageAsset[]
+  imageAssetTags           ImageAssetTag[]
+  albums                   Album[]
+  communityWorks           CommunityWork[]
+  communityReports         CommunityReport[]       @relation("CommunityReportsMade")
+  reviewedCommunityReports CommunityReport[]       @relation("CommunityReportsReviewed")
+  runtimeSettingsUpdated   RuntimeSetting[]        @relation("RuntimeSettingsUpdatedBy")
+  communityWorkLikes       CommunityWorkLike[]
+  communityWorkFavorites   CommunityWorkFavorite[]
+  workbenchProjects        WorkbenchProject[]
 
   @@map("users")
 }
 
 model Session {
-  id           String     @id
-  userId       String     @map("user_id")
-  keyBindingId String?    @map("key_binding_id")
-  expiresAt    DateTime   @map("expires_at")
-  createdAt    DateTime   @default(now()) @map("created_at")
-  lastSeenAt   DateTime   @default(now()) @map("last_seen_at")
-  revokedAt    DateTime?  @map("revoked_at")
-  user         User       @relation(fields: [userId], references: [id])
+  id           String      @id
+  userId       String      @map("user_id")
+  keyBindingId String?     @map("key_binding_id")
+  expiresAt    DateTime    @map("expires_at")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  lastSeenAt   DateTime    @default(now()) @map("last_seen_at")
+  revokedAt    DateTime?   @map("revoked_at")
+  user         User        @relation(fields: [userId], references: [id])
   keyBinding   KeyBinding? @relation(fields: [keyBindingId], references: [id])
 
   @@index([userId])
@@ -93,20 +105,20 @@ model Session {
 }
 
 model KeyBinding {
-  id                         String             @id
-  userId                     String             @map("user_id")
-  sub2apiBaseUrl             String             @map("sub2api_base_url")
-  sub2apiApiKeyCiphertext    String?            @map("sub2api_api_key_ciphertext")
-  sub2apiApiKeyId            String?            @map("sub2api_api_key_id")
-  defaultModel               String             @default("gpt-image-2") @map("default_model")
-  enabledModels              Json               @map("enabled_models")
-  limits                     Json
-  status                     KeyBindingStatus   @default(active)
-  createdAt                  DateTime           @default(now()) @map("created_at")
-  updatedAt                  DateTime           @updatedAt @map("updated_at")
-  user                       User               @relation(fields: [userId], references: [id])
-  sessions                   Session[]
-  imageTasks                 ImageTask[]
+  id                      String           @id
+  userId                  String           @map("user_id")
+  sub2apiBaseUrl          String           @map("sub2api_base_url")
+  sub2apiApiKeyCiphertext String?          @map("sub2api_api_key_ciphertext")
+  sub2apiApiKeyId         String?          @map("sub2api_api_key_id")
+  defaultModel            String           @default("gpt-image-2") @map("default_model")
+  enabledModels           Json             @map("enabled_models")
+  limits                  Json
+  status                  KeyBindingStatus @default(active)
+  createdAt               DateTime         @default(now()) @map("created_at")
+  updatedAt               DateTime         @updatedAt @map("updated_at")
+  user                    User             @relation(fields: [userId], references: [id])
+  sessions                Session[]
+  imageTasks              ImageTask[]
 
   @@index([userId])
   @@index([status])
@@ -144,22 +156,28 @@ model RuntimeSetting {
 }
 
 model ImageTask {
-  id                String           @id
-  userId            String           @map("user_id")
-  keyBindingId      String?          @map("key_binding_id")
+  id                String            @id
+  userId            String            @map("user_id")
+  keyBindingId      String?           @map("key_binding_id")
   type              ImageTaskType
   status            ImageTaskStatus
   prompt            String
   params            Json
   usage             Json?
-  upstreamRequestId String?          @map("upstream_request_id")
-  errorCode         String?          @map("error_code")
-  errorMessage      String?          @map("error_message")
-  durationMs        Int?             @map("duration_ms")
-  createdAt         DateTime         @default(now()) @map("created_at")
-  updatedAt         DateTime         @updatedAt @map("updated_at")
-  user              User             @relation(fields: [userId], references: [id])
-  keyBinding        KeyBinding?      @relation(fields: [keyBindingId], references: [id])
+  upstreamRequestId String?           @map("upstream_request_id")
+  errorCode         String?           @map("error_code")
+  errorMessage      String?           @map("error_message")
+  durationMs        Int?              @map("duration_ms")
+  projectId         String?           @map("project_id")
+  sessionId         String?           @map("session_id")
+  versionNodeId     String?           @unique @map("version_node_id")
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
+  user              User              @relation(fields: [userId], references: [id])
+  keyBinding        KeyBinding?       @relation(fields: [keyBindingId], references: [id])
+  project           WorkbenchProject? @relation(fields: [projectId], references: [id])
+  session           CreativeSession?  @relation(fields: [sessionId], references: [id])
+  versionNode       VersionNode?      @relation("VersionNodeTask", fields: [versionNodeId], references: [id])
   assets            ImageAsset[]
   communityWorks    CommunityWork[]
   batchItems        ImageBatchItem[]
@@ -167,6 +185,8 @@ model ImageTask {
   @@index([userId, createdAt])
   @@index([keyBindingId])
   @@index([status])
+  @@index([projectId, createdAt])
+  @@index([sessionId, createdAt])
   @@map("image_tasks")
 }
 
@@ -185,21 +205,21 @@ model ImageBatch {
 }
 
 model ImageBatchItem {
-  id          String          @id
-  batchId     String          @map("batch_id")
-  taskId      String          @map("task_id")
-  prompt      String
-  params      Json
-  size        String
-  status      ImageTaskStatus
-  queueStatus String          @map("queue_status")
-  retryCount  Int             @default(0) @map("retry_count")
-  errorCode   String?         @map("error_code")
-  errorMessage String?        @map("error_message")
-  createdAt   DateTime        @default(now()) @map("created_at")
-  updatedAt   DateTime        @updatedAt @map("updated_at")
-  batch       ImageBatch      @relation(fields: [batchId], references: [id])
-  task        ImageTask       @relation(fields: [taskId], references: [id])
+  id           String          @id
+  batchId      String          @map("batch_id")
+  taskId       String          @map("task_id")
+  prompt       String
+  params       Json
+  size         String
+  status       ImageTaskStatus
+  queueStatus  String          @map("queue_status")
+  retryCount   Int             @default(0) @map("retry_count")
+  errorCode    String?         @map("error_code")
+  errorMessage String?         @map("error_message")
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+  batch        ImageBatch      @relation(fields: [batchId], references: [id])
+  task         ImageTask       @relation(fields: [taskId], references: [id])
 
   @@index([batchId, status])
   @@index([taskId])
@@ -207,24 +227,24 @@ model ImageBatchItem {
 }
 
 model ImageAsset {
-  id          String          @id
-  userId      String          @map("user_id")
-  taskId      String?         @map("task_id")
-  storageKey  String?         @map("storage_key")
-  mimeType    String?         @map("mime_type")
-  format      String
-  width       Int?
-  height      Int?
-  sizeBytes   Int?            @map("size_bytes")
-  favorite    Boolean         @default(false)
-  metadata    Json?
-  deletedAt   DateTime?       @map("deleted_at")
-  createdAt   DateTime        @default(now()) @map("created_at")
-  updatedAt   DateTime        @updatedAt @map("updated_at")
-  user        User            @relation(fields: [userId], references: [id])
-  task        ImageTask?      @relation(fields: [taskId], references: [id])
-  tags        ImageAssetTag[]
-  albumItems  AlbumItem[]
+  id             String          @id
+  userId         String          @map("user_id")
+  taskId         String?         @map("task_id")
+  storageKey     String?         @map("storage_key")
+  mimeType       String?         @map("mime_type")
+  format         String
+  width          Int?
+  height         Int?
+  sizeBytes      Int?            @map("size_bytes")
+  favorite       Boolean         @default(false)
+  metadata       Json?
+  deletedAt      DateTime?       @map("deleted_at")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  user           User            @relation(fields: [userId], references: [id])
+  task           ImageTask?      @relation(fields: [taskId], references: [id])
+  tags           ImageAssetTag[]
+  albumItems     AlbumItem[]
   communityWorks CommunityWork[]
 
   @@index([userId, createdAt])
@@ -358,4 +378,77 @@ model CommunityWorkFavorite {
   @@unique([workId, userId])
   @@index([userId, createdAt])
   @@map("community_work_favorites")
+}
+
+// === Workbench (Phase B Cut 1) =================================
+// docs/superpowers/plans/2026-05-06-workbench-server-sync.md
+// 三件套：项目 / 会话 / 版本节点，IndexedDB 升级为 server-first + offline cache。
+// BranchMeta（customLabel / isPinned / isArchived / lastReadAt）从
+// IndexedDB 搬到 CreativeSession 表（决议 2026-05-06：用户拍板搬全 4 字段）。
+
+model WorkbenchProject {
+  id              String            @id
+  userId          String            @map("user_id")
+  title           String
+  sortOrder       Int               @default(0) @map("sort_order")
+  collapsed       Boolean           @default(false)
+  activeSessionId String?           @map("active_session_id")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  user            User              @relation(fields: [userId], references: [id])
+  sessions        CreativeSession[]
+  versionNodes    VersionNode[]
+  imageTasks      ImageTask[]
+
+  @@index([userId, sortOrder])
+  @@index([userId, updatedAt])
+  @@map("workbench_projects")
+}
+
+model CreativeSession {
+  id                      String           @id
+  projectId               String           @map("project_id")
+  title                   String
+  forkParentVersionNodeId String?          @map("fork_parent_version_node_id")
+  activeVersionNodeId     String?          @map("active_version_node_id")
+  customLabel             String?          @map("custom_label")
+  isPinned                Boolean          @default(false) @map("is_pinned")
+  isArchived              Boolean          @default(false) @map("is_archived")
+  lastReadAt              DateTime?        @map("last_read_at")
+  createdAt               DateTime         @default(now()) @map("created_at")
+  updatedAt               DateTime         @updatedAt @map("updated_at")
+  project                 WorkbenchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  versionNodes            VersionNode[]
+  imageTasks              ImageTask[]
+
+  @@index([projectId, updatedAt])
+  @@index([projectId, isPinned, updatedAt])
+  @@map("creative_sessions")
+}
+
+model VersionNode {
+  id                  String            @id
+  projectId           String            @map("project_id")
+  sessionId           String            @map("session_id")
+  parentVersionNodeId String?           @map("parent_version_node_id")
+  promptSnapshot      String            @map("prompt_snapshot")
+  paramsSnapshot      Json              @map("params_snapshot")
+  sourceAssetIds      Json              @map("source_asset_ids")
+  outputAssetIds      Json              @map("output_asset_ids")
+  boardDocumentId     String?           @map("board_document_id")
+  boardSnapshot       Json?             @map("board_snapshot")
+  boardExportAssetId  String?           @map("board_export_asset_id")
+  branchLabel         String?           @map("branch_label")
+  status              VersionNodeStatus
+  createdAt           DateTime          @default(now()) @map("created_at")
+  project             WorkbenchProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  session             CreativeSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  parent              VersionNode?      @relation("VersionParent", fields: [parentVersionNodeId], references: [id])
+  children            VersionNode[]     @relation("VersionParent")
+  task                ImageTask?        @relation("VersionNodeTask")
+
+  @@index([sessionId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([parentVersionNodeId])
+  @@map("version_nodes")
 }
