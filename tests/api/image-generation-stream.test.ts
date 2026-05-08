@@ -12,6 +12,10 @@ import {
   markImageTaskRunning,
   resetImageTaskStore
 } from "@/server/services/image-task-service";
+import {
+  listJobRuntimeEventsForUser,
+  resetJobRuntimeEventStore
+} from "@/server/services/job-runtime-event-service";
 import { resetRuntimeSettingsStore } from "@/server/services/runtime-settings-service";
 import { resetTempAssetStore } from "@/server/services/temp-asset-service";
 
@@ -91,8 +95,10 @@ describe("POST /api/images/generations/stream", () => {
     resetAuditLogStore();
     resetRuntimeSettingsStore();
     resetImageTaskStore();
+    resetJobRuntimeEventStore();
     await resetTempAssetStore();
     const cookie = await bindSession();
+    const session = getSession(cookie.replace("psypic_session=", ""));
     const partialBytes = Buffer.from("partial-image-bytes").toString("base64");
     const finalBytes = Buffer.from("final-image-bytes").toString("base64");
     const upstreamSse = [
@@ -170,6 +176,23 @@ describe("POST /api/images/generations/stream", () => {
       upstream_request_id: "upstream_stream_req_123"
     });
     expect(taskBody.data.images[0].url).toMatch(/^\/api\/assets\/asset_/);
+    if (!session) {
+      throw new Error("Expected test session");
+    }
+    const runtimeEvents = await listJobRuntimeEventsForUser(session.user_id, {
+      taskId: started?.data.task_id
+    });
+    expect(runtimeEvents.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "partial_image",
+          payload: expect.objectContaining({
+            index: 0,
+            asset_id: partial?.data.asset_id
+          })
+        })
+      ])
+    );
     const auditLogs = await listAuditLogs({ limit: 10 });
     expect(auditLogs.items[0]).toMatchObject({
       action: "image_generation.succeeded",
