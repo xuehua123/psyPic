@@ -9,7 +9,7 @@ const reportStatuses = new Set(["open", "reviewed", "dismissed", "all"]);
 
 export async function GET(request: Request) {
   const requestId = createRequestId();
-  const admin = resolveAdminUser(request);
+  const admin = await resolveAdminUser(request);
 
   if (admin.status !== "ok") {
     return adminError(admin.status, requestId);

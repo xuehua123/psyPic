@@ -1,14 +1,12 @@
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
-import { getSession } from "@/server/services/dev-store";
 import { summarizeImageUsageForUser } from "@/server/services/image-task-service";
-import { readSessionIdFromRequest } from "@/server/services/session-service";
+import { requireRequestUser } from "@/server/services/request-user-service";
 
 export async function GET(request: Request) {
   const requestId = createRequestId();
-  const sessionId = readSessionIdFromRequest(request);
-  const session = sessionId ? getSession(sessionId) : null;
+  const viewer = await requireRequestUser(request);
 
-  if (!session) {
+  if (!viewer) {
     return jsonError({
       status: 401,
       code: "unauthorized",
@@ -17,5 +15,5 @@ export async function GET(request: Request) {
     });
   }
 
-  return jsonOk(await summarizeImageUsageForUser(session.user_id), requestId);
+  return jsonOk(await summarizeImageUsageForUser(viewer.user.id), requestId);
 }

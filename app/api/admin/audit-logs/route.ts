@@ -4,7 +4,7 @@ import { listAuditLogs, recordAuditLog } from "@/server/services/audit-log-servi
 
 export async function GET(request: Request) {
   const requestId = createRequestId();
-  const admin = resolveAdminUser(request);
+  const admin = await resolveAdminUser(request);
 
   if (admin.status !== "ok") {
     return adminError(admin.status, requestId);
@@ -29,7 +29,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   const requestId = createRequestId();
-  const admin = resolveAdminUser(request);
+  const admin = await resolveAdminUser(request);
 
   if (admin.status !== "ok") {
     return adminError(admin.status, requestId);

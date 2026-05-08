@@ -8,7 +8,7 @@ export async function POST(
   context: { params: Promise<{ workId: string }> }
 ) {
   const requestId = createRequestId();
-  const admin = resolveAdminUser(request);
+  const admin = await resolveAdminUser(request);
 
   if (admin.status === "unauthorized") {
     return jsonError({

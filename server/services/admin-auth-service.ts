@@ -1,10 +1,7 @@
-import { getSession, getUser } from "@/server/services/dev-store";
-import { readSessionIdFromRequest } from "@/server/services/session-service";
+import { getRequestViewer } from "@/server/services/request-user-service";
 
-export function resolveAdminUser(request: Request) {
-  const sessionId = readSessionIdFromRequest(request);
-  const session = sessionId ? getSession(sessionId) : null;
-  const user = session ? getUser(session.user_id) : null;
+export async function resolveAdminUser(request: Request) {
+  const { session, user } = await getRequestViewer(request);
 
   if (!session || !user) {
     return { status: "unauthorized" as const };

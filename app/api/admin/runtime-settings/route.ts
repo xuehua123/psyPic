@@ -11,7 +11,7 @@ const sizeTiers = new Set(["2K", "4K"]);
 
 export async function GET(request: Request) {
   const requestId = createRequestId();
-  const admin = resolveAdminUser(request);
+  const admin = await resolveAdminUser(request);
 
   if (admin.status !== "ok") {
     return adminError(admin.status, requestId);
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
 
 export async function PATCH(request: Request) {
   const requestId = createRequestId();
-  const admin = resolveAdminUser(request);
+  const admin = await resolveAdminUser(request);
 
   if (admin.status !== "ok") {
     return adminError(admin.status, requestId);

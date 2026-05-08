@@ -196,34 +196,52 @@ export async function createDatabaseSession(userId: string) {
 }
 
 export async function getDatabaseSession(sessionId: string) {
+  const lookup = await lookupDatabaseSession(sessionId);
+
+  return lookup.status === "authenticated"
+    ? { session: lookup.session, user: lookup.user }
+    : null;
+}
+
+export async function lookupDatabaseSession(sessionId: string): Promise<
+  | { status: "authenticated"; session: AuthSession; user: AuthUser }
+  | { status: "not_authenticated" }
+  | { status: "unavailable" }
+> {
   const client = await getPrismaAuthClient();
   if (!client || !sessionId) {
-    return null;
+    return client ? { status: "not_authenticated" } : { status: "unavailable" };
   }
 
-  const row = await client.session.findFirst({
-    where: { id: sessionId },
-    include: { user: true }
-  });
+  try {
+    const row = await client.session.findFirst({
+      where: { id: sessionId },
+      include: { user: true }
+    });
 
-  if (!row || row.revokedAt || row.expiresAt.getTime() <= Date.now()) {
-    return null;
+    if (!row || row.revokedAt || row.expiresAt.getTime() <= Date.now()) {
+      return { status: "not_authenticated" };
+    }
+
+    if (!row.user || row.user.status !== "active") {
+      return { status: "not_authenticated" };
+    }
+
+    const updated = await client.session.update({
+      where: { id: row.id },
+      data: { lastSeenAt: new Date() },
+      include: { user: true }
+    });
+    const session = fromPrismaSession(updated);
+    const user = updated.user
+      ? fromPrismaUser(updated.user)
+      : fromPrismaUser(row.user);
+    cacheAuthSession(user, session);
+
+    return { status: "authenticated", session, user };
+  } catch {
+    return { status: "unavailable" };
   }
-
-  if (!row.user || row.user.status !== "active") {
-    return null;
-  }
-
-  const updated = await client.session.update({
-    where: { id: row.id },
-    data: { lastSeenAt: new Date() },
-    include: { user: true }
-  });
-  const session = fromPrismaSession(updated);
-  const user = updated.user ? fromPrismaUser(updated.user) : fromPrismaUser(row.user);
-  cacheAuthSession(user, session);
-
-  return { session, user };
 }
 
 export async function revokeSession(sessionId: string) {
