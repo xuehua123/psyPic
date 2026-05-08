@@ -34,6 +34,7 @@ export type CreativeSession = {
   last_read_at: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
   project?: WorkbenchProject;
 };
 
@@ -95,7 +96,7 @@ export async function listCreativeSessionsForUser(
   await assertWorkbenchProjectForUser(client, userId, parsed.projectId);
   const limit = clampWorkbenchLimit(parsed.limit);
   const rows = await client.creativeSession.findMany({
-    where: { projectId: parsed.projectId },
+    where: { projectId: parsed.projectId, deletedAt: null },
     include: { project: true },
     orderBy: [{ isPinned: "desc" }, { updatedAt: "desc" }, { id: "asc" }],
     ...(parsed.cursor ? { cursor: { id: parsed.cursor }, skip: 1 } : {}),
@@ -160,8 +161,23 @@ export async function deleteCreativeSessionForUser(
 ) {
   const client = await requireWorkbenchPrismaClient();
   await assertCreativeSessionForUser(client, userId, sessionId);
-  const row = await client.creativeSession.delete({
+  const deletedAt = new Date();
+  const nodes = await client.versionNode.findMany({
+    where: { sessionId, deletedAt: null },
+    orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+    take: 1000
+  });
+  await Promise.all(
+    nodes.map((node) =>
+      client.versionNode.update({
+        where: { id: node.id },
+        data: { deletedAt, updatedAt: deletedAt }
+      })
+    )
+  );
+  const row = await client.creativeSession.update({
     where: { id: sessionId },
+    data: { deletedAt, updatedAt: deletedAt },
     include: { project: true }
   });
 
@@ -178,11 +194,11 @@ export async function assertCreativeSessionForUser(
     include: { project: true }
   });
 
-  if (!row) {
+  if (!row || row.deletedAt) {
     throw new WorkbenchServiceError("not_found", "创作会话不存在");
   }
 
-  if (!row.project) {
+  if (!row.project || row.project.deletedAt) {
     throw new WorkbenchServiceError("not_found", "创作会话所属项目不存在");
   }
 
@@ -208,6 +224,7 @@ export function fromPrismaCreativeSession(
     last_read_at: row.lastReadAt?.toISOString() ?? null,
     created_at: row.createdAt.toISOString(),
     updated_at: row.updatedAt.toISOString(),
+    deleted_at: row.deletedAt?.toISOString() ?? null,
     ...(row.project ? { project: fromPrismaWorkbenchProject(row.project) } : {})
   };
 }

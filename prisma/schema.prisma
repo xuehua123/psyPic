@@ -95,6 +95,7 @@ model User {
   communityWorkLikes       CommunityWorkLike[]
   communityWorkFavorites   CommunityWorkFavorite[]
   workbenchProjects        WorkbenchProject[]
+  workbenchSyncMutations   WorkbenchSyncMutation[]
 
   @@map("users")
 }
@@ -407,6 +408,7 @@ model WorkbenchProject {
   activeSessionId String?           @map("active_session_id")
   createdAt       DateTime          @default(now()) @map("created_at")
   updatedAt       DateTime          @updatedAt @map("updated_at")
+  deletedAt       DateTime?         @map("deleted_at")
   user            User              @relation(fields: [userId], references: [id])
   sessions        CreativeSession[]
   versionNodes    VersionNode[]
@@ -414,6 +416,7 @@ model WorkbenchProject {
 
   @@index([userId, sortOrder])
   @@index([userId, updatedAt])
+  @@index([userId, deletedAt])
   @@map("workbench_projects")
 }
 
@@ -429,12 +432,14 @@ model CreativeSession {
   lastReadAt              DateTime?        @map("last_read_at")
   createdAt               DateTime         @default(now()) @map("created_at")
   updatedAt               DateTime         @updatedAt @map("updated_at")
+  deletedAt               DateTime?        @map("deleted_at")
   project                 WorkbenchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
   versionNodes            VersionNode[]
   imageTasks              ImageTask[]
 
   @@index([projectId, updatedAt])
   @@index([projectId, isPinned, updatedAt])
+  @@index([projectId, deletedAt])
   @@map("creative_sessions")
 }
 
@@ -453,6 +458,8 @@ model VersionNode {
   branchLabel         String?           @map("branch_label")
   status              VersionNodeStatus
   createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+  deletedAt           DateTime?         @map("deleted_at")
   project             WorkbenchProject  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   session             CreativeSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   parent              VersionNode?      @relation("VersionParent", fields: [parentVersionNodeId], references: [id])
@@ -461,6 +468,26 @@ model VersionNode {
 
   @@index([sessionId, createdAt])
   @@index([projectId, createdAt])
+  @@index([sessionId, updatedAt])
+  @@index([projectId, updatedAt])
+  @@index([projectId, deletedAt])
   @@index([parentVersionNodeId])
   @@map("version_nodes")
+}
+
+model WorkbenchSyncMutation {
+  id               String   @id
+  userId           String   @map("user_id")
+  clientMutationId String   @map("client_mutation_id")
+  operation        String
+  targetType       String   @map("target_type")
+  targetId         String   @map("target_id")
+  result           Json
+  createdAt        DateTime @default(now()) @map("created_at")
+  user             User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, clientMutationId])
+  @@index([userId, createdAt])
+  @@index([targetType, targetId])
+  @@map("workbench_sync_mutations")
 }

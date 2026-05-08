@@ -33,6 +33,7 @@ export type WorkbenchProject = {
   active_session_id: string | null;
   created_at: string;
   updated_at: string;
+  deleted_at: string | null;
 };
 
 export type WorkbenchPage<T> = {
@@ -49,6 +50,7 @@ export type PrismaWorkbenchProjectRow = {
   activeSessionId: string | null;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt: Date | null;
 };
 
 export type PrismaCreativeSessionRow = {
@@ -63,6 +65,7 @@ export type PrismaCreativeSessionRow = {
   lastReadAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  deletedAt: Date | null;
   project?: PrismaWorkbenchProjectRow | null;
 };
 
@@ -88,8 +91,21 @@ export type PrismaVersionNodeRow = {
     | "timed_out"
     | "partial_image";
   createdAt: Date;
+  updatedAt: Date;
+  deletedAt: Date | null;
   project?: PrismaWorkbenchProjectRow | null;
   session?: PrismaCreativeSessionRow | null;
+};
+
+export type PrismaWorkbenchSyncMutationRow = {
+  id: string;
+  userId: string;
+  clientMutationId: string;
+  operation: string;
+  targetType: string;
+  targetId: string;
+  result: unknown;
+  createdAt: Date;
 };
 
 type FindManyInput = {
@@ -158,6 +174,19 @@ export type PrismaWorkbenchClient = {
       include?: Record<string, unknown>;
     }): Promise<PrismaVersionNodeRow>;
   };
+  workbenchSyncMutation: {
+    create(input: {
+      data: Record<string, unknown>;
+    }): Promise<PrismaWorkbenchSyncMutationRow>;
+    findUnique(input: {
+      where: {
+        userId_clientMutationId: {
+          userId: string;
+          clientMutationId: string;
+        };
+      };
+    }): Promise<PrismaWorkbenchSyncMutationRow | null>;
+  };
 };
 
 declare global {
@@ -208,7 +237,7 @@ export async function listWorkbenchProjectsForUser(
   const parsed = workbenchListSchema.parse(input ?? {});
   const limit = clampWorkbenchLimit(parsed.limit);
   const rows = await client.workbenchProject.findMany({
-    where: { userId },
+    where: { userId, deletedAt: null },
     orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }, { id: "asc" }],
     ...(parsed.cursor ? { cursor: { id: parsed.cursor }, skip: 1 } : {}),
     take: limit + 1
@@ -254,8 +283,19 @@ export async function deleteWorkbenchProjectForUser(
 ) {
   const client = await requireWorkbenchPrismaClient();
   await assertWorkbenchProjectForUser(client, userId, projectId);
-  const row = await client.workbenchProject.delete({
-    where: { id: projectId }
+  if (!client.workbenchSyncMutation) {
+    const row = await client.workbenchProject.delete({
+      where: { id: projectId }
+    });
+
+    return fromPrismaWorkbenchProject(row);
+  }
+
+  const deletedAt = new Date();
+  await tombstoneWorkbenchProjectChildren(client, projectId, deletedAt);
+  const row = await client.workbenchProject.update({
+    where: { id: projectId },
+    data: { deletedAt, updatedAt: deletedAt }
   });
 
   return fromPrismaWorkbenchProject(row);
@@ -270,7 +310,7 @@ export async function assertWorkbenchProjectForUser(
     where: { id: projectId }
   });
 
-  if (!row) {
+  if (!row || row.deletedAt) {
     throw new WorkbenchServiceError("not_found", "工作台项目不存在");
   }
 
@@ -292,11 +332,11 @@ export async function assertCreativeSessionPointerForProject(
     include: { project: true }
   });
 
-  if (!row) {
+  if (!row || row.deletedAt) {
     throw new WorkbenchServiceError("not_found", "创作会话不存在");
   }
 
-  if (!row.project) {
+  if (!row.project || row.project.deletedAt) {
     throw new WorkbenchServiceError("not_found", "创作会话所属项目不存在");
   }
 
@@ -325,11 +365,11 @@ export async function assertVersionNodePointerForProject(
     include: { project: true, session: { include: { project: true } } }
   });
 
-  if (!row) {
+  if (!row || row.deletedAt) {
     throw new WorkbenchServiceError("not_found", "版本节点不存在");
   }
 
-  if (!row.project) {
+  if (!row.project || row.project.deletedAt) {
     throw new WorkbenchServiceError("not_found", "版本节点所属项目不存在");
   }
 
@@ -395,8 +435,43 @@ export function fromPrismaWorkbenchProject(
     collapsed: row.collapsed,
     active_session_id: row.activeSessionId,
     created_at: row.createdAt.toISOString(),
-    updated_at: row.updatedAt.toISOString()
+    updated_at: row.updatedAt.toISOString(),
+    deleted_at: row.deletedAt?.toISOString() ?? null
   };
+}
+
+export async function tombstoneWorkbenchProjectChildren(
+  client: PrismaWorkbenchClient,
+  projectId: string,
+  deletedAt: Date
+) {
+  const [sessions, nodes] = await Promise.all([
+    client.creativeSession.findMany({
+      where: { projectId, deletedAt: null },
+      orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+      take: 1000
+    }),
+    client.versionNode.findMany({
+      where: { projectId, deletedAt: null },
+      orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+      take: 1000
+    })
+  ]);
+
+  await Promise.all([
+    ...sessions.map((session) =>
+      client.creativeSession.update({
+        where: { id: session.id },
+        data: { deletedAt, updatedAt: deletedAt }
+      })
+    ),
+    ...nodes.map((node) =>
+      client.versionNode.update({
+        where: { id: node.id },
+        data: { deletedAt, updatedAt: deletedAt }
+      })
+    )
+  ]);
 }
 
 export function pageFromRows<Row, Output>(

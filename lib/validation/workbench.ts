@@ -87,6 +87,22 @@ export const versionNodeListSchema = workbenchListSchema.extend({
   sessionId: idSchema
 });
 
+export const workbenchSyncPullSchema = z.object({
+  updatedSince: dateInputSchema().nullable().optional()
+});
+
+export const workbenchSyncOperationSchema = z.object({
+  clientMutationId: idSchema,
+  entity: z.enum(["project", "session", "version_node"]),
+  action: z.enum(["upsert", "delete"]),
+  data: z.record(z.string(), z.unknown())
+});
+
+export const workbenchSyncPushSchema = z.object({
+  operations: z.array(workbenchSyncOperationSchema).max(50),
+  pull: workbenchSyncPullSchema.optional()
+});
+
 export type WorkbenchProjectCreateInput = z.infer<
   typeof workbenchProjectCreateSchema
 >;
@@ -105,6 +121,11 @@ export type VersionNodeCreateInput = z.infer<typeof versionNodeCreateSchema>;
 export type VersionNodeUpdateInput = z.infer<typeof versionNodeUpdateSchema>;
 export type VersionNodeListInput = z.infer<typeof versionNodeListSchema>;
 export type VersionNodeStatus = z.infer<typeof versionNodeStatusSchema>;
+export type WorkbenchSyncPullInput = z.infer<typeof workbenchSyncPullSchema>;
+export type WorkbenchSyncOperationInput = z.infer<
+  typeof workbenchSyncOperationSchema
+>;
+export type WorkbenchSyncPushInput = z.infer<typeof workbenchSyncPushSchema>;
 
 function dateInputSchema() {
   return z.preprocess((value) => {

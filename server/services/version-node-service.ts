@@ -47,6 +47,8 @@ export type VersionNode = {
     | "timed_out"
     | "partial_image";
   created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
   project?: WorkbenchProject;
   session?: CreativeSession;
 };
@@ -122,7 +124,7 @@ export async function listVersionNodesForUser(
   await assertCreativeSessionForUser(client, userId, parsed.sessionId);
   const limit = clampWorkbenchLimit(parsed.limit);
   const rows = await client.versionNode.findMany({
-    where: { sessionId: parsed.sessionId },
+    where: { sessionId: parsed.sessionId, deletedAt: null },
     include: { project: true, session: { include: { project: true } } },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     ...(parsed.cursor ? { cursor: { id: parsed.cursor }, skip: 1 } : {}),
@@ -161,11 +163,10 @@ export async function updateVersionNodeForUser(
 export async function deleteVersionNodeForUser(userId: string, nodeId: string) {
   const client = await requireWorkbenchPrismaClient();
   await assertVersionNodeForUser(client, userId, nodeId);
-  if (!client.versionNode.delete) {
-    throw new WorkbenchServiceError("unavailable", "版本节点删除不可用");
-  }
-  const row = await client.versionNode.delete({
+  const deletedAt = new Date();
+  const row = await client.versionNode.update({
     where: { id: nodeId },
+    data: { deletedAt, updatedAt: deletedAt },
     include: { project: true, session: { include: { project: true } } }
   });
 
@@ -182,11 +183,19 @@ export async function assertVersionNodeForUser(
     include: { project: true, session: { include: { project: true } } }
   });
 
-  if (!row) {
+  if (!row || row.deletedAt) {
     throw new WorkbenchServiceError("not_found", "版本节点不存在");
   }
 
-  if (!row.project) {
+  if (!row.project || row.project.deletedAt) {
+    throw new WorkbenchServiceError("not_found", "版本节点所属项目不存在");
+  }
+
+  if (!row.session || row.session.deletedAt) {
+    throw new WorkbenchServiceError("not_found", "版本节点所属创作会话不存在");
+  }
+
+  if (row.session.project?.deletedAt) {
     throw new WorkbenchServiceError("not_found", "版本节点所属项目不存在");
   }
 
@@ -198,6 +207,8 @@ export async function assertVersionNodeForUser(
 }
 
 export function fromPrismaVersionNode(row: PrismaVersionNodeRow): VersionNode {
+  const updatedAt = row.updatedAt ?? row.createdAt;
+
   return {
     id: row.id,
     project_id: row.projectId,
@@ -213,6 +224,8 @@ export function fromPrismaVersionNode(row: PrismaVersionNodeRow): VersionNode {
     branch_label: row.branchLabel,
     status: row.status,
     created_at: row.createdAt.toISOString(),
+    updated_at: updatedAt.toISOString(),
+    deleted_at: row.deletedAt?.toISOString() ?? null,
     ...(row.project ? { project: fromPrismaWorkbenchProject(row.project) } : {}),
     ...(row.session ? { session: fromPrismaCreativeSession(row.session) } : {})
   };
