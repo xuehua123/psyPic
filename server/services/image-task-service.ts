@@ -1,6 +1,13 @@
-import type { ImageGenerationParams } from "@/lib/validation/image-params";
+import type {
+  ImageGenerationParams,
+  ImageWorkbenchContext
+} from "@/lib/validation/image-params";
 import { createId, redactSensitiveValue } from "@/server/services/key-binding-service";
 import type { Sub2APIUsage } from "@/server/services/sub2api-client";
+import {
+  createVersionNodeForUser,
+  updateVersionNodeForUser
+} from "@/server/services/version-node-service";
 
 export type ImageTaskType = "generation" | "edit";
 // NOTE: Phase B Cut 1 给 Prisma enum 加了 `timed_out`，server 端 union 留 5 值，
@@ -34,6 +41,9 @@ export type ImageTask = {
   error_code?: string;
   error_message?: string;
   duration_ms?: number;
+  project_id?: string;
+  session_id?: string;
+  version_node_id?: string;
   created_at: string;
   created_sequence: number;
   updated_at: string;
@@ -94,6 +104,9 @@ type PrismaImageTaskRow = {
   errorCode: string | null;
   errorMessage: string | null;
   durationMs: number | null;
+  projectId: string | null;
+  sessionId: string | null;
+  versionNodeId: string | null;
   createdAt: Date;
   updatedAt: Date;
   assets?: PrismaImageAssetRow[];
@@ -207,8 +220,12 @@ export async function createImageTask(input: {
   type: ImageTaskType;
   prompt: string;
   params: ImageGenerationParams;
+  workbenchContext?: ImageWorkbenchContext | null;
 }) {
   const now = new Date().toISOString();
+  const versionNode = input.workbenchContext
+    ? await createVersionNodeForImageTask(input)
+    : null;
   const task: ImageTask = {
     id: createId("task"),
     user_id: input.userId,
@@ -218,6 +235,9 @@ export async function createImageTask(input: {
     prompt: input.prompt,
     params: input.params,
     images: [],
+    project_id: input.workbenchContext?.projectId,
+    session_id: input.workbenchContext?.sessionId,
+    version_node_id: versionNode?.id,
     created_at: now,
     created_sequence: nextImageTaskSequence(),
     updated_at: now
@@ -410,6 +430,9 @@ export async function serializeImageTaskHistoryItem(task: ImageTask) {
     usage: task.usage,
     upstream_request_id: task.upstream_request_id,
     duration_ms: task.duration_ms,
+    project_id: task.project_id,
+    session_id: task.session_id,
+    version_node_id: task.version_node_id,
     created_at: task.created_at,
     favorite: metadata.favorite,
     tags: metadata.tags
@@ -606,6 +629,9 @@ export function serializeImageTask(task: ImageTask) {
         }
       : undefined,
     duration_ms: task.duration_ms,
+    project_id: task.project_id,
+    session_id: task.session_id,
+    version_node_id: task.version_node_id,
     created_at: task.created_at,
     updated_at: task.updated_at
   };
@@ -630,6 +656,7 @@ async function updateTask(taskId: string, patch: Partial<ImageTask>) {
   };
   imageTasks.set(taskId, updated);
   await updateDatabaseImageTask(updated);
+  await updateVersionNodeFromTask(updated);
 
   return updated;
 }
@@ -813,6 +840,9 @@ async function createDatabaseImageTask(task: ImageTask) {
         status: task.status,
         prompt: task.prompt,
         params: task.params,
+        projectId: task.project_id,
+        sessionId: task.session_id,
+        versionNodeId: task.version_node_id,
         createdAt: new Date(task.created_at),
         updatedAt: new Date(task.updated_at)
       }
@@ -840,6 +870,9 @@ async function updateDatabaseImageTask(task: ImageTask) {
         errorCode: task.error_code,
         errorMessage: task.error_message,
         durationMs: task.duration_ms,
+        projectId: task.project_id,
+        sessionId: task.session_id,
+        versionNodeId: task.version_node_id,
         updatedAt: new Date(task.updated_at)
       }
     });
@@ -1196,6 +1229,9 @@ function fromPrismaImageTask(row: PrismaImageTaskRow): ImageTask {
     error_code: row.errorCode ?? undefined,
     error_message: row.errorMessage ?? undefined,
     duration_ms: row.durationMs ?? undefined,
+    project_id: row.projectId ?? undefined,
+    session_id: row.sessionId ?? undefined,
+    version_node_id: row.versionNodeId ?? undefined,
     created_at: row.createdAt.toISOString(),
     created_sequence: 0,
     updated_at: row.updatedAt.toISOString()
@@ -1286,4 +1322,56 @@ function isUsage(value: unknown): value is Required<Sub2APIUsage> {
     !Array.isArray(value) &&
     typeof (value as Record<string, unknown>).total_tokens === "number"
   );
+}
+
+async function createVersionNodeForImageTask(input: {
+  userId: string;
+  type: ImageTaskType;
+  prompt: string;
+  params: ImageGenerationParams;
+  workbenchContext?: ImageWorkbenchContext | null;
+}) {
+  const context = input.workbenchContext;
+  if (!context) {
+    return null;
+  }
+
+  return createVersionNodeForUser(input.userId, {
+    projectId: context.projectId,
+    sessionId: context.sessionId,
+    parentVersionNodeId: context.parentVersionNodeId ?? null,
+    promptSnapshot: input.prompt,
+    paramsSnapshot: input.params,
+    sourceAssetIds: [],
+    outputAssetIds: [],
+    boardDocumentId: context.boardDocumentId ?? null,
+    boardSnapshot: context.boardSnapshot ?? null,
+    boardExportAssetId: context.boardExportAssetId ?? null,
+    branchLabel: input.type === "edit" ? "edit" : null,
+    status: "queued"
+  });
+}
+
+async function updateVersionNodeFromTask(task: ImageTask) {
+  if (!task.version_node_id) {
+    return;
+  }
+
+  if (task.status === "succeeded") {
+    await updateVersionNodeForUser(task.user_id, task.version_node_id, {
+      status: "succeeded",
+      outputAssetIds: task.images.map((image) => image.asset_id)
+    });
+    return;
+  }
+
+  if (
+    task.status === "running" ||
+    task.status === "failed" ||
+    task.status === "canceled"
+  ) {
+    await updateVersionNodeForUser(task.user_id, task.version_node_id, {
+      status: task.status
+    });
+  }
 }

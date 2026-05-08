@@ -15,6 +15,15 @@ const outputFormatOptions = ["png", "jpeg", "webp"] as const;
 const backgroundOptions = ["auto", "opaque", "transparent"] as const;
 const moderationOptions = ["auto", "low"] as const;
 const inputFidelityOptions = ["high", "low"] as const;
+const workbenchContextKeys = [
+  "project_id",
+  "session_id",
+  "parent_version_node_id",
+  "board_document_id",
+  "board_snapshot",
+  "board_export_asset_id"
+] as const;
+const workbenchIdSchema = z.string().trim().min(1).max(200);
 
 /**
  * 风格 / 介质 / 渲染语言（plan slug quiet-glittering-prism · Cut 1）。
@@ -131,6 +140,15 @@ const generationSchema = z
 
 export type ImageGenerationParams = z.infer<typeof generationSchema>;
 
+export type ImageWorkbenchContext = {
+  projectId: string;
+  sessionId: string;
+  parentVersionNodeId?: string;
+  boardDocumentId?: string;
+  boardSnapshot?: unknown;
+  boardExportAssetId?: string;
+};
+
 export type ParameterError = {
   code: "invalid_parameter";
   message: string;
@@ -143,6 +161,16 @@ export type ParseGenerationResult =
   | {
       success: true;
       data: ImageGenerationParams;
+    }
+  | {
+      success: false;
+      error: ParameterError;
+    };
+
+export type ParseWorkbenchContextResult =
+  | {
+      success: true;
+      data: ImageWorkbenchContext | null;
     }
   | {
       success: false;
@@ -169,6 +197,68 @@ export function parseGenerationParams(input: unknown): ParseGenerationResult {
       }
     }
   };
+}
+
+export function parseImageWorkbenchContext(
+  input: unknown
+): ParseWorkbenchContextResult {
+  const parsed = imageWorkbenchContextSchema.safeParse(input);
+
+  if (!parsed.success) {
+    const firstIssue = parsed.error.issues[0];
+    const field = firstIssue?.path[0]?.toString() ?? "request";
+
+    return {
+      success: false,
+      error: {
+        code: "invalid_parameter",
+        message: firstIssue?.message ?? "参数错误",
+        details: { field }
+      }
+    };
+  }
+
+  const data = parsed.data;
+
+  if (!data.project_id && !data.session_id && !data.parent_version_node_id) {
+    return { success: true, data: null };
+  }
+
+  if (!data.project_id || !data.session_id) {
+    return {
+      success: false,
+      error: {
+        code: "invalid_parameter",
+        message: "project_id 和 session_id 必须同时提供",
+        details: { field: data.project_id ? "session_id" : "project_id" }
+      }
+    };
+  }
+
+  return {
+    success: true,
+    data: {
+      projectId: data.project_id,
+      sessionId: data.session_id,
+      parentVersionNodeId: data.parent_version_node_id ?? undefined,
+      boardDocumentId: data.board_document_id ?? undefined,
+      boardSnapshot: data.board_snapshot,
+      boardExportAssetId: data.board_export_asset_id ?? undefined
+    }
+  };
+}
+
+export function stripImageWorkbenchContext(input: unknown) {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return input;
+  }
+
+  const copy = { ...(input as Record<string, unknown>) };
+  for (const key of workbenchContextKeys) {
+    delete copy[key];
+  }
+
+  return copy;
 }
 
 export function validateSizeTier(
@@ -261,3 +351,14 @@ function parseDimensionString(value: string) {
 function roundToMultipleOf16(value: number) {
   return Math.max(16, Math.round(value / 16) * 16);
 }
+
+const imageWorkbenchContextSchema = z
+  .object({
+    project_id: workbenchIdSchema.optional(),
+    session_id: workbenchIdSchema.optional(),
+    parent_version_node_id: workbenchIdSchema.optional(),
+    board_document_id: workbenchIdSchema.optional(),
+    board_snapshot: z.unknown().optional(),
+    board_export_asset_id: workbenchIdSchema.optional()
+  })
+  .passthrough();

@@ -1,5 +1,7 @@
 import {
+  parseImageWorkbenchContext,
   parseGenerationParams,
+  stripImageWorkbenchContext,
   validateSizeTier
 } from "@/lib/validation/image-params";
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
@@ -21,6 +23,7 @@ import {
 import { getEffectiveImageLimits } from "@/server/services/runtime-settings-service";
 import { createTempAssetFromBase64 } from "@/server/services/temp-asset-service";
 import { readSessionIdFromRequest } from "@/server/services/session-service";
+import { WorkbenchServiceError } from "@/server/services/workbench-project-service";
 
 export async function POST(request: Request) {
   const requestId = createRequestId();
@@ -47,7 +50,20 @@ export async function POST(request: Request) {
     });
   }
 
-  const parsed = parseGenerationParams(await request.json().catch(() => null));
+  const rawBody = await request.json().catch(() => null);
+  const parsedWorkbenchContext = parseImageWorkbenchContext(rawBody);
+
+  if (!parsedWorkbenchContext.success) {
+    return jsonError({
+      status: 400,
+      code: parsedWorkbenchContext.error.code,
+      message: parsedWorkbenchContext.error.message,
+      field: parsedWorkbenchContext.error.details.field,
+      requestId
+    });
+  }
+
+  const parsed = parseGenerationParams(stripImageWorkbenchContext(rawBody));
 
   if (!parsed.success) {
     return jsonError({
@@ -114,9 +130,12 @@ export async function POST(request: Request) {
       keyBindingId: binding.id,
       type: "generation",
       prompt: parsed.data.prompt,
-      params: parsed.data
+      params: parsed.data,
+      workbenchContext: parsedWorkbenchContext.data
     });
     await markImageTaskRunning(task.id);
+  } catch (error) {
+    return imageTaskContextErrorResponse(error, requestId);
   } finally {
     releaseTaskCreation();
   }
@@ -231,4 +250,29 @@ export async function POST(request: Request) {
       requestId
     });
   }
+}
+
+function imageTaskContextErrorResponse(error: unknown, requestId: string) {
+  if (error instanceof WorkbenchServiceError) {
+    const statusByCode: Record<string, number> = {
+      not_found: 404,
+      forbidden: 403,
+      invalid_relation: 400,
+      unavailable: 503
+    };
+
+    return jsonError({
+      status: statusByCode[error.code] ?? 500,
+      code: error.code,
+      message: error.message,
+      requestId
+    });
+  }
+
+  return jsonError({
+    status: 500,
+    code: "internal_error",
+    message: "图片任务创建失败",
+    requestId
+  });
 }

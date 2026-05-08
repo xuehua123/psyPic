@@ -8,11 +8,18 @@ import {
 import { getKeyBinding, getSession, resetDevStore } from "@/server/services/dev-store";
 import {
   createImageTask,
+  getImageTaskForUser,
   markImageTaskRunning,
   resetImageTaskStore
 } from "@/server/services/image-task-service";
 import { resetRuntimeSettingsStore } from "@/server/services/runtime-settings-service";
 import { resetTempAssetStore } from "@/server/services/temp-asset-service";
+import { createCreativeSessionForUser } from "@/server/services/creative-session-service";
+import {
+  createVersionNodeForUser,
+  listVersionNodesForUser
+} from "@/server/services/version-node-service";
+import { createWorkbenchProjectForUser } from "@/server/services/workbench-project-service";
 
 const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const validTaskParams = {
@@ -174,6 +181,78 @@ describe("POST /api/images/edits", () => {
       metadata: expect.objectContaining({
         upstream_request_id: "upstream_edit_req_123"
       })
+    });
+  });
+
+  it("links context-aware edits as child workbench version nodes", async () => {
+    resetDevStore();
+    resetAuditLogStore();
+    resetRuntimeSettingsStore();
+    resetImageTaskStore();
+    await resetTempAssetStore();
+    setWorkbenchPrismaDouble();
+    const cookie = await bindSession();
+    const sessionId = cookie.replace("psypic_session=", "");
+    const session = getSession(sessionId);
+
+    if (!session) {
+      throw new Error("Expected test session");
+    }
+
+    const project = await createWorkbenchProjectForUser(session.user_id, {
+      title: "Edit project"
+    });
+    const creativeSession = await createCreativeSessionForUser(session.user_id, {
+      projectId: project.id,
+      title: "Edit session"
+    });
+    const parent = await createVersionNodeForUser(session.user_id, {
+      projectId: project.id,
+      sessionId: creativeSession.id,
+      promptSnapshot: "parent",
+      paramsSnapshot: {},
+      sourceAssetIds: [],
+      outputAssetIds: ["asset_parent"],
+      status: "succeeded"
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            data: [{ b64_json: Buffer.from("edited-image").toString("base64") }],
+            usage: { input_tokens: 15, output_tokens: 25, total_tokens: 40 }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+    );
+    const formData = validEditFormData();
+    formData.set("project_id", project.id);
+    formData.set("session_id", creativeSession.id);
+    formData.set("parent_version_node_id", parent.id);
+
+    const response = await editImage(editRequest(cookie, formData));
+    const body = await response.json();
+    const task = await getImageTaskForUser(body.data.task_id, session.user_id);
+    const nodes = await listVersionNodesForUser(session.user_id, {
+      sessionId: creativeSession.id,
+      limit: 10
+    });
+    const child = nodes.items.find((node) => node.id === task?.version_node_id);
+
+    expect(response.status).toBe(200);
+    expect(task).toMatchObject({
+      project_id: project.id,
+      session_id: creativeSession.id,
+      version_node_id: expect.stringMatching(/^ver_/)
+    });
+    expect(child).toMatchObject({
+      parent_version_node_id: parent.id,
+      status: "succeeded",
+      output_asset_ids: body.data.images.map(
+        (image: { asset_id: string }) => image.asset_id
+      )
     });
   });
 
@@ -362,4 +441,202 @@ function restoreEnv(name: string, value: string | undefined) {
   }
 
   process.env[name] = value;
+}
+
+function createWorkbenchPrismaDouble() {
+  const projects = new Map<string, Record<string, unknown>>();
+  const sessions = new Map<string, Record<string, unknown>>();
+  const versionNodes = new Map<string, Record<string, unknown>>();
+
+  return {
+    workbenchProject: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        const now = new Date();
+        const row = {
+          id: String(data.id),
+          userId: String(data.userId),
+          title: String(data.title),
+          sortOrder: typeof data.sortOrder === "number" ? data.sortOrder : 0,
+          collapsed: data.collapsed === true,
+          activeSessionId:
+            typeof data.activeSessionId === "string" ? data.activeSessionId : null,
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null
+        };
+        projects.set(row.id, row);
+        return row;
+      },
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        projects.get(where.id) ?? null,
+      findMany: async (input: { where: Record<string, unknown> }) =>
+        Array.from(projects.values()).filter((row) => matchesWhere(row, input.where)),
+      update: async ({
+        where,
+        data
+      }: {
+        where: { id: string };
+        data: Record<string, unknown>;
+      }) => {
+        const row = { ...projects.get(where.id), ...data, updatedAt: new Date() };
+        projects.set(where.id, row);
+        return row;
+      },
+      delete: async ({ where }: { where: { id: string } }) => {
+        const row = projects.get(where.id);
+        projects.delete(where.id);
+        return row;
+      }
+    },
+    creativeSession: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        const now = new Date();
+        const row = {
+          id: String(data.id),
+          projectId: String(data.projectId),
+          title: String(data.title),
+          forkParentVersionNodeId:
+            typeof data.forkParentVersionNodeId === "string"
+              ? data.forkParentVersionNodeId
+              : null,
+          activeVersionNodeId:
+            typeof data.activeVersionNodeId === "string"
+              ? data.activeVersionNodeId
+              : null,
+          customLabel: null,
+          isPinned: false,
+          isArchived: false,
+          lastReadAt: null,
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null
+        };
+        sessions.set(row.id, row);
+        return attachSessionProject(row, projects);
+      },
+      findUnique: async ({ where }: { where: { id: string } }) => {
+        const row = sessions.get(where.id);
+        return row ? attachSessionProject(row, projects) : null;
+      },
+      findMany: async (input: { where: Record<string, unknown> }) =>
+        Array.from(sessions.values())
+          .filter((row) => matchesWhere(row, input.where))
+          .map((row) => attachSessionProject(row, projects)),
+      update: async ({
+        where,
+        data
+      }: {
+        where: { id: string };
+        data: Record<string, unknown>;
+      }) => {
+        const row = { ...sessions.get(where.id), ...data, updatedAt: new Date() };
+        sessions.set(where.id, row);
+        return attachSessionProject(row, projects);
+      },
+      delete: async ({ where }: { where: { id: string } }) => {
+        const row = sessions.get(where.id);
+        sessions.delete(where.id);
+        return row ? attachSessionProject(row, projects) : row;
+      }
+    },
+    versionNode: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        const now = new Date();
+        const row = {
+          id: String(data.id),
+          projectId: String(data.projectId),
+          sessionId: String(data.sessionId),
+          parentVersionNodeId:
+            typeof data.parentVersionNodeId === "string"
+              ? data.parentVersionNodeId
+              : null,
+          promptSnapshot: String(data.promptSnapshot),
+          paramsSnapshot: data.paramsSnapshot,
+          sourceAssetIds: data.sourceAssetIds,
+          outputAssetIds: data.outputAssetIds,
+          boardDocumentId:
+            typeof data.boardDocumentId === "string" ? data.boardDocumentId : null,
+          boardSnapshot: data.boardSnapshot ?? null,
+          boardExportAssetId:
+            typeof data.boardExportAssetId === "string"
+              ? data.boardExportAssetId
+              : null,
+          branchLabel: typeof data.branchLabel === "string" ? data.branchLabel : null,
+          status: data.status,
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null
+        };
+        versionNodes.set(row.id, row);
+        return attachNodeRelations(row, projects, sessions);
+      },
+      findUnique: async ({ where }: { where: { id: string } }) => {
+        const row = versionNodes.get(where.id);
+        return row ? attachNodeRelations(row, projects, sessions) : null;
+      },
+      findMany: async (input: { where: Record<string, unknown>; take: number }) =>
+        Array.from(versionNodes.values())
+          .filter((row) => matchesWhere(row, input.where))
+          .map((row) => attachNodeRelations(row, projects, sessions))
+          .slice(0, input.take),
+      update: async ({
+        where,
+        data
+      }: {
+        where: { id: string };
+        data: Record<string, unknown>;
+      }) => {
+        const row = { ...versionNodes.get(where.id), ...data, updatedAt: new Date() };
+        versionNodes.set(where.id, row);
+        return attachNodeRelations(row, projects, sessions);
+      }
+    },
+    workbenchSyncMutation: {
+      create: async ({ data }: { data: Record<string, unknown> }) => ({
+        id: String(data.id),
+        userId: String(data.userId),
+        clientMutationId: String(data.clientMutationId),
+        operation: String(data.operation),
+        targetType: String(data.targetType),
+        targetId: String(data.targetId),
+        result: data.result,
+        createdAt: new Date()
+      }),
+      findUnique: async () => null
+    }
+  };
+}
+
+function setWorkbenchPrismaDouble() {
+  (
+    globalThis as unknown as {
+      __psypicWorkbenchPrismaClient: ReturnType<typeof createWorkbenchPrismaDouble>;
+    }
+  ).__psypicWorkbenchPrismaClient = createWorkbenchPrismaDouble();
+}
+
+function matchesWhere(row: Record<string, unknown>, where: Record<string, unknown>) {
+  return Object.entries(where).every(([key, value]) => row[key] === value);
+}
+
+function attachSessionProject(
+  row: Record<string, unknown>,
+  projects: Map<string, Record<string, unknown>>
+) {
+  return { ...row, project: projects.get(String(row.projectId)) ?? null };
+}
+
+function attachNodeRelations(
+  row: Record<string, unknown>,
+  projects: Map<string, Record<string, unknown>>,
+  sessions: Map<string, Record<string, unknown>>
+) {
+  return {
+    ...row,
+    project: projects.get(String(row.projectId)) ?? null,
+    session: attachSessionProject(
+      sessions.get(String(row.sessionId)) ?? {},
+      projects
+    )
+  };
 }

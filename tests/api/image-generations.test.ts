@@ -3,12 +3,17 @@ import { POST as exchangeImportCode } from "@/app/api/import/exchange/route";
 import { POST as generateImage } from "@/app/api/images/generations/route";
 import { getKeyBinding, getSession, resetDevStore } from "@/server/services/dev-store";
 import {
+  cancelImageTaskForUser,
   createImageTask,
+  getImageTaskForUser,
   markImageTaskRunning,
   resetImageTaskStore
 } from "@/server/services/image-task-service";
 import { resetTempAssetStore } from "@/server/services/temp-asset-service";
 import { resetRuntimeSettingsStore } from "@/server/services/runtime-settings-service";
+import { createCreativeSessionForUser } from "@/server/services/creative-session-service";
+import { listVersionNodesForUser } from "@/server/services/version-node-service";
+import { createWorkbenchProjectForUser } from "@/server/services/workbench-project-service";
 
 async function bindSession() {
   const response = await exchangeImportCode(
@@ -132,6 +137,167 @@ describe("POST /api/images/generations", () => {
     expect(body.upstream_request_id).toBe("upstream_req_123");
     expect(JSON.stringify(body)).not.toContain("api_key");
     expect(JSON.stringify(body)).not.toContain("secret-token");
+  });
+
+  it("links context-aware generations to a workbench version node", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    await resetTempAssetStore();
+    setWorkbenchPrismaDouble();
+    const cookie = await bindSession();
+    const sessionId = cookie.replace("psypic_session=", "");
+    const session = getSession(sessionId);
+
+    if (!session) {
+      throw new Error("Expected test session");
+    }
+
+    const project = await createWorkbenchProjectForUser(session.user_id, {
+      title: "Generation project"
+    });
+    const creativeSession = await createCreativeSessionForUser(session.user_id, {
+      projectId: project.id,
+      title: "Generation session"
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            data: [{ b64_json: Buffer.from("image-bytes").toString("base64") }],
+            usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+    );
+
+    const response = await generateImage(
+      generationRequest(cookie, {
+        ...validGenerationBody,
+        project_id: project.id,
+        session_id: creativeSession.id
+      })
+    );
+    const body = await response.json();
+    const task = await getImageTaskForUser(body.data.task_id, session.user_id);
+    const nodes = await listVersionNodesForUser(session.user_id, {
+      sessionId: creativeSession.id
+    });
+
+    expect(response.status).toBe(200);
+    expect(task).toMatchObject({
+      project_id: project.id,
+      session_id: creativeSession.id,
+      version_node_id: expect.stringMatching(/^ver_/)
+    });
+    expect(nodes.items).toHaveLength(1);
+    expect(nodes.items[0]).toMatchObject({
+      id: task?.version_node_id,
+      project_id: project.id,
+      session_id: creativeSession.id,
+      prompt_snapshot: validGenerationBody.prompt,
+      status: "succeeded",
+      output_asset_ids: body.data.images.map(
+        (image: { asset_id: string }) => image.asset_id
+      )
+    });
+  });
+
+  it("rejects workbench context owned by another user before calling Sub2API", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    await resetTempAssetStore();
+    setWorkbenchPrismaDouble();
+    const cookie = await bindSession();
+    const foreignProject = await createWorkbenchProjectForUser("user_foreign", {
+      title: "Foreign project"
+    });
+    const foreignSession = await createCreativeSessionForUser("user_foreign", {
+      projectId: foreignProject.id,
+      title: "Foreign session"
+    });
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    const response = await generateImage(
+      generationRequest(cookie, {
+        ...validGenerationBody,
+        project_id: foreignProject.id,
+        session_id: foreignSession.id
+      })
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(body.error.code).toBe("forbidden");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("syncs failed and canceled image tasks back to linked version nodes", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    await resetTempAssetStore();
+    setWorkbenchPrismaDouble();
+    const cookie = await bindSession();
+    const sessionId = cookie.replace("psypic_session=", "");
+    const session = getSession(sessionId);
+
+    if (!session) {
+      throw new Error("Expected test session");
+    }
+
+    const project = await createWorkbenchProjectForUser(session.user_id, {
+      title: "Lifecycle project"
+    });
+    const failedSession = await createCreativeSessionForUser(session.user_id, {
+      projectId: project.id,
+      title: "Failed session"
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: { message: "upstream failed" } }), {
+          status: 500,
+          headers: { "content-type": "application/json" }
+        })
+      )
+    );
+
+    const failedResponse = await generateImage(
+      generationRequest(cookie, {
+        ...validGenerationBody,
+        project_id: project.id,
+        session_id: failedSession.id
+      })
+    );
+    const failedNodes = await listVersionNodesForUser(session.user_id, {
+      sessionId: failedSession.id
+    });
+    const canceledSession = await createCreativeSessionForUser(session.user_id, {
+      projectId: project.id,
+      title: "Canceled session"
+    });
+    const task = await createImageTask({
+      userId: session.user_id,
+      keyBindingId: session.key_binding_id,
+      type: "generation",
+      prompt: validGenerationBody.prompt,
+      params: validGenerationBody,
+      workbenchContext: {
+        projectId: project.id,
+        sessionId: canceledSession.id
+      }
+    });
+    await markImageTaskRunning(task.id);
+    await cancelImageTaskForUser(task.id, session.user_id);
+    const canceledNodes = await listVersionNodesForUser(session.user_id, {
+      sessionId: canceledSession.id
+    });
+
+    expect(failedResponse.status).toBe(500);
+    expect(failedNodes.items[0]).toMatchObject({ status: "failed" });
+    expect(canceledNodes.items[0]).toMatchObject({ status: "canceled" });
   });
 
   it("rejects invalid parameters before calling Sub2API", async () => {
@@ -413,3 +579,204 @@ describe("POST /api/images/generations", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });
+
+function createWorkbenchPrismaDouble() {
+  const projects = new Map<string, Record<string, unknown>>();
+  const sessions = new Map<string, Record<string, unknown>>();
+  const versionNodes = new Map<string, Record<string, unknown>>();
+
+  return {
+    workbenchProject: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        const now = new Date();
+        const row = {
+          id: String(data.id),
+          userId: String(data.userId),
+          title: String(data.title),
+          sortOrder: typeof data.sortOrder === "number" ? data.sortOrder : 0,
+          collapsed: data.collapsed === true,
+          activeSessionId:
+            typeof data.activeSessionId === "string" ? data.activeSessionId : null,
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null
+        };
+        projects.set(row.id, row);
+        return row;
+      },
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        projects.get(where.id) ?? null,
+      findMany: async (input: { where: Record<string, unknown> }) =>
+        Array.from(projects.values()).filter((row) => matchesWhere(row, input.where)),
+      update: async ({
+        where,
+        data
+      }: {
+        where: { id: string };
+        data: Record<string, unknown>;
+      }) => {
+        const row = { ...projects.get(where.id), ...data, updatedAt: new Date() };
+        projects.set(where.id, row);
+        return row;
+      },
+      delete: async ({ where }: { where: { id: string } }) => {
+        const row = projects.get(where.id);
+        projects.delete(where.id);
+        return row;
+      }
+    },
+    creativeSession: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        const now = new Date();
+        const row = {
+          id: String(data.id),
+          projectId: String(data.projectId),
+          title: String(data.title),
+          forkParentVersionNodeId:
+            typeof data.forkParentVersionNodeId === "string"
+              ? data.forkParentVersionNodeId
+              : null,
+          activeVersionNodeId:
+            typeof data.activeVersionNodeId === "string"
+              ? data.activeVersionNodeId
+              : null,
+          customLabel: null,
+          isPinned: false,
+          isArchived: false,
+          lastReadAt: null,
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null
+        };
+        sessions.set(row.id, row);
+        return attachSessionProject(row, projects);
+      },
+      findUnique: async ({ where }: { where: { id: string } }) => {
+        const row = sessions.get(where.id);
+        return row ? attachSessionProject(row, projects) : null;
+      },
+      findMany: async (input: { where: Record<string, unknown> }) =>
+        Array.from(sessions.values())
+          .filter((row) => matchesWhere(row, input.where))
+          .map((row) => attachSessionProject(row, projects)),
+      update: async ({
+        where,
+        data
+      }: {
+        where: { id: string };
+        data: Record<string, unknown>;
+      }) => {
+        const row = { ...sessions.get(where.id), ...data, updatedAt: new Date() };
+        sessions.set(where.id, row);
+        return attachSessionProject(row, projects);
+      },
+      delete: async ({ where }: { where: { id: string } }) => {
+        const row = sessions.get(where.id);
+        sessions.delete(where.id);
+        return row ? attachSessionProject(row, projects) : row;
+      }
+    },
+    versionNode: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        const now = new Date();
+        const row = {
+          id: String(data.id),
+          projectId: String(data.projectId),
+          sessionId: String(data.sessionId),
+          parentVersionNodeId:
+            typeof data.parentVersionNodeId === "string"
+              ? data.parentVersionNodeId
+              : null,
+          promptSnapshot: String(data.promptSnapshot),
+          paramsSnapshot: data.paramsSnapshot,
+          sourceAssetIds: data.sourceAssetIds,
+          outputAssetIds: data.outputAssetIds,
+          boardDocumentId:
+            typeof data.boardDocumentId === "string" ? data.boardDocumentId : null,
+          boardSnapshot: data.boardSnapshot ?? null,
+          boardExportAssetId:
+            typeof data.boardExportAssetId === "string"
+              ? data.boardExportAssetId
+              : null,
+          branchLabel: typeof data.branchLabel === "string" ? data.branchLabel : null,
+          status: data.status,
+          createdAt: now,
+          updatedAt: now,
+          deletedAt: null
+        };
+        versionNodes.set(row.id, row);
+        return attachNodeRelations(row, projects, sessions);
+      },
+      findUnique: async ({ where }: { where: { id: string } }) => {
+        const row = versionNodes.get(where.id);
+        return row ? attachNodeRelations(row, projects, sessions) : null;
+      },
+      findMany: async (input: {
+        where: Record<string, unknown>;
+        take: number;
+      }) =>
+        Array.from(versionNodes.values())
+          .filter((row) => matchesWhere(row, input.where))
+          .map((row) => attachNodeRelations(row, projects, sessions))
+          .slice(0, input.take),
+      update: async ({
+        where,
+        data
+      }: {
+        where: { id: string };
+        data: Record<string, unknown>;
+      }) => {
+        const row = { ...versionNodes.get(where.id), ...data, updatedAt: new Date() };
+        versionNodes.set(where.id, row);
+        return attachNodeRelations(row, projects, sessions);
+      }
+    },
+    workbenchSyncMutation: {
+      create: async ({ data }: { data: Record<string, unknown> }) => ({
+        id: String(data.id),
+        userId: String(data.userId),
+        clientMutationId: String(data.clientMutationId),
+        operation: String(data.operation),
+        targetType: String(data.targetType),
+        targetId: String(data.targetId),
+        result: data.result,
+        createdAt: new Date()
+      }),
+      findUnique: async () => null
+    }
+  };
+}
+
+function setWorkbenchPrismaDouble() {
+  (
+    globalThis as unknown as {
+      __psypicWorkbenchPrismaClient: ReturnType<typeof createWorkbenchPrismaDouble>;
+    }
+  ).__psypicWorkbenchPrismaClient = createWorkbenchPrismaDouble();
+}
+
+function matchesWhere(row: Record<string, unknown>, where: Record<string, unknown>) {
+  return Object.entries(where).every(([key, value]) => row[key] === value);
+}
+
+function attachSessionProject(
+  row: Record<string, unknown>,
+  projects: Map<string, Record<string, unknown>>
+) {
+  return { ...row, project: projects.get(String(row.projectId)) ?? null };
+}
+
+function attachNodeRelations(
+  row: Record<string, unknown>,
+  projects: Map<string, Record<string, unknown>>,
+  sessions: Map<string, Record<string, unknown>>
+) {
+  return {
+    ...row,
+    project: projects.get(String(row.projectId)) ?? null,
+    session: attachSessionProject(
+      sessions.get(String(row.sessionId)) ?? {},
+      projects
+    )
+  };
+}

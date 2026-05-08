@@ -1,4 +1,5 @@
 import {
+  parseImageWorkbenchContext,
   parseGenerationParams,
   validateSizeTier
 } from "@/lib/validation/image-params";
@@ -22,6 +23,7 @@ import { editImageWithSub2API, Sub2APIError } from "@/server/services/sub2api-cl
 import { getEffectiveImageLimits } from "@/server/services/runtime-settings-service";
 import { createTempAssetFromBase64 } from "@/server/services/temp-asset-service";
 import { readSessionIdFromRequest } from "@/server/services/session-service";
+import { WorkbenchServiceError } from "@/server/services/workbench-project-service";
 
 export async function POST(request: Request) {
   const requestId = createRequestId();
@@ -147,6 +149,9 @@ export async function POST(request: Request) {
   }
 
   const parsed = parseGenerationParams(formDataToParams(formData));
+  const parsedWorkbenchContext = parseImageWorkbenchContext(
+    formDataToWorkbenchContext(formData)
+  );
 
   if (!parsed.success) {
     return jsonError({
@@ -154,6 +159,16 @@ export async function POST(request: Request) {
       code: parsed.error.code,
       message: parsed.error.message,
       field: parsed.error.details.field,
+      requestId
+    });
+  }
+
+  if (!parsedWorkbenchContext.success) {
+    return jsonError({
+      status: 400,
+      code: parsedWorkbenchContext.error.code,
+      message: parsedWorkbenchContext.error.message,
+      field: parsedWorkbenchContext.error.details.field,
       requestId
     });
   }
@@ -211,9 +226,12 @@ export async function POST(request: Request) {
       keyBindingId: binding.id,
       type: "edit",
       prompt: parsed.data.prompt,
-      params: parsed.data
+      params: parsed.data,
+      workbenchContext: parsedWorkbenchContext.data
     });
     await markImageTaskRunning(task.id);
+  } catch (error) {
+    return imageTaskContextErrorResponse(error, requestId);
   } finally {
     releaseTaskCreation();
   }
@@ -348,6 +366,23 @@ function formDataToParams(formData: FormData) {
   };
 }
 
+function formDataToWorkbenchContext(formData: FormData) {
+  return {
+    project_id: optionalStringFromFormData(formData, "project_id"),
+    session_id: optionalStringFromFormData(formData, "session_id"),
+    parent_version_node_id: optionalStringFromFormData(
+      formData,
+      "parent_version_node_id"
+    ),
+    board_document_id: optionalStringFromFormData(formData, "board_document_id"),
+    board_snapshot: optionalJsonFromFormData(formData, "board_snapshot"),
+    board_export_asset_id: optionalStringFromFormData(
+      formData,
+      "board_export_asset_id"
+    )
+  };
+}
+
 function numberFromFormData(formData: FormData, key: string) {
   const value = formData.get(key);
 
@@ -366,6 +401,50 @@ function compressionFromFormData(formData: FormData) {
   }
 
   return Number(value);
+}
+
+function optionalStringFromFormData(formData: FormData, key: string) {
+  const value = formData.get(key);
+
+  return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function optionalJsonFromFormData(formData: FormData, key: string) {
+  const value = optionalStringFromFormData(formData, key);
+  if (!value) {
+    return undefined;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function imageTaskContextErrorResponse(error: unknown, requestId: string) {
+  if (error instanceof WorkbenchServiceError) {
+    const statusByCode: Record<string, number> = {
+      not_found: 404,
+      forbidden: 403,
+      invalid_relation: 400,
+      unavailable: 503
+    };
+
+    return jsonError({
+      status: statusByCode[error.code] ?? 500,
+      code: error.code,
+      message: error.message,
+      requestId
+    });
+  }
+
+  return jsonError({
+    status: 500,
+    code: "internal_error",
+    message: "图片任务创建失败",
+    requestId
+  });
 }
 
 function sameImageDimensions(
