@@ -65,6 +65,16 @@ enum VersionNodeStatus {
   partial_image
 }
 
+enum JobRuntimeEventType {
+  queued
+  running
+  partial_image
+  succeeded
+  failed
+  canceled
+  timed_out
+}
+
 model User {
   id                       String                  @id
   email                    String?
@@ -84,6 +94,7 @@ model User {
   keyBindings              KeyBinding[]
   auditLogs                AuditLog[]
   imageTasks               ImageTask[]
+  jobRuntimeEvents         JobRuntimeEvent[]
   imageBatches             ImageBatch[]
   imageAssets              ImageAsset[]
   imageAssetTags           ImageAssetTag[]
@@ -194,6 +205,7 @@ model ImageTask {
   assets            ImageAsset[]
   communityWorks    CommunityWork[]
   batchItems        ImageBatchItem[]
+  runtimeEvents     JobRuntimeEvent[]
 
   @@index([userId, createdAt])
   @@index([keyBindingId])
@@ -465,6 +477,7 @@ model VersionNode {
   parent              VersionNode?      @relation("VersionParent", fields: [parentVersionNodeId], references: [id])
   children            VersionNode[]     @relation("VersionParent")
   task                ImageTask?        @relation("VersionNodeTask")
+  runtimeEvents       JobRuntimeEvent[]
 
   @@index([sessionId, createdAt])
   @@index([projectId, createdAt])
@@ -473,6 +486,24 @@ model VersionNode {
   @@index([projectId, deletedAt])
   @@index([parentVersionNodeId])
   @@map("version_nodes")
+}
+
+model JobRuntimeEvent {
+  id            String              @id
+  userId        String              @map("user_id")
+  taskId        String              @map("task_id")
+  versionNodeId String?             @map("version_node_id")
+  type          JobRuntimeEventType
+  payload       Json
+  createdAt     DateTime            @default(now()) @map("created_at")
+  user          User                @relation(fields: [userId], references: [id])
+  task          ImageTask           @relation(fields: [taskId], references: [id])
+  versionNode   VersionNode?        @relation(fields: [versionNodeId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([taskId, createdAt])
+  @@index([versionNodeId, createdAt])
+  @@map("job_runtime_events")
 }
 
 model WorkbenchSyncMutation {

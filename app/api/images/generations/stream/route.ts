@@ -9,11 +9,13 @@ import { getKeyBinding, getSession } from "@/server/services/dev-store";
 import {
   acquireImageTaskCreationLock,
   createImageTask,
+  getImageTaskForUser,
   getImageTaskConcurrencyState,
   markImageTaskFailed,
   markImageTaskRunning,
   markImageTaskSucceeded
 } from "@/server/services/image-task-service";
+import { recordJobRuntimeEvent } from "@/server/services/job-runtime-event-service";
 import { decryptKeyBindingSecret } from "@/server/services/key-binding-service";
 import { readSessionIdFromRequest } from "@/server/services/session-service";
 import {
@@ -466,10 +468,24 @@ async function handleUpstreamSseBlock(input: {
       b64Json,
       format: input.params.output_format
     });
+    const partialIndex = readNumber(payload, "partial_image_index") ?? 0;
+    const task = await getImageTaskForUser(input.taskId, input.userId);
+    await recordJobRuntimeEvent({
+      userId: input.userId,
+      taskId: input.taskId,
+      versionNodeId: task?.version_node_id,
+      type: "partial_image",
+      payload: {
+        index: partialIndex,
+        asset_id: asset.id,
+        url: `/api/assets/${asset.id}`,
+        format: input.params.output_format
+      }
+    });
     input.controller.enqueue(
       encodeSse("partial_image", {
         task_id: input.taskId,
-        index: readNumber(payload, "partial_image_index") ?? 0,
+        index: partialIndex,
         asset_id: asset.id,
         url: `/api/assets/${asset.id}`,
         format: input.params.output_format

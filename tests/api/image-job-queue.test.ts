@@ -13,6 +13,10 @@ import {
   getImageJobForTask,
   resetImageJobQueueStore
 } from "@/server/services/image-job-queue-service";
+import {
+  listJobRuntimeEventsForUser,
+  resetJobRuntimeEventStore
+} from "@/server/services/job-runtime-event-service";
 
 async function bindSession() {
   const response = await exchangeImportCode(
@@ -51,6 +55,7 @@ describe("image job queue service", () => {
     resetDevStore();
     resetImageTaskStore();
     resetImageJobQueueStore();
+    resetJobRuntimeEventStore();
     const cookie = await bindSession();
     const session = getSession(cookie.replace("psypic_session=", ""));
 
@@ -91,6 +96,7 @@ describe("image job queue service", () => {
     resetDevStore();
     resetImageTaskStore();
     resetImageJobQueueStore();
+    resetJobRuntimeEventStore();
     const cookie = await bindSession();
     const session = getSession(cookie.replace("psypic_session=", ""));
 
@@ -119,10 +125,11 @@ describe("image job queue service", () => {
     expect(getImageJobForTask(task.id)?.status).toBe("canceled");
   });
 
-  it("expires stale running jobs and reflects failure in task status", async () => {
+  it("expires stale running jobs and reflects timeout in task status", async () => {
     resetDevStore();
     resetImageTaskStore();
     resetImageJobQueueStore();
+    resetJobRuntimeEventStore();
     const cookie = await bindSession();
     const session = getSession(cookie.replace("psypic_session=", ""));
 
@@ -138,9 +145,12 @@ describe("image job queue service", () => {
       now: "2026-05-01T00:00:00.000Z"
     });
 
-    expireStaleImageJobs({
+    await expireStaleImageJobs({
       now: "2026-05-01T00:06:00.000Z",
       timeoutMs: 5 * 60 * 1000
+    });
+    const events = await listJobRuntimeEventsForUser(session.user_id, {
+      taskId: task.id
     });
     const response = await getTask(
       new Request(`http://localhost/api/tasks/${task.id}`, {
@@ -151,7 +161,14 @@ describe("image job queue service", () => {
     const body = await response.json();
 
     expect(getImageJobForTask(task.id)?.status).toBe("timed_out");
-    expect(body.data.status).toBe("failed");
+    expect(body.data.status).toBe("timed_out");
     expect(body.data.error.code).toBe("timeout");
+    expect(events.items.at(-1)).toMatchObject({
+      type: "timed_out",
+      payload: {
+        code: "timeout",
+        duration_ms: 5 * 60 * 1000
+      }
+    });
   });
 });

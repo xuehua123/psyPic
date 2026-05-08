@@ -1,6 +1,6 @@
 import { createId } from "@/server/services/key-binding-service";
 import {
-  markImageTaskFailed,
+  markImageTaskTimedOut,
   markImageTaskRunning
 } from "@/server/services/image-task-service";
 
@@ -124,7 +124,7 @@ export function markImageJobFailed(taskId: string, userId: string) {
   return finishImageJob(taskId, userId, "failed");
 }
 
-export function expireStaleImageJobs(input: {
+export async function expireStaleImageJobs(input: {
   now: string;
   timeoutMs: number;
 }) {
@@ -147,8 +147,7 @@ export function expireStaleImageJobs(input: {
       updated_at: input.now
     };
     imageJobs.set(job.id, updated);
-    void markImageTaskFailed(job.task_id, {
-      code: "timeout",
+    await markImageTaskTimedOut(job.task_id, {
       message: "图片任务队列执行超时",
       durationMs: input.timeoutMs
     });

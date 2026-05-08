@@ -43,14 +43,14 @@ export type CreatorMode = "text" | "image";
 export type MaskMode = "paint" | "restore";
 
 // 任务状态
-// NOTE: Phase B Cut 1 给 Prisma enum 加了 `timed_out`，TS union 留 5 值
-// 等 Cut 5（JobRuntimeEvent + Task Dock 7 状态）一起 widen 到 7 状态。
 export type ImageTaskStatus =
   | "queued"
   | "running"
+  | "partial_image"
   | "succeeded"
   | "failed"
-  | "canceled";
+  | "canceled"
+  | "timed_out";
 
 export type CreatorTaskStatus = ImageTaskStatus | "submitting";
 

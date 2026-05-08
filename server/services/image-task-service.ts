@@ -4,6 +4,7 @@ import type {
 } from "@/lib/validation/image-params";
 import { createId, redactSensitiveValue } from "@/server/services/key-binding-service";
 import type { Sub2APIUsage } from "@/server/services/sub2api-client";
+import { recordJobRuntimeEvent } from "@/server/services/job-runtime-event-service";
 import {
   createVersionNodeForUser,
   updateVersionNodeForUser
@@ -15,9 +16,11 @@ export type ImageTaskType = "generation" | "edit";
 export type ImageTaskStatus =
   | "queued"
   | "running"
+  | "partial_image"
   | "succeeded"
   | "failed"
-  | "canceled";
+  | "canceled"
+  | "timed_out";
 
 export type ImageTaskImage = {
   asset_id: string;
@@ -245,6 +248,16 @@ export async function createImageTask(input: {
 
   imageTasks.set(task.id, task);
   await createDatabaseImageTask(task);
+  await recordJobRuntimeEvent({
+    userId: task.user_id,
+    taskId: task.id,
+    versionNodeId: task.version_node_id,
+    type: "queued",
+    payload: {
+      task_type: task.type,
+      prompt: task.prompt
+    }
+  });
   return task;
 }
 
@@ -290,6 +303,21 @@ export async function markImageTaskFailed(
     error_message: redactSensitiveValue(input.message),
     duration_ms: input.durationMs,
     upstream_request_id: input.upstreamRequestId
+  });
+}
+
+export async function markImageTaskTimedOut(
+  taskId: string,
+  input: {
+    message: string;
+    durationMs: number;
+  }
+) {
+  return updateTask(taskId, {
+    status: "timed_out",
+    error_code: "timeout",
+    error_message: redactSensitiveValue(input.message),
+    duration_ms: input.durationMs
   });
 }
 
@@ -657,6 +685,7 @@ async function updateTask(taskId: string, patch: Partial<ImageTask>) {
   imageTasks.set(taskId, updated);
   await updateDatabaseImageTask(updated);
   await updateVersionNodeFromTask(updated);
+  await recordRuntimeEventFromTask(updated);
 
   return updated;
 }
@@ -1365,9 +1394,83 @@ async function updateVersionNodeFromTask(task: ImageTask) {
     return;
   }
 
-  if (task.status === "failed" || task.status === "canceled") {
+  if (
+    task.status === "failed" ||
+    task.status === "canceled" ||
+    task.status === "timed_out"
+  ) {
     await updateVersionNodeForUser(task.user_id, task.version_node_id, {
       status: task.status
+    });
+  }
+}
+
+async function recordRuntimeEventFromTask(task: ImageTask) {
+  if (task.status === "queued" || task.status === "partial_image") {
+    return;
+  }
+
+  const base = {
+    userId: task.user_id,
+    taskId: task.id,
+    versionNodeId: task.version_node_id
+  };
+
+  if (task.status === "running") {
+    await recordJobRuntimeEvent({
+      ...base,
+      type: "running",
+      payload: {}
+    });
+    return;
+  }
+
+  if (task.status === "succeeded") {
+    await recordJobRuntimeEvent({
+      ...base,
+      type: "succeeded",
+      payload: {
+        asset_ids: task.images.map((image) => image.asset_id),
+        usage: task.usage,
+        duration_ms: task.duration_ms,
+        upstream_request_id: task.upstream_request_id
+      }
+    });
+    return;
+  }
+
+  if (task.status === "failed") {
+    await recordJobRuntimeEvent({
+      ...base,
+      type: "failed",
+      payload: {
+        code: task.error_code,
+        message: task.error_message,
+        duration_ms: task.duration_ms,
+        upstream_request_id: task.upstream_request_id
+      }
+    });
+    return;
+  }
+
+  if (task.status === "timed_out") {
+    await recordJobRuntimeEvent({
+      ...base,
+      type: "timed_out",
+      payload: {
+        code: task.error_code,
+        message: task.error_message,
+        duration_ms: task.duration_ms
+      }
+    });
+    return;
+  }
+
+  if (task.status === "canceled") {
+    await recordJobRuntimeEvent({
+      ...base,
+      type: "canceled",
+      payload: {}
     });
   }
 }

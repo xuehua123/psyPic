@@ -12,9 +12,11 @@ export const taskStatusLabels: Record<CreatorTaskStatus, string> = {
   submitting: "提交中",
   queued: "排队中",
   running: "运行中",
+  partial_image: "生成中",
   succeeded: "已完成",
   failed: "失败",
-  canceled: "已取消"
+  canceled: "已取消",
+  timed_out: "已超时"
 };
 
 export const taskTypeLabels: Record<NonNullable<CurrentTask["type"]>, string> = {
