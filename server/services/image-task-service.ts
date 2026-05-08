@@ -1365,11 +1365,7 @@ async function updateVersionNodeFromTask(task: ImageTask) {
     return;
   }
 
-  if (
-    task.status === "running" ||
-    task.status === "failed" ||
-    task.status === "canceled"
-  ) {
+  if (task.status === "failed" || task.status === "canceled") {
     await updateVersionNodeForUser(task.user_id, task.version_node_id, {
       status: task.status
     });
