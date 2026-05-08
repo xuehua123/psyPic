@@ -170,6 +170,12 @@ export async function createWorkbenchProjectForUser(
 ) {
   const client = await requireWorkbenchPrismaClient();
   const parsed = workbenchProjectCreateSchema.parse(input);
+  if (parsed.activeSessionId) {
+    throw new WorkbenchServiceError(
+      "invalid_relation",
+      "新项目不能引用已有创作会话"
+    );
+  }
   const row = await client.workbenchProject.create({
     data: {
       id: createId("proj"),
@@ -219,6 +225,14 @@ export async function updateWorkbenchProjectForUser(
   const client = await requireWorkbenchPrismaClient();
   await assertWorkbenchProjectForUser(client, userId, projectId);
   const parsed = workbenchProjectUpdateSchema.parse(input);
+  if (parsed.activeSessionId) {
+    await assertCreativeSessionPointerForProject(
+      client,
+      userId,
+      projectId,
+      parsed.activeSessionId
+    );
+  }
   const data: Record<string, unknown> = {};
 
   assignIfDefined(data, "title", parsed.title);
@@ -262,6 +276,72 @@ export async function assertWorkbenchProjectForUser(
 
   if (row.userId !== userId) {
     throw new WorkbenchServiceError("forbidden", "无权访问该工作台项目");
+  }
+
+  return row;
+}
+
+export async function assertCreativeSessionPointerForProject(
+  client: PrismaWorkbenchClient,
+  userId: string,
+  projectId: string,
+  sessionId: string
+) {
+  const row = await client.creativeSession.findUnique({
+    where: { id: sessionId },
+    include: { project: true }
+  });
+
+  if (!row) {
+    throw new WorkbenchServiceError("not_found", "创作会话不存在");
+  }
+
+  if (!row.project) {
+    throw new WorkbenchServiceError("not_found", "创作会话所属项目不存在");
+  }
+
+  if (row.project.userId !== userId) {
+    throw new WorkbenchServiceError("forbidden", "无权引用该创作会话");
+  }
+
+  if (row.projectId !== projectId) {
+    throw new WorkbenchServiceError(
+      "invalid_relation",
+      "创作会话必须属于当前工作台项目"
+    );
+  }
+
+  return row;
+}
+
+export async function assertVersionNodePointerForProject(
+  client: PrismaWorkbenchClient,
+  userId: string,
+  projectId: string,
+  nodeId: string
+) {
+  const row = await client.versionNode.findUnique({
+    where: { id: nodeId },
+    include: { project: true, session: { include: { project: true } } }
+  });
+
+  if (!row) {
+    throw new WorkbenchServiceError("not_found", "版本节点不存在");
+  }
+
+  if (!row.project) {
+    throw new WorkbenchServiceError("not_found", "版本节点所属项目不存在");
+  }
+
+  if (row.project.userId !== userId) {
+    throw new WorkbenchServiceError("forbidden", "无权引用该版本节点");
+  }
+
+  if (row.projectId !== projectId) {
+    throw new WorkbenchServiceError(
+      "invalid_relation",
+      "版本节点必须属于当前工作台项目"
+    );
   }
 
   return row;

@@ -10,6 +10,7 @@ import { createId } from "@/server/services/key-binding-service";
 import {
   assignIfDefined,
   assertWorkbenchProjectForUser,
+  assertVersionNodePointerForProject,
   clampWorkbenchLimit,
   fromPrismaWorkbenchProject,
   pageFromRows,
@@ -43,6 +44,20 @@ export async function createCreativeSessionForUser(
   const client = await requireWorkbenchPrismaClient();
   const parsed = creativeSessionCreateSchema.parse(input);
   await assertWorkbenchProjectForUser(client, userId, parsed.projectId);
+  if (parsed.forkParentVersionNodeId) {
+    await assertVersionNodePointerForProject(
+      client,
+      userId,
+      parsed.projectId,
+      parsed.forkParentVersionNodeId
+    );
+  }
+  if (parsed.activeVersionNodeId) {
+    throw new WorkbenchServiceError(
+      "invalid_relation",
+      "新会话不能引用已有 active version node"
+    );
+  }
   const row = await client.creativeSession.create({
     data: {
       id: createId("session"),
@@ -96,8 +111,30 @@ export async function updateCreativeSessionForUser(
   input: CreativeSessionUpdateInput
 ) {
   const client = await requireWorkbenchPrismaClient();
-  await assertCreativeSessionForUser(client, userId, sessionId);
+  const session = await assertCreativeSessionForUser(client, userId, sessionId);
   const parsed = creativeSessionUpdateSchema.parse(input);
+  if (parsed.forkParentVersionNodeId) {
+    await assertVersionNodePointerForProject(
+      client,
+      userId,
+      session.projectId,
+      parsed.forkParentVersionNodeId
+    );
+  }
+  if (parsed.activeVersionNodeId) {
+    const activeNode = await assertVersionNodePointerForProject(
+      client,
+      userId,
+      session.projectId,
+      parsed.activeVersionNodeId
+    );
+    if (activeNode.sessionId !== sessionId) {
+      throw new WorkbenchServiceError(
+        "invalid_relation",
+        "active version node 必须属于当前创作会话"
+      );
+    }
+  }
   const data: Record<string, unknown> = {};
 
   assignIfDefined(data, "title", parsed.title);

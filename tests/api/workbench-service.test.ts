@@ -128,6 +128,53 @@ describe("workbench domain services", () => {
     });
   });
 
+  it("rejects project active session pointers outside the same owned project", async () => {
+    const project = await createWorkbenchProjectForUser("user_a", {
+      title: "Project"
+    });
+    const otherProject = await createWorkbenchProjectForUser("user_a", {
+      title: "Other project"
+    });
+    const foreignProject = await createWorkbenchProjectForUser("user_b", {
+      title: "Foreign project"
+    });
+    const session = await createCreativeSessionForUser("user_a", {
+      projectId: project.id,
+      title: "Owned session"
+    });
+    const otherProjectSession = await createCreativeSessionForUser("user_a", {
+      projectId: otherProject.id,
+      title: "Wrong project"
+    });
+    const foreignSession = await createCreativeSessionForUser("user_b", {
+      projectId: foreignProject.id,
+      title: "Foreign"
+    });
+
+    await expect(
+      createWorkbenchProjectForUser("user_a", {
+        title: "Cannot start active",
+        activeSessionId: session.id
+      })
+    ).rejects.toMatchObject({ code: "invalid_relation" });
+    await expect(
+      updateWorkbenchProjectForUser("user_a", project.id, {
+        activeSessionId: otherProjectSession.id
+      })
+    ).rejects.toMatchObject({ code: "invalid_relation" });
+    await expect(
+      updateWorkbenchProjectForUser("user_a", project.id, {
+        activeSessionId: foreignSession.id
+      })
+    ).rejects.toMatchObject({ code: "forbidden" });
+
+    await expect(
+      updateWorkbenchProjectForUser("user_a", project.id, {
+        activeSessionId: session.id
+      })
+    ).resolves.toMatchObject({ active_session_id: session.id });
+  });
+
   it("keeps sessions scoped through project ownership and overwrites branch meta", async () => {
     const project = await createWorkbenchProjectForUser("user_a", {
       title: "Project"
@@ -176,6 +223,90 @@ describe("workbench domain services", () => {
 
     expect(sessions.items).toHaveLength(1);
     expect(sessions.items[0]?.id).toBe(session.id);
+  });
+
+  it("rejects session version pointers outside the allowed ownership boundary", async () => {
+    const project = await createWorkbenchProjectForUser("user_a", {
+      title: "Project"
+    });
+    const otherProject = await createWorkbenchProjectForUser("user_a", {
+      title: "Other project"
+    });
+    const foreignProject = await createWorkbenchProjectForUser("user_b", {
+      title: "Foreign project"
+    });
+    const session = await createCreativeSessionForUser("user_a", {
+      projectId: project.id,
+      title: "Session"
+    });
+    const otherSession = await createCreativeSessionForUser("user_a", {
+      projectId: otherProject.id,
+      title: "Other session"
+    });
+    const foreignSession = await createCreativeSessionForUser("user_b", {
+      projectId: foreignProject.id,
+      title: "Foreign session"
+    });
+    const node = await createVersionNodeForUser("user_a", {
+      projectId: project.id,
+      sessionId: session.id,
+      promptSnapshot: "owned",
+      paramsSnapshot: {},
+      sourceAssetIds: [],
+      outputAssetIds: [],
+      status: "succeeded"
+    });
+    const otherProjectNode = await createVersionNodeForUser("user_a", {
+      projectId: otherProject.id,
+      sessionId: otherSession.id,
+      promptSnapshot: "wrong project",
+      paramsSnapshot: {},
+      sourceAssetIds: [],
+      outputAssetIds: [],
+      status: "succeeded"
+    });
+    const foreignNode = await createVersionNodeForUser("user_b", {
+      projectId: foreignProject.id,
+      sessionId: foreignSession.id,
+      promptSnapshot: "foreign",
+      paramsSnapshot: {},
+      sourceAssetIds: [],
+      outputAssetIds: [],
+      status: "succeeded"
+    });
+
+    await expect(
+      createCreativeSessionForUser("user_a", {
+        projectId: project.id,
+        title: "Bad active",
+        activeVersionNodeId: node.id
+      })
+    ).rejects.toMatchObject({ code: "invalid_relation" });
+    await expect(
+      updateCreativeSessionForUser("user_a", session.id, {
+        forkParentVersionNodeId: otherProjectNode.id
+      })
+    ).rejects.toMatchObject({ code: "invalid_relation" });
+    await expect(
+      updateCreativeSessionForUser("user_a", session.id, {
+        forkParentVersionNodeId: foreignNode.id
+      })
+    ).rejects.toMatchObject({ code: "forbidden" });
+    await expect(
+      updateCreativeSessionForUser("user_a", session.id, {
+        activeVersionNodeId: otherProjectNode.id
+      })
+    ).rejects.toMatchObject({ code: "invalid_relation" });
+
+    await expect(
+      updateCreativeSessionForUser("user_a", session.id, {
+        forkParentVersionNodeId: node.id,
+        activeVersionNodeId: node.id
+      })
+    ).resolves.toMatchObject({
+      fork_parent_version_node_id: node.id,
+      active_version_node_id: node.id
+    });
   });
 
   it("keeps version nodes scoped to the owning user and paginates by stable creation order", async () => {
