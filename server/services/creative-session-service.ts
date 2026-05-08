@@ -15,6 +15,7 @@ import {
   fromPrismaWorkbenchProject,
   pageFromRows,
   requireWorkbenchPrismaClient,
+  tombstoneVersionNodes,
   WorkbenchServiceError,
   type PrismaCreativeSessionRow,
   type PrismaWorkbenchClient,
@@ -162,19 +163,7 @@ export async function deleteCreativeSessionForUser(
   const client = await requireWorkbenchPrismaClient();
   await assertCreativeSessionForUser(client, userId, sessionId);
   const deletedAt = new Date();
-  const nodes = await client.versionNode.findMany({
-    where: { sessionId, deletedAt: null },
-    orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
-    take: 1000
-  });
-  await Promise.all(
-    nodes.map((node) =>
-      client.versionNode.update({
-        where: { id: node.id },
-        data: { deletedAt, updatedAt: deletedAt }
-      })
-    )
-  );
+  await tombstoneVersionNodes(client, { sessionId, deletedAt: null }, deletedAt);
   const row = await client.creativeSession.update({
     where: { id: sessionId },
     data: { deletedAt, updatedAt: deletedAt },

@@ -144,6 +144,10 @@ export type PrismaWorkbenchClient = {
       include?: Record<string, unknown>;
     }): Promise<PrismaCreativeSessionRow | null>;
     findMany(input: FindManyInput): Promise<PrismaCreativeSessionRow[]>;
+    updateMany?(input: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }): Promise<unknown>;
     update(input: {
       where: { id: string };
       data: Record<string, unknown>;
@@ -164,6 +168,10 @@ export type PrismaWorkbenchClient = {
       include?: Record<string, unknown>;
     }): Promise<PrismaVersionNodeRow | null>;
     findMany(input: FindManyInput): Promise<PrismaVersionNodeRow[]>;
+    updateMany?(input: {
+      where: Record<string, unknown>;
+      data: Record<string, unknown>;
+    }): Promise<unknown>;
     update(input: {
       where: { id: string };
       data: Record<string, unknown>;
@@ -445,33 +453,68 @@ export async function tombstoneWorkbenchProjectChildren(
   projectId: string,
   deletedAt: Date
 ) {
-  const [sessions, nodes] = await Promise.all([
-    client.creativeSession.findMany({
-      where: { projectId, deletedAt: null },
-      orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
-      take: 1000
-    }),
-    client.versionNode.findMany({
-      where: { projectId, deletedAt: null },
-      orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
-      take: 1000
-    })
-  ]);
-
   await Promise.all([
-    ...sessions.map((session) =>
-      client.creativeSession.update({
-        where: { id: session.id },
-        data: { deletedAt, updatedAt: deletedAt }
-      })
-    ),
-    ...nodes.map((node) =>
+    updateCreativeSessionsMany(client, { projectId, deletedAt: null }, deletedAt),
+    tombstoneVersionNodes(client, { projectId, deletedAt: null }, deletedAt)
+  ]);
+}
+
+export async function tombstoneVersionNodes(
+  client: PrismaWorkbenchClient,
+  where: Record<string, unknown>,
+  deletedAt: Date
+) {
+  if (client.versionNode.updateMany) {
+    await client.versionNode.updateMany({
+      where,
+      data: { deletedAt, updatedAt: deletedAt }
+    });
+    return;
+  }
+
+  const nodes = await client.versionNode.findMany({
+    where,
+    orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+    take: 1000
+  });
+
+  await Promise.all(
+    nodes.map((node) =>
       client.versionNode.update({
         where: { id: node.id },
         data: { deletedAt, updatedAt: deletedAt }
       })
     )
-  ]);
+  );
+}
+
+async function updateCreativeSessionsMany(
+  client: PrismaWorkbenchClient,
+  where: Record<string, unknown>,
+  deletedAt: Date
+) {
+  if (client.creativeSession.updateMany) {
+    await client.creativeSession.updateMany({
+      where,
+      data: { deletedAt, updatedAt: deletedAt }
+    });
+    return;
+  }
+
+  const sessions = await client.creativeSession.findMany({
+    where,
+    orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+    take: 1000
+  });
+
+  await Promise.all(
+    sessions.map((session) =>
+      client.creativeSession.update({
+        where: { id: session.id },
+        data: { deletedAt, updatedAt: deletedAt }
+      })
+    )
+  );
 }
 
 export function pageFromRows<Row, Output>(
