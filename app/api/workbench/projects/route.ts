@@ -63,7 +63,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function requireWorkbenchUser(request: Request, requestId: string) {
+async function requireWorkbenchUser(request: Request, requestId: string) {
   const viewer = await requireRequestUser(request);
 
   if (!viewer) {
@@ -78,7 +78,7 @@ export async function requireWorkbenchUser(request: Request, requestId: string) 
   return viewer;
 }
 
-export function ensureWorkbenchDatabaseMode(requestId: string) {
+function ensureWorkbenchDatabaseMode(requestId: string) {
   const mode = process.env.PSYPIC_WORKBENCH_PROJECTS_STORE?.trim().toLowerCase();
 
   if (mode && mode !== "database" && mode !== "db") {
@@ -103,7 +103,7 @@ export function ensureWorkbenchDatabaseMode(requestId: string) {
   return null;
 }
 
-export function workbenchErrorResponse(error: unknown, requestId: string) {
+function workbenchErrorResponse(error: unknown, requestId: string) {
   if (error instanceof z.ZodError) {
     const firstIssue = error.issues[0];
     return jsonError({
@@ -139,7 +139,7 @@ export function workbenchErrorResponse(error: unknown, requestId: string) {
   });
 }
 
-export function readObjectBody(value: unknown) {
+function readObjectBody(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new z.ZodError([
       {
@@ -154,7 +154,7 @@ export function readObjectBody(value: unknown) {
   return value as Record<string, unknown>;
 }
 
-export function parseOptionalInt(value: string | null) {
+function parseOptionalInt(value: string | null) {
   if (value === null || value.trim() === "") {
     return undefined;
   }
