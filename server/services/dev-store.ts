@@ -204,6 +204,28 @@ export function getKeyBindingForSession(sessionId: string) {
   return getKeyBinding(session.key_binding_id);
 }
 
+export function cacheDatabaseAuthSession(input: {
+  user: {
+    id: string;
+    sub2api_user_id?: string | null;
+    display_name?: string | null;
+    role: "user" | "admin";
+    created_at: string;
+    updated_at: string;
+  };
+  session: PsyPicSession;
+}) {
+  store.users.set(input.user.id, {
+    id: input.user.id,
+    sub2api_user_id: input.user.sub2api_user_id ?? undefined,
+    display_name: input.user.display_name ?? "PsyPic User",
+    role: input.user.role,
+    created_at: input.user.created_at,
+    updated_at: input.user.updated_at
+  });
+  store.sessions.set(input.session.id, input.session);
+}
+
 function createBoundSession(input: {
   baseUrl: string;
   apiKey: string;

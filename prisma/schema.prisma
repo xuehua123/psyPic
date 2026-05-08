@@ -11,6 +11,11 @@ enum UserRole {
   admin
 }
 
+enum UserStatus {
+  active
+  disabled
+}
+
 enum KeyBindingStatus {
   active
   disabled
@@ -62,6 +67,13 @@ enum VersionNodeStatus {
 
 model User {
   id                       String                  @id
+  email                    String?
+  emailNormalized          String?                 @unique @map("email_normalized")
+  emailVerifiedAt          DateTime?               @map("email_verified_at")
+  passwordHash             String?                 @map("password_hash")
+  passwordSalt             String?                 @map("password_salt")
+  status                   UserStatus              @default(active)
+  lastLoginAt              DateTime?               @map("last_login_at")
   sub2apiUserId            String?                 @map("sub2api_user_id")
   displayName              String?                 @map("display_name")
   avatarUrl                String?                 @map("avatar_url")

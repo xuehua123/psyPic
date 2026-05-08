@@ -1,6 +1,10 @@
 import { getKeyBinding, getSession, getUser } from "@/server/services/dev-store";
 import { createRequestId, jsonOk } from "@/server/services/api-response";
 import {
+  getDatabaseSession,
+  serializeAuthUser
+} from "@/server/services/auth-service";
+import {
   getEffectiveImageLimits,
   getRuntimeFeatureFlags
 } from "@/server/services/runtime-settings-service";
@@ -19,6 +23,35 @@ async function anonymousSessionData() {
 export async function GET(request: Request) {
   const requestId = createRequestId();
   const sessionId = readSessionIdFromRequest(request);
+
+  if (sessionId) {
+    const databaseViewer = await getDatabaseSession(sessionId);
+
+    if (databaseViewer) {
+      const binding = databaseViewer.session.key_binding_id
+        ? getKeyBinding(databaseViewer.session.key_binding_id)
+        : null;
+
+      return jsonOk(
+        {
+          authenticated: true,
+          user: serializeAuthUser(databaseViewer.user),
+          binding: binding
+            ? {
+                id: binding.id,
+                base_url: binding.sub2api_base_url,
+                default_model: binding.default_model,
+                enabled_models: binding.enabled_models
+              }
+            : null,
+          limits: await getEffectiveImageLimits(binding?.limits),
+          features: await getRuntimeFeatureFlags()
+        },
+        requestId
+      );
+    }
+  }
+
   const session = sessionId ? getSession(sessionId) : null;
 
   if (!session) {
