@@ -17,6 +17,8 @@ export async function POST(request: Request) {
     });
   }
 
+  // Import code is the legacy dev-store bootstrap path. DB sessions bind keys
+  // through /api/settings/manual-key so the existing DB session cookie is kept.
   const result = createSessionFromImportCode(parsed.data.import_code);
 
   if (!result.ok) {
