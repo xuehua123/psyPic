@@ -8,10 +8,14 @@ describe("Health API", () => {
     const previousRedisUrl = process.env.REDIS_URL;
     const previousStorageDriver = process.env.ASSET_STORAGE_DRIVER;
     const previousRuntimeStore = process.env.PSYPIC_RUNTIME_SETTINGS_STORE;
+    const previousAuthStore = process.env.PSYPIC_AUTH_STORE;
+    const previousWorkbenchStore = process.env.PSYPIC_WORKBENCH_PROJECTS_STORE;
     process.env.DATABASE_URL = "postgresql://user:secret@db.example.com/psypic";
     process.env.REDIS_URL = "redis://:secret@redis.example.com:6379";
     process.env.ASSET_STORAGE_DRIVER = "local";
     process.env.PSYPIC_RUNTIME_SETTINGS_STORE = "file";
+    process.env.PSYPIC_AUTH_STORE = "database";
+    process.env.PSYPIC_WORKBENCH_PROJECTS_STORE = "database";
     resetRuntimeSettingsStore();
 
     try {
@@ -22,6 +26,14 @@ describe("Health API", () => {
       expect(body.data.ok).toBe(true);
       expect(body.data.checks.db).toMatchObject({ status: "configured" });
       expect(body.data.checks.redis).toMatchObject({ status: "configured" });
+      expect(body.data.checks.auth_session).toMatchObject({
+        status: "configured",
+        store: "database"
+      });
+      expect(body.data.checks.workbench).toMatchObject({
+        status: "configured",
+        store: "database"
+      });
       expect(body.data.checks.temp_asset.status).toBe("pass");
       expect(body.data.checks.storage).toMatchObject({
         status: "pass",
@@ -37,6 +49,43 @@ describe("Health API", () => {
       restoreEnv("DATABASE_URL", previousDatabaseUrl);
       restoreEnv("REDIS_URL", previousRedisUrl);
       restoreEnv("ASSET_STORAGE_DRIVER", previousStorageDriver);
+      restoreEnv("PSYPIC_RUNTIME_SETTINGS_STORE", previousRuntimeStore);
+      restoreEnv("PSYPIC_AUTH_STORE", previousAuthStore);
+      restoreEnv("PSYPIC_WORKBENCH_PROJECTS_STORE", previousWorkbenchStore);
+    }
+  });
+
+  it("reports fallback store modes for local diagnostics", async () => {
+    const previousDatabaseUrl = process.env.DATABASE_URL;
+    const previousAuthStore = process.env.PSYPIC_AUTH_STORE;
+    const previousWorkbenchStore = process.env.PSYPIC_WORKBENCH_PROJECTS_STORE;
+    const previousRuntimeStore = process.env.PSYPIC_RUNTIME_SETTINGS_STORE;
+    delete process.env.DATABASE_URL;
+    process.env.PSYPIC_AUTH_STORE = "memory";
+    process.env.PSYPIC_WORKBENCH_PROJECTS_STORE = "indexeddb";
+    process.env.PSYPIC_RUNTIME_SETTINGS_STORE = "file";
+    resetRuntimeSettingsStore();
+
+    try {
+      const response = await health(new Request("http://localhost/api/health"));
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body.data.checks.auth_session).toMatchObject({
+        status: "skipped",
+        store: "memory"
+      });
+      expect(body.data.checks.workbench).toMatchObject({
+        status: "skipped",
+        store: "indexeddb",
+        api_mode: "fallback_503"
+      });
+    } finally {
+      resetRuntimeSettingsStore();
+
+      restoreEnv("DATABASE_URL", previousDatabaseUrl);
+      restoreEnv("PSYPIC_AUTH_STORE", previousAuthStore);
+      restoreEnv("PSYPIC_WORKBENCH_PROJECTS_STORE", previousWorkbenchStore);
       restoreEnv("PSYPIC_RUNTIME_SETTINGS_STORE", previousRuntimeStore);
     }
   });

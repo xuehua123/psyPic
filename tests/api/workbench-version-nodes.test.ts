@@ -7,6 +7,10 @@ import {
   GET as listNodes,
   POST as createNode
 } from "@/app/api/workbench/version-nodes/route";
+import {
+  listAuditLogs,
+  resetAuditLogStore
+} from "@/server/services/audit-log-service";
 import { resetDevStore } from "@/server/services/dev-store";
 import { createCreativeSessionForUser } from "@/server/services/creative-session-service";
 import { createWorkbenchProjectForUser } from "@/server/services/workbench-project-service";
@@ -90,6 +94,7 @@ type VersionNodeRow = {
 describe("Workbench version nodes API", () => {
   beforeEach(() => {
     resetDevStore();
+    resetAuditLogStore();
     delete process.env.PSYPIC_WORKBENCH_PROJECTS_STORE;
     (
       globalThis as unknown as {
@@ -197,6 +202,17 @@ describe("Workbench version nodes API", () => {
       status: "succeeded",
       output_asset_ids: ["asset_output"],
       branch_label: "final"
+    });
+    const auditLogs = await listAuditLogs({ limit: 10 });
+    expect(auditLogs.items[0]).toMatchObject({
+      actor_user_id: "user_nodes",
+      action: "workbench.version_node.status_overridden",
+      target_type: "version_node",
+      target_id: nodeId,
+      request_id: patchBody.request_id,
+      metadata: {
+        status: "succeeded"
+      }
     });
   });
 

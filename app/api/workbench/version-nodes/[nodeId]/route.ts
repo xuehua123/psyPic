@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { versionNodeUpdateSchema } from "@/lib/validation/workbench";
+import { recordAuditLog } from "@/server/services/audit-log-service";
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
 import { requireRequestUser } from "@/server/services/request-user-service";
 import {
@@ -48,10 +49,21 @@ export async function PATCH(request: Request, context: VersionNodeContext) {
       boardExportAssetId: body.board_export_asset_id
     });
 
-    return jsonOk(
-      await updateVersionNodeForUser(viewer.user.id, nodeId, parsed),
-      requestId
-    );
+    const updated = await updateVersionNodeForUser(viewer.user.id, nodeId, parsed);
+    if (parsed.status) {
+      await recordAuditLog({
+        actorUserId: viewer.user.id,
+        action: "workbench.version_node.status_overridden",
+        targetType: "version_node",
+        targetId: nodeId,
+        requestId,
+        metadata: {
+          status: parsed.status
+        }
+      }).catch(() => undefined);
+    }
+
+    return jsonOk(updated, requestId);
   } catch (error) {
     return workbenchErrorResponse(error, requestId);
   }

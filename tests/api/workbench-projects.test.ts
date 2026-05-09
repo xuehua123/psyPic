@@ -4,6 +4,10 @@ import {
   GET as listProjects,
   POST as createProject
 } from "@/app/api/workbench/projects/route";
+import {
+  listAuditLogs,
+  resetAuditLogStore
+} from "@/server/services/audit-log-service";
 import { resetDevStore } from "@/server/services/dev-store";
 import { createWorkbenchProjectForUser } from "@/server/services/workbench-project-service";
 
@@ -86,6 +90,7 @@ type VersionNodeRow = {
 describe("Workbench projects API", () => {
   beforeEach(() => {
     resetDevStore();
+    resetAuditLogStore();
     delete process.env.PSYPIC_WORKBENCH_PROJECTS_STORE;
     (
       globalThis as unknown as {
@@ -199,6 +204,15 @@ describe("Workbench projects API", () => {
       sort_order: 5
     });
     expect(deleteResponse.status).toBe(200);
+    const deleteBody = await deleteResponse.clone().json();
+    const auditLogs = await listAuditLogs({ limit: 10 });
+    expect(auditLogs.items[0]).toMatchObject({
+      actor_user_id: "user_projects",
+      action: "workbench.project.deleted",
+      target_type: "workbench_project",
+      target_id: projectId,
+      request_id: deleteBody.request_id
+    });
     expect(missingResponse.status).toBe(404);
   });
 

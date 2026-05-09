@@ -11,6 +11,8 @@ export async function GET(_request: Request) {
   const checks = {
     db: checkConfigured("DATABASE_URL"),
     redis: checkConfigured("REDIS_URL"),
+    auth_session: checkAuthSessionStore(),
+    workbench: checkWorkbenchStore(),
     temp_asset: await checkTempAssetStorage(),
     storage: checkAssetStorage(),
     runtime_settings: {
@@ -26,6 +28,63 @@ export async function GET(_request: Request) {
 function checkConfigured(envName: string) {
   return {
     status: process.env[envName]?.trim() ? ("configured" as const) : ("skipped" as const)
+  };
+}
+
+function checkAuthSessionStore() {
+  const configuredMode = process.env.PSYPIC_AUTH_STORE?.trim().toLowerCase();
+  const databaseConfigured = Boolean(process.env.DATABASE_URL?.trim());
+  const store =
+    configuredMode === "database" || configuredMode === "db"
+      ? "database"
+      : configuredMode === "memory" || configuredMode === "dev"
+        ? "memory"
+        : process.env.NODE_ENV === "production" && databaseConfigured
+          ? "database"
+          : "memory";
+
+  if (store === "database") {
+    return {
+      status: databaseConfigured ? ("configured" as const) : ("fail" as const),
+      store,
+      database_url: databaseConfigured ? "configured" : "missing"
+    };
+  }
+
+  return {
+    status: "skipped" as const,
+    store
+  };
+}
+
+function checkWorkbenchStore() {
+  const configuredMode =
+    process.env.PSYPIC_WORKBENCH_PROJECTS_STORE?.trim().toLowerCase();
+  const databaseConfigured = Boolean(process.env.DATABASE_URL?.trim());
+  const store =
+    configuredMode === "database" || configuredMode === "db"
+      ? "database"
+      : configuredMode === "file" ||
+          configuredMode === "memory" ||
+          configuredMode === "indexeddb" ||
+          configuredMode === "local"
+        ? configuredMode
+        : databaseConfigured
+          ? "database"
+          : "indexeddb";
+
+  if (store === "database") {
+    return {
+      status: databaseConfigured ? ("configured" as const) : ("fail" as const),
+      store,
+      database_url: databaseConfigured ? "configured" : "missing"
+    };
+  }
+
+  return {
+    status: "skipped" as const,
+    store,
+    api_mode: "fallback_503"
   };
 }
 

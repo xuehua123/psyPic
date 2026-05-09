@@ -236,7 +236,7 @@ function redactAuditMetadata(value: unknown): unknown {
 }
 
 function isSensitiveMetadataKey(key: string) {
-  return /(authorization|api[_-]?key|token|secret|cookie|psypic_session)/i.test(
+  return /authorization|bearer|api[_-]?key|(?:access|refresh|auth|session|secret)[_-]?token|secret|cookie|psypic_session|password|ciphertext/i.test(
     key
   );
 }

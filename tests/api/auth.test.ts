@@ -3,6 +3,10 @@ import { POST as login } from "@/app/api/auth/login/route";
 import { POST as logout } from "@/app/api/auth/logout/route";
 import { POST as register } from "@/app/api/auth/register/route";
 import { GET as getSession } from "@/app/api/session/route";
+import {
+  listAuditLogs,
+  resetAuditLogStore
+} from "@/server/services/audit-log-service";
 import { resetDevStore } from "@/server/services/dev-store";
 
 type AuthUserRow = {
@@ -49,6 +53,7 @@ function extractCookie(response: Response) {
 describe("auth API", () => {
   beforeEach(() => {
     resetDevStore();
+    resetAuditLogStore();
     const prismaClient = createAuthPrismaDouble();
     (
       globalThis as unknown as {
@@ -136,6 +141,17 @@ describe("auth API", () => {
     expect(body.data.authenticated).toBe(true);
     expect(body.data.user.email).toBe("login@example.com");
     expect(JSON.stringify(body)).not.toContain("passwordHash");
+
+    const auditLogs = await listAuditLogs({ limit: 10 });
+    expect(auditLogs.items[0]).toMatchObject({
+      actor_user_id: body.data.user.id,
+      action: "auth.login.succeeded",
+      target_type: "user",
+      target_id: body.data.user.id,
+      request_id: body.request_id
+    });
+    expect(JSON.stringify(auditLogs)).not.toContain("correct horse");
+    expect(JSON.stringify(auditLogs)).not.toContain("password");
   });
 
   it("rejects login with the wrong password", async () => {
@@ -205,6 +221,7 @@ describe("auth API", () => {
       })
     );
     const cookie = extractCookie(registerResponse);
+    const sessionId = cookie.replace("psypic_session=", "");
 
     const logoutResponse = await logout(
       authRequest("/api/auth/logout", {}, cookie)
@@ -217,6 +234,16 @@ describe("auth API", () => {
     expect(logoutResponse.status).toBe(200);
     expect(logoutResponse.headers.get("set-cookie")).toContain("Max-Age=0");
     expect(sessionBody.data.authenticated).toBe(false);
+
+    const auditLogs = await listAuditLogs({ limit: 10 });
+    const logoutBody = await logoutResponse.json();
+    expect(auditLogs.items[0]).toMatchObject({
+      action: "auth.logout",
+      target_type: "session",
+      target_id: sessionId,
+      request_id: logoutBody.request_id
+    });
+    expect(auditLogs.items[0].actor_user_id).toMatch(/^user_/);
   });
 });
 

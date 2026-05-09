@@ -7,6 +7,10 @@ import {
   GET as listSessions,
   POST as createSession
 } from "@/app/api/workbench/sessions/route";
+import {
+  listAuditLogs,
+  resetAuditLogStore
+} from "@/server/services/audit-log-service";
 import { resetDevStore } from "@/server/services/dev-store";
 import { createWorkbenchProjectForUser } from "@/server/services/workbench-project-service";
 
@@ -82,6 +86,7 @@ type VersionNodeRow = {
 describe("Workbench sessions API", () => {
   beforeEach(() => {
     resetDevStore();
+    resetAuditLogStore();
     delete process.env.PSYPIC_WORKBENCH_PROJECTS_STORE;
     (
       globalThis as unknown as {
@@ -185,6 +190,15 @@ describe("Workbench sessions API", () => {
       custom_label: "Updated"
     });
     expect(deleteResponse.status).toBe(200);
+    const deleteBody = await deleteResponse.clone().json();
+    const auditLogs = await listAuditLogs({ limit: 10 });
+    expect(auditLogs.items[0]).toMatchObject({
+      actor_user_id: "user_sessions",
+      action: "workbench.session.deleted",
+      target_type: "creative_session",
+      target_id: sessionId,
+      request_id: deleteBody.request_id
+    });
   });
 
   it("maps cross-user session access to 403 and missing sessions to 404", async () => {

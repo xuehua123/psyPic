@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { workbenchProjectUpdateSchema } from "@/lib/validation/workbench";
+import { recordAuditLog } from "@/server/services/audit-log-service";
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
 import { requireRequestUser } from "@/server/services/request-user-service";
 import {
@@ -68,10 +69,19 @@ export async function DELETE(request: Request, context: ProjectContext) {
 
   try {
     const { projectId } = await context.params;
-    return jsonOk(
-      await deleteWorkbenchProjectForUser(viewer.user.id, projectId),
-      requestId
-    );
+    const deleted = await deleteWorkbenchProjectForUser(viewer.user.id, projectId);
+    await recordAuditLog({
+      actorUserId: viewer.user.id,
+      action: "workbench.project.deleted",
+      targetType: "workbench_project",
+      targetId: projectId,
+      requestId,
+      metadata: {
+        project_id: projectId
+      }
+    }).catch(() => undefined);
+
+    return jsonOk(deleted, requestId);
   } catch (error) {
     return workbenchErrorResponse(error, requestId);
   }

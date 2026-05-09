@@ -367,7 +367,10 @@ describe("Admin runtime settings API", () => {
             metadata: {
               Authorization: "Bearer secret-token-audit",
               nested: {
-                api_key: "secret-token-audit"
+                api_key: "secret-token-audit",
+                passwordHash: "hash-secret-audit",
+                passwordSalt: "salt-secret-audit",
+                ciphertext: "ciphertext-secret-audit"
               },
               upstream_request_id: "upstream_req_123"
             }
@@ -392,6 +395,9 @@ describe("Admin runtime settings API", () => {
         "upstream_req_123"
       );
       expect(JSON.stringify(body)).not.toContain("secret-token-audit");
+      expect(JSON.stringify(body)).not.toContain("hash-secret-audit");
+      expect(JSON.stringify(body)).not.toContain("salt-secret-audit");
+      expect(JSON.stringify(body)).not.toContain("ciphertext-secret-audit");
       expect(JSON.stringify(body)).toContain("[REDACTED]");
     } finally {
       resetAuditLogStore();

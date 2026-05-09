@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { creativeSessionUpdateSchema } from "@/lib/validation/workbench";
+import { recordAuditLog } from "@/server/services/audit-log-service";
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
 import { requireRequestUser } from "@/server/services/request-user-service";
 import {
@@ -52,10 +53,20 @@ export async function DELETE(request: Request, context: SessionContext) {
 
   try {
     const { sessionId } = await context.params;
-    return jsonOk(
-      await deleteCreativeSessionForUser(viewer.user.id, sessionId),
-      requestId
-    );
+    const deleted = await deleteCreativeSessionForUser(viewer.user.id, sessionId);
+    await recordAuditLog({
+      actorUserId: viewer.user.id,
+      action: "workbench.session.deleted",
+      targetType: "creative_session",
+      targetId: sessionId,
+      requestId,
+      metadata: {
+        session_id: sessionId,
+        project_id: deleted.project_id
+      }
+    }).catch(() => undefined);
+
+    return jsonOk(deleted, requestId);
   } catch (error) {
     return workbenchErrorResponse(error, requestId);
   }

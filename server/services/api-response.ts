@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { redactSensitiveValue } from "@/server/services/key-binding-service";
 
 export function createRequestId() {
   return `psypic_req_${randomUUID().replaceAll("-", "").slice(0, 24)}`;
@@ -11,7 +12,7 @@ export function jsonOk(
 ) {
   return Response.json(
     {
-      data,
+      data: redactApiResponsePayload(data),
       request_id: requestId,
       ...(init?.upstreamRequestId
         ? { upstream_request_id: init.upstreamRequestId }
@@ -39,7 +40,7 @@ export function jsonError(input: {
     {
       error: {
         code: input.code,
-        message: input.message,
+        message: redactSensitiveValue(input.message),
         details: input.field ? { field: input.field } : undefined
       },
       request_id: input.requestId,
@@ -53,5 +54,32 @@ export function jsonError(input: {
         "cache-control": "no-store"
       }
     }
+  );
+}
+
+function redactApiResponsePayload(value: unknown): unknown {
+  if (typeof value === "string") {
+    return redactSensitiveValue(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map(redactApiResponsePayload);
+  }
+
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+      key,
+      isSensitiveResponseKey(key) ? "[REDACTED]" : redactApiResponsePayload(item)
+    ])
+  );
+}
+
+function isSensitiveResponseKey(key: string) {
+  return /authorization|bearer|api[_-]?key|(?:access|refresh|auth|session|secret)[_-]?token|secret|cookie|psypic_session|password|ciphertext/i.test(
+    key
   );
 }

@@ -4,6 +4,7 @@ import {
   serializeAuthResult,
   verifyUserPassword
 } from "@/server/services/auth-service";
+import { recordAuditLog } from "@/server/services/audit-log-service";
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
 import { buildSessionCookie } from "@/server/services/session-service";
 
@@ -62,7 +63,20 @@ export async function POST(request: Request) {
     });
   }
 
-  return jsonOk(await serializeAuthResult(verified.user, session), requestId, {
+  const result = await serializeAuthResult(verified.user, session);
+  await recordAuditLog({
+    actorUserId: verified.user.id,
+    action: "auth.login.succeeded",
+    targetType: "user",
+    targetId: verified.user.id,
+    requestId,
+    metadata: {
+      email_normalized: verified.user.email,
+      session_id: session.id
+    }
+  }).catch(() => undefined);
+
+  return jsonOk(result, requestId, {
     headers: {
       "set-cookie": buildSessionCookie(session.id)
     }
