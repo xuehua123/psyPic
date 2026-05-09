@@ -240,10 +240,11 @@ describe("auth API", () => {
     expect(auditLogs.items[0]).toMatchObject({
       action: "auth.logout",
       target_type: "session",
-      target_id: sessionId,
       request_id: logoutBody.request_id
     });
+    expect(auditLogs.items[0].target_id).toMatch(/^session_sha256_/);
     expect(auditLogs.items[0].actor_user_id).toMatch(/^user_/);
+    expect(JSON.stringify(auditLogs)).not.toContain(sessionId);
   });
 });
 

@@ -71,8 +71,7 @@ export async function POST(request: Request) {
     targetId: verified.user.id,
     requestId,
     metadata: {
-      email_normalized: verified.user.email,
-      session_id: session.id
+      email_normalized: verified.user.email
     }
   }).catch(() => undefined);
 

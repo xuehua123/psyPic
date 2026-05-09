@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { revokeSession as revokeDatabaseSession } from "@/server/services/auth-service";
 import { recordAuditLog } from "@/server/services/audit-log-service";
 import { revokeSession as revokeDevSession } from "@/server/services/dev-store";
@@ -20,11 +21,9 @@ export async function POST(request: Request) {
       actorUserId: viewer?.user?.id ?? null,
       action: "auth.logout",
       targetType: "session",
-      targetId: sessionId,
+      targetId: hashSessionAuditRef(sessionId),
       requestId,
-      metadata: {
-        session_id: sessionId
-      }
+      metadata: {}
     }).catch(() => undefined);
   }
 
@@ -39,4 +38,11 @@ export async function POST(request: Request) {
       }
     }
   );
+}
+
+function hashSessionAuditRef(sessionId: string) {
+  return `session_sha256_${createHash("sha256")
+    .update(sessionId)
+    .digest("hex")
+    .slice(0, 16)}`;
 }
