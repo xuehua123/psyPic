@@ -1,6 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { POST as register } from "@/app/api/auth/register/route";
 import { POST as exchangeImportCode } from "@/app/api/import/exchange/route";
 import { POST as editImage } from "@/app/api/images/edits/route";
+import { POST as saveManualKey } from "@/app/api/settings/manual-key/route";
 import {
   listAuditLogs,
   resetAuditLogStore
@@ -20,6 +22,10 @@ import {
   listVersionNodesForUser
 } from "@/server/services/version-node-service";
 import { createWorkbenchProjectForUser } from "@/server/services/workbench-project-service";
+import {
+  clearAuthPrismaDouble,
+  installAuthPrismaDouble
+} from "./support/auth-prisma-double";
 
 const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const validTaskParams = {
@@ -44,6 +50,45 @@ async function bindSession() {
   );
 
   return response.headers.get("set-cookie")?.split(";")[0] ?? "";
+}
+
+async function bindDatabaseSession() {
+  installAuthPrismaDouble();
+  const registerResponse = await register(
+    new Request("http://localhost/api/auth/register", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "edit-db@example.com",
+        password: "correct horse battery staple",
+        display_name: "Edit DB"
+      })
+    })
+  );
+  const registerBody = await registerResponse.json();
+  const cookie = registerResponse.headers.get("set-cookie")?.split(";")[0] ?? "";
+  const manualKeyResponse = await saveManualKey(
+    new Request("http://localhost/api/settings/manual-key", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie
+      },
+      body: JSON.stringify({
+        base_url: "https://sub2api.example.com/v1",
+        api_key: "secret-token-value",
+        default_model: "gpt-image-2"
+      })
+    })
+  );
+
+  expect(registerResponse.status).toBe(200);
+  expect(manualKeyResponse.status).toBe(200);
+
+  return {
+    cookie,
+    userId: registerBody.data.user.id as string
+  };
 }
 
 function editRequest(cookie: string, formData: FormData) {
@@ -129,6 +174,10 @@ async function createRunningTaskForCookie(cookie: string) {
 }
 
 describe("POST /api/images/edits", () => {
+  beforeEach(() => {
+    clearAuthPrismaDouble();
+  });
+
   it("edits a single reference image through Sub2API and returns TempAsset URLs", async () => {
     resetDevStore();
     resetAuditLogStore();
@@ -254,6 +303,62 @@ describe("POST /api/images/edits", () => {
         (image: { asset_id: string }) => image.asset_id
       )
     });
+  });
+
+  it("lets a database session with a manual key run workbench-context edits", async () => {
+    resetDevStore();
+    resetAuditLogStore();
+    resetRuntimeSettingsStore();
+    resetImageTaskStore();
+    await resetTempAssetStore();
+    setWorkbenchPrismaDouble();
+    const { cookie, userId } = await bindDatabaseSession();
+    const project = await createWorkbenchProjectForUser(userId, {
+      title: "DB edit project"
+    });
+    const creativeSession = await createCreativeSessionForUser(userId, {
+      projectId: project.id,
+      title: "DB edit session"
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            data: [{ b64_json: Buffer.from("edited-image").toString("base64") }],
+            usage: { input_tokens: 15, output_tokens: 25, total_tokens: 40 }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+    );
+    const formData = validEditFormData();
+    formData.set("project_id", project.id);
+    formData.set("session_id", creativeSession.id);
+
+    const response = await editImage(editRequest(cookie, formData));
+    const body = await response.json();
+    const task = await getImageTaskForUser(body.data.task_id, userId);
+    const nodes = await listVersionNodesForUser(userId, {
+      sessionId: creativeSession.id,
+      limit: 10
+    });
+
+    expect(response.status).toBe(200);
+    expect(task).toMatchObject({
+      user_id: userId,
+      project_id: project.id,
+      session_id: creativeSession.id,
+      version_node_id: expect.stringMatching(/^ver_/)
+    });
+    expect(nodes.items.find((node) => node.id === task?.version_node_id))
+      .toMatchObject({
+        status: "succeeded",
+        output_asset_ids: body.data.images.map(
+          (image: { asset_id: string }) => image.asset_id
+        )
+      });
+    expect(JSON.stringify(body)).not.toContain("secret-token-value");
   });
 
   it("enforces runtime upload size before validating reference images", async () => {

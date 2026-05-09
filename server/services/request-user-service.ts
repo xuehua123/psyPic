@@ -1,5 +1,8 @@
 import { cookies } from "next/headers";
-import { lookupDatabaseSession } from "@/server/services/auth-service";
+import {
+  lookupDatabaseSession,
+  shouldUseDatabaseAuthStore
+} from "@/server/services/auth-service";
 import { getSession, getUser } from "@/server/services/dev-store";
 import {
   readSessionIdFromRequest,
@@ -42,6 +45,14 @@ async function resolveViewerFromSessionId(sessionId: string) {
   }
 
   if (databaseViewer.status === "not_authenticated") {
+    return {
+      session: null,
+      user: null,
+      isAdmin: false
+    };
+  }
+
+  if (shouldUseDatabaseAuthStore()) {
     return {
       session: null,
       user: null,

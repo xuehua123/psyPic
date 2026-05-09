@@ -1,7 +1,12 @@
 import { scrypt, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { cacheDatabaseAuthSession } from "@/server/services/dev-store";
-import { createId } from "@/server/services/key-binding-service";
+import {
+  createEncryptedKeyBinding,
+  createId,
+  type KeyBinding,
+  type KeyBindingLimits
+} from "@/server/services/key-binding-service";
 import type { PsyPicSession } from "@/server/services/session-service";
 
 const scryptAsync = promisify(scrypt);
@@ -48,6 +53,20 @@ type PrismaSessionRow = {
   user?: PrismaUserRow | null;
 };
 
+type PrismaKeyBindingRow = {
+  id: string;
+  userId: string;
+  sub2apiBaseUrl: string;
+  sub2apiApiKeyCiphertext: string | null;
+  sub2apiApiKeyId: string | null;
+  defaultModel: string;
+  enabledModels: unknown;
+  limits: unknown;
+  status: "active" | "disabled" | "expired";
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 type PrismaAuthClient = {
   user: {
     create(input: { data: Record<string, unknown> }): Promise<PrismaUserRow>;
@@ -69,6 +88,10 @@ type PrismaAuthClient = {
       data: Record<string, unknown>;
       include?: Record<string, unknown>;
     }): Promise<PrismaSessionRow>;
+  };
+  keyBinding?: {
+    create(input: { data: Record<string, unknown> }): Promise<PrismaKeyBindingRow>;
+    findFirst(input: Record<string, unknown>): Promise<PrismaKeyBindingRow | null>;
   };
 };
 
@@ -203,6 +226,108 @@ export async function getDatabaseSession(sessionId: string) {
     : null;
 }
 
+export async function bindManualKeyToDatabaseSession(input: {
+  sessionId: string;
+  baseUrl: string;
+  apiKey: string;
+  defaultModel: "gpt-image-2";
+}): Promise<
+  | {
+      status: "ok";
+      session: AuthSession;
+      user: AuthUser;
+      binding: KeyBinding;
+    }
+  | { status: "not_authenticated" }
+  | { status: "unavailable" }
+> {
+  const viewer = await lookupDatabaseSession(input.sessionId);
+
+  if (viewer.status !== "authenticated") {
+    return viewer;
+  }
+
+  const client = await getPrismaAuthClient();
+  if (!client?.keyBinding) {
+    return { status: "unavailable" };
+  }
+
+  const binding = createEncryptedKeyBinding({
+    userId: viewer.user.id,
+    baseUrl: input.baseUrl,
+    apiKey: input.apiKey,
+    defaultModel: input.defaultModel
+  });
+
+  try {
+    const row = await client.keyBinding.create({
+      data: {
+        id: binding.id,
+        userId: binding.user_id,
+        sub2apiBaseUrl: binding.sub2api_base_url,
+        sub2apiApiKeyCiphertext: binding.sub2api_api_key_ciphertext,
+        sub2apiApiKeyId: binding.sub2api_api_key_id ?? null,
+        defaultModel: binding.default_model,
+        enabledModels: binding.enabled_models,
+        limits: binding.limits,
+        status: binding.status,
+        createdAt: new Date(binding.created_at),
+        updatedAt: new Date(binding.updated_at)
+      }
+    });
+    const updatedSession = await client.session.update({
+      where: { id: viewer.session.id },
+      data: { keyBindingId: row.id },
+      include: { user: true }
+    });
+    const session = fromPrismaSession(updatedSession);
+    const user = updatedSession.user
+      ? fromPrismaUser(updatedSession.user)
+      : viewer.user;
+    cacheAuthSession(user, session);
+
+    return {
+      status: "ok",
+      session,
+      user,
+      binding: fromPrismaKeyBinding(row)
+    };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
+export async function getDatabaseKeyBindingForUser(
+  userId: string,
+  bindingId: string
+): Promise<
+  | { status: "ok"; binding: KeyBinding }
+  | { status: "not_found" }
+  | { status: "unavailable" }
+> {
+  const client = await getPrismaAuthClient();
+  if (!client?.keyBinding || !bindingId) {
+    return { status: "unavailable" };
+  }
+
+  try {
+    const row = await client.keyBinding.findFirst({
+      where: {
+        id: bindingId,
+        userId
+      }
+    });
+
+    if (!row?.sub2apiApiKeyCiphertext) {
+      return { status: "not_found" };
+    }
+
+    return { status: "ok", binding: fromPrismaKeyBinding(row) };
+  } catch {
+    return { status: "unavailable" };
+  }
+}
+
 export async function lookupDatabaseSession(sessionId: string): Promise<
   | { status: "authenticated"; session: AuthSession; user: AuthUser }
   | { status: "not_authenticated" }
@@ -329,7 +454,7 @@ async function getPrismaAuthClient() {
   return globalThis.__psypicAuthPrismaClient;
 }
 
-function shouldUseDatabaseAuthStore() {
+export function shouldUseDatabaseAuthStore() {
   const mode = process.env.PSYPIC_AUTH_STORE?.trim().toLowerCase();
 
   if (mode === "memory" || mode === "dev") {
@@ -365,6 +490,48 @@ function fromPrismaSession(row: PrismaSessionRow): AuthSession {
     created_at: row.createdAt.toISOString(),
     last_seen_at: row.lastSeenAt.toISOString(),
     revoked_at: row.revokedAt?.toISOString()
+  };
+}
+
+function fromPrismaKeyBinding(row: PrismaKeyBindingRow): KeyBinding {
+  return {
+    id: row.id,
+    user_id: row.userId,
+    sub2api_base_url: row.sub2apiBaseUrl,
+    sub2api_api_key_ciphertext: row.sub2apiApiKeyCiphertext ?? "",
+    sub2api_api_key_id: row.sub2apiApiKeyId ?? undefined,
+    default_model: "gpt-image-2",
+    enabled_models: readEnabledModels(row.enabledModels),
+    limits: readKeyBindingLimits(row.limits),
+    status: row.status,
+    created_at: row.createdAt.toISOString(),
+    updated_at: row.updatedAt.toISOString()
+  };
+}
+
+function readEnabledModels(value: unknown) {
+  return Array.isArray(value) && value.every((item) => typeof item === "string")
+    ? value
+    : ["gpt-image-2"];
+}
+
+function readKeyBindingLimits(value: unknown): KeyBindingLimits {
+  const limits =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Partial<KeyBindingLimits>)
+      : {};
+
+  return {
+    max_n:
+      typeof limits.max_n === "number" && limits.max_n > 0
+        ? limits.max_n
+        : 4,
+    max_upload_mb:
+      typeof limits.max_upload_mb === "number" && limits.max_upload_mb > 0
+        ? limits.max_upload_mb
+        : 20,
+    max_size_tier: limits.max_size_tier === "4K" ? "4K" : "2K",
+    allow_moderation_low: limits.allow_moderation_low === true
   };
 }
 

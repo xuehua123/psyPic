@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { GET as listAuditLogs } from "@/app/api/admin/audit-logs/route";
 import { GET as getUsage } from "@/app/api/usage/route";
-import { resetDevStore } from "@/server/services/dev-store";
+import { cacheDatabaseAuthSession, resetDevStore } from "@/server/services/dev-store";
 import { resetImageTaskStore } from "@/server/services/image-task-service";
 
 type AuthUserRow = {
@@ -168,6 +168,49 @@ describe("auth boundary closure", () => {
     expect(response.status).toBe(401);
     expect(body.error.code).toBe("unauthorized");
   });
+
+  it("fails closed instead of using dev-store cache when database auth lookup is unavailable", async () => {
+    const previousAuthStore = process.env.PSYPIC_AUTH_STORE;
+    process.env.PSYPIC_AUTH_STORE = "database";
+    (
+      globalThis as unknown as {
+        __psypicAuthPrismaClient?: ReturnType<
+          typeof createUnavailableAuthPrismaDouble
+        >;
+      }
+    ).__psypicAuthPrismaClient = createUnavailableAuthPrismaDouble();
+    cacheDatabaseAuthSession({
+      user: {
+        id: "user_db_down",
+        display_name: "Cached DB User",
+        role: "user",
+        created_at: "2026-05-09T00:00:00.000Z",
+        updated_at: "2026-05-09T00:00:00.000Z"
+      },
+      session: {
+        id: "sess_db_down",
+        user_id: "user_db_down",
+        key_binding_id: "",
+        expires_at: "2099-01-01T00:00:00.000Z",
+        created_at: "2026-05-09T00:00:00.000Z",
+        last_seen_at: "2026-05-09T00:00:00.000Z"
+      }
+    });
+
+    try {
+      const response = await getUsage(
+        new Request("http://localhost/api/usage", {
+          headers: { cookie: "psypic_session=sess_db_down" }
+        })
+      );
+      const body = await response.json();
+
+      expect(response.status).toBe(401);
+      expect(body.error.code).toBe("unauthorized");
+    } finally {
+      restoreEnv("PSYPIC_AUTH_STORE", previousAuthStore);
+    }
+  });
 });
 
 function createAuthPrismaDouble() {
@@ -276,4 +319,33 @@ function withSessionUser(
     ...session,
     user: users.get(session.userId)
   };
+}
+
+function createUnavailableAuthPrismaDouble() {
+  const unavailable = async () => {
+    throw new Error("database unavailable");
+  };
+
+  return {
+    user: {
+      create: unavailable,
+      findFirst: unavailable,
+      findUnique: unavailable,
+      update: unavailable
+    },
+    session: {
+      create: unavailable,
+      findFirst: unavailable,
+      update: unavailable
+    }
+  };
+}
+
+function restoreEnv(name: string, value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+
+  process.env[name] = value;
 }

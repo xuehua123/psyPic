@@ -864,7 +864,7 @@ async function createDatabaseImageTask(task: ImageTask) {
       data: {
         id: task.id,
         userId: task.user_id,
-        keyBindingId: null,
+        keyBindingId: task.key_binding_id || null,
         type: task.type,
         status: task.status,
         prompt: task.prompt,

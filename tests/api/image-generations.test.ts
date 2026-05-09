@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { POST as register } from "@/app/api/auth/register/route";
 import { POST as exchangeImportCode } from "@/app/api/import/exchange/route";
 import { POST as generateImage } from "@/app/api/images/generations/route";
+import { POST as saveManualKey } from "@/app/api/settings/manual-key/route";
 import { getKeyBinding, getSession, resetDevStore } from "@/server/services/dev-store";
 import {
   cancelImageTaskForUser,
@@ -14,6 +16,10 @@ import { resetRuntimeSettingsStore } from "@/server/services/runtime-settings-se
 import { createCreativeSessionForUser } from "@/server/services/creative-session-service";
 import { listVersionNodesForUser } from "@/server/services/version-node-service";
 import { createWorkbenchProjectForUser } from "@/server/services/workbench-project-service";
+import {
+  clearAuthPrismaDouble,
+  installAuthPrismaDouble
+} from "./support/auth-prisma-double";
 
 async function bindSession() {
   const response = await exchangeImportCode(
@@ -25,6 +31,45 @@ async function bindSession() {
   );
 
   return response.headers.get("set-cookie")?.split(";")[0] ?? "";
+}
+
+async function bindDatabaseSession() {
+  installAuthPrismaDouble();
+  const registerResponse = await register(
+    new Request("http://localhost/api/auth/register", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        email: "generation-db@example.com",
+        password: "correct horse battery staple",
+        display_name: "Generation DB"
+      })
+    })
+  );
+  const registerBody = await registerResponse.json();
+  const cookie = registerResponse.headers.get("set-cookie")?.split(";")[0] ?? "";
+  const manualKeyResponse = await saveManualKey(
+    new Request("http://localhost/api/settings/manual-key", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        cookie
+      },
+      body: JSON.stringify({
+        base_url: "https://sub2api.example.com/v1",
+        api_key: "secret-token-value",
+        default_model: "gpt-image-2"
+      })
+    })
+  );
+
+  expect(registerResponse.status).toBe(200);
+  expect(manualKeyResponse.status).toBe(200);
+
+  return {
+    cookie,
+    userId: registerBody.data.user.id as string
+  };
 }
 
 function generationRequest(cookie: string, body: unknown) {
@@ -90,6 +135,7 @@ async function createRunningTaskForCookie(cookie: string) {
 describe("POST /api/images/generations", () => {
   beforeEach(() => {
     resetRuntimeSettingsStore();
+    clearAuthPrismaDouble();
   });
 
   it("generates images through Sub2API and returns TempAsset URLs", async () => {
@@ -202,6 +248,62 @@ describe("POST /api/images/generations", () => {
         (image: { asset_id: string }) => image.asset_id
       )
     });
+  });
+
+  it("lets a database session with a manual key run workbench-context generation", async () => {
+    resetDevStore();
+    resetImageTaskStore();
+    await resetTempAssetStore();
+    setWorkbenchPrismaDouble();
+    const { cookie, userId } = await bindDatabaseSession();
+    const project = await createWorkbenchProjectForUser(userId, {
+      title: "DB generation project"
+    });
+    const creativeSession = await createCreativeSessionForUser(userId, {
+      projectId: project.id,
+      title: "DB generation session"
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            data: [{ b64_json: Buffer.from("image-bytes").toString("base64") }],
+            usage: { input_tokens: 10, output_tokens: 20, total_tokens: 30 }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      )
+    );
+
+    const response = await generateImage(
+      generationRequest(cookie, {
+        ...validGenerationBody,
+        project_id: project.id,
+        session_id: creativeSession.id
+      })
+    );
+    const body = await response.json();
+    const task = await getImageTaskForUser(body.data.task_id, userId);
+    const nodes = await listVersionNodesForUser(userId, {
+      sessionId: creativeSession.id
+    });
+
+    expect(response.status).toBe(200);
+    expect(task).toMatchObject({
+      user_id: userId,
+      project_id: project.id,
+      session_id: creativeSession.id,
+      version_node_id: expect.stringMatching(/^ver_/)
+    });
+    expect(nodes.items[0]).toMatchObject({
+      id: task?.version_node_id,
+      status: "succeeded",
+      output_asset_ids: body.data.images.map(
+        (image: { asset_id: string }) => image.asset_id
+      )
+    });
+    expect(JSON.stringify(body)).not.toContain("secret-token-value");
   });
 
   it("rejects workbench context owned by another user before calling Sub2API", async () => {

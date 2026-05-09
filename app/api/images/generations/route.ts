@@ -5,8 +5,8 @@ import {
   validateSizeTier
 } from "@/lib/validation/image-params";
 import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
-import { getKeyBinding, getSession } from "@/server/services/dev-store";
 import { recordAuditLog } from "@/server/services/audit-log-service";
+import { resolveImageApiAuth } from "@/server/services/image-api-auth-service";
 import { decryptKeyBindingSecret } from "@/server/services/key-binding-service";
 import {
   acquireImageTaskCreationLock,
@@ -22,15 +22,22 @@ import {
 } from "@/server/services/sub2api-client";
 import { getEffectiveImageLimits } from "@/server/services/runtime-settings-service";
 import { createTempAssetFromBase64 } from "@/server/services/temp-asset-service";
-import { readSessionIdFromRequest } from "@/server/services/session-service";
 import { WorkbenchServiceError } from "@/server/services/workbench-project-service";
 
 export async function POST(request: Request) {
   const requestId = createRequestId();
-  const sessionId = readSessionIdFromRequest(request);
-  const session = sessionId ? getSession(sessionId) : null;
+  const auth = await resolveImageApiAuth(request);
 
-  if (!session) {
+  if (auth.status === "auth_store_unavailable") {
+    return jsonError({
+      status: 503,
+      code: "auth_store_unavailable",
+      message: "身份服务暂不可用",
+      requestId
+    });
+  }
+
+  if (auth.status === "unauthorized") {
     return jsonError({
       status: 401,
       code: "unauthorized",
@@ -39,9 +46,7 @@ export async function POST(request: Request) {
     });
   }
 
-  const binding = getKeyBinding(session.key_binding_id);
-
-  if (!binding || binding.status !== "active") {
+  if (auth.status === "forbidden") {
     return jsonError({
       status: 403,
       code: "forbidden",
@@ -49,6 +54,7 @@ export async function POST(request: Request) {
       requestId
     });
   }
+  const { binding, session } = auth;
 
   const rawBody = await request.json().catch(() => null);
   const parsedWorkbenchContext = parseImageWorkbenchContext(rawBody);

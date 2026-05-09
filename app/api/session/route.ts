@@ -1,8 +1,10 @@
 import { getKeyBinding, getSession, getUser } from "@/server/services/dev-store";
-import { createRequestId, jsonOk } from "@/server/services/api-response";
+import { createRequestId, jsonError, jsonOk } from "@/server/services/api-response";
 import {
-  getDatabaseSession,
-  serializeAuthUser
+  getDatabaseKeyBindingForUser,
+  lookupDatabaseSession,
+  serializeAuthUser,
+  shouldUseDatabaseAuthStore
 } from "@/server/services/auth-service";
 import {
   getEffectiveImageLimits,
@@ -25,12 +27,17 @@ export async function GET(request: Request) {
   const sessionId = readSessionIdFromRequest(request);
 
   if (sessionId) {
-    const databaseViewer = await getDatabaseSession(sessionId);
+    const databaseViewer = await lookupDatabaseSession(sessionId);
 
-    if (databaseViewer) {
-      const binding = databaseViewer.session.key_binding_id
-        ? getKeyBinding(databaseViewer.session.key_binding_id)
+    if (databaseViewer.status === "authenticated") {
+      const bindingResult = databaseViewer.session.key_binding_id
+        ? await getDatabaseKeyBindingForUser(
+            databaseViewer.user.id,
+            databaseViewer.session.key_binding_id
+          )
         : null;
+      const binding =
+        bindingResult?.status === "ok" ? bindingResult.binding : null;
 
       return jsonOk(
         {
@@ -49,6 +56,25 @@ export async function GET(request: Request) {
         },
         requestId
       );
+    }
+
+    if (
+      databaseViewer.status === "unavailable" &&
+      shouldUseDatabaseAuthStore()
+    ) {
+      return jsonError({
+        status: 503,
+        code: "auth_store_unavailable",
+        message: "身份服务暂不可用",
+        requestId
+      });
+    }
+
+    if (
+      databaseViewer.status === "not_authenticated" &&
+      shouldUseDatabaseAuthStore()
+    ) {
+      return jsonOk(await anonymousSessionData(), requestId);
     }
   }
 
