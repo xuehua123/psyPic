@@ -46,7 +46,7 @@ describe("workbench-mappers", () => {
     };
 
     const creatorNode = mapWorkbenchVersionNodeToCreatorNode(node, 1, "branch_id_1");
-    
+
     expect(creatorNode.id).toBe("node_1");
     expect(creatorNode.prompt).toBe("test prompt");
     expect(creatorNode.images[0].asset_id).toBe("asset_1");
@@ -55,5 +55,34 @@ describe("workbench-mappers", () => {
     expect(creatorNode.boardExportAssetId).toBe("export_1");
     expect(creatorNode.depth).toBe(1);
     expect(creatorNode.branchId).toBe("branch_id_1");
+  });
+
+  it("generates correct asset URL without /image suffix", () => {
+    const node = {
+      id: "node_2",
+      project_id: "proj_1",
+      session_id: "sess_1",
+      parent_version_node_id: null,
+      prompt_snapshot: "url test",
+      params_snapshot: {},
+      source_asset_ids: [],
+      output_asset_ids: ["abc123", "def456"],
+      board_document_id: null,
+      board_snapshot: null,
+      board_export_asset_id: null,
+      branch_label: null,
+      status: "succeeded" as const,
+      created_at: "2024-01-01T00:00:00Z",
+      updated_at: "2024-01-01T00:00:00Z",
+      deleted_at: null
+    };
+
+    const creatorNode = mapWorkbenchVersionNodeToCreatorNode(node);
+
+    // 后端实际路由是 /api/assets/[assetId]，不带 /image 后缀
+    expect(creatorNode.images[0].url).toBe("/api/assets/abc123");
+    expect(creatorNode.images[1].url).toBe("/api/assets/def456");
+    // 确认没有 /image 后缀
+    expect(creatorNode.images[0].url).not.toContain("/image");
   });
 });

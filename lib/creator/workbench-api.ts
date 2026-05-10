@@ -154,11 +154,8 @@ export function updateVersionNode(id: string, data: {
   });
 }
 
-export function deleteVersionNode(id: string) {
-  return fetchApi<WorkbenchVersionNode>(`/api/workbench/version-nodes/${id}`, {
-    method: "DELETE"
-  });
-}
+// 注意：后端 /api/workbench/version-nodes/[nodeId] 只暴露 GET/PATCH，
+// 不支持直接 DELETE。版本节点的删除必须走 sync push (action: "delete")。
 
 // --- Sync ---
 

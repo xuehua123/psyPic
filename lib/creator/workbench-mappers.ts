@@ -45,7 +45,7 @@ export function mapWorkbenchVersionNodeToCreatorNode(
 
   const images: CreatorVersionImage[] = node.output_asset_ids.map((id) => ({
     asset_id: id,
-    url: `/api/assets/${id}/image`,
+    url: `/api/assets/${id}`,
     format: params.output_format || "png"
   }));
 
