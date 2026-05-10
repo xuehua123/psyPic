@@ -26,8 +26,13 @@ export type UseVersionNodesReturn = {
   nodes: CreatorVersionNode[];
   /** 加载状态 */
   isLoading: boolean;
-  /** 手动刷新 */
+  /** 用当前 sessionId 刷新 */
   refresh: () => Promise<void>;
+  /**
+   * 用指定 sessionId 刷新（绕过 hook 当前闭包中的 sessionId）。
+   * 用于 ensureGenerationContext 刚创建 session 后立即刷新的场景。
+   */
+  refreshForSession: (sessionIdOverride: string) => Promise<void>;
 };
 
 /**
@@ -123,24 +128,18 @@ export function useVersionNodes(
   const [isLoading, setIsLoading] = useState(false);
   const isMountedRef = useRef(true);
 
-  const loadNodes = useCallback(async () => {
-    if (!sessionId) {
-      setNodes([]);
-      setIsLoading(false);
-      return;
-    }
-
+  // 内部加载函数，接受显式 sessionId
+  const loadNodesForSession = useCallback(async (targetSessionId: string) => {
     setIsLoading(true);
 
     try {
-      const result = await apiListVersionNodes(sessionId);
+      const result = await apiListVersionNodes(targetSessionId);
 
       if (!isMountedRef.current) return;
 
       if (result.success && Array.isArray(result.data?.items)) {
         setNodes(rebuildBranchGraph(result.data.items));
       } else {
-        // API 失败（auth/503）→ 空数组，调用方保持 fallback
         setNodes([]);
       }
     } catch {
@@ -152,7 +151,25 @@ export function useVersionNodes(
         setIsLoading(false);
       }
     }
-  }, [sessionId]);
+  }, []);
+
+  const loadNodes = useCallback(async () => {
+    if (!sessionId) {
+      setNodes([]);
+      setIsLoading(false);
+      return;
+    }
+
+    await loadNodesForSession(sessionId);
+  }, [sessionId, loadNodesForSession]);
+
+  // 显式 sessionId 覆盖：绕过当前闭包的 sessionId
+  const refreshForSession = useCallback(
+    async (sessionIdOverride: string) => {
+      await loadNodesForSession(sessionIdOverride);
+    },
+    [loadNodesForSession]
+  );
 
   useEffect(() => {
     isMountedRef.current = true;
@@ -163,7 +180,7 @@ export function useVersionNodes(
     };
   }, [loadNodes]);
 
-  return { nodes, isLoading, refresh: loadNodes };
+  return { nodes, isLoading, refresh: loadNodes, refreshForSession };
 }
 
 // 导出供测试用

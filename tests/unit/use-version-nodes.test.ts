@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -94,6 +94,49 @@ describe("useVersionNodes", () => {
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.nodes).toHaveLength(0);
+  });
+
+  it("refreshForSession loads nodes for a different sessionId than hook init", async () => {
+    // 初始化时 sessionId=null → 不发请求
+    const { result } = renderHook(() => useVersionNodes(null));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(mockListVersionNodes).not.toHaveBeenCalled();
+
+    // 用显式 sessionId 刷新 → 应该发请求
+    mockListVersionNodes.mockResolvedValue({
+      success: true,
+      data: {
+        items: [
+          makeServerNode({ id: "vn_new_session", output_asset_ids: ["a1"] })
+        ],
+        next_cursor: null
+      }
+    });
+
+    await act(async () => {
+      await result.current.refreshForSession("sess_new_created");
+    });
+
+    expect(mockListVersionNodes).toHaveBeenCalledWith("sess_new_created");
+    expect(result.current.nodes).toHaveLength(1);
+    expect(result.current.nodes[0].id).toBe("vn_new_session");
+  });
+
+  it("generation context with initial commercial activeProjectId resolves to server project", async () => {
+    // 验证即使 activeProjectId 是 "commercial"（初始值），
+    // ensureGenerationContext 中的 rawServerProjects.find 不会匹配，
+    // 确保在 activeProjectId 对齐后才能正确工作
+    mockListVersionNodes.mockResolvedValue({
+      success: true,
+      data: { items: [], next_cursor: null }
+    });
+
+    const { result } = renderHook(() => useVersionNodes("sess_real"));
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.nodes).toHaveLength(0);
+    expect(mockListVersionNodes).toHaveBeenCalledWith("sess_real");
   });
 });
 

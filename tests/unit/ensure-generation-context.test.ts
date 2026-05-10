@@ -162,4 +162,87 @@ describe("ensureGenerationContext", () => {
 
     expect(result).toBeNull();
   });
+
+  it("returns null when activeProjectId is still 'commercial' (not yet aligned to server project)", async () => {
+    // 模拟 server projects 已加载但 activeProjectId 仍是初始值 "commercial"
+    const result = await ensureGenerationContext(
+      makeInput({ activeProjectId: "commercial" })
+    );
+
+    expect(result).toBeNull();
+    // 说明 generation context 不应因为 activeProjectId 不匹配而意外发送
+  });
+
+  it("created sessionId is usable for immediate refreshForSession call", async () => {
+    // 验证 ensureGenerationContext 返回的 sessionId 可以直接传给 refreshForSession
+    mockCreateSession.mockResolvedValue({
+      success: true,
+      data: { id: "sess_brand_new", project_id: "proj_1", title: "默认会话" }
+    });
+    mockUpdateProject.mockResolvedValue({
+      success: true,
+      data: { id: "proj_1" }
+    });
+
+    const result = await ensureGenerationContext(
+      makeInput({
+        rawServerProjects: [
+          {
+            id: "proj_1",
+            user_id: "user_1",
+            title: "Test",
+            sort_order: 0,
+            collapsed: false,
+            active_session_id: null,
+            created_at: "2024-01-01T00:00:00Z",
+            updated_at: "2024-01-01T00:00:00Z",
+            deleted_at: null
+          }
+        ]
+      })
+    );
+
+    expect(result).not.toBeNull();
+    expect(result!.sessionId).toBe("sess_brand_new");
+    // 调用方可以直接用 result.sessionId 传给 refreshForSession
+  });
+
+  it("multi-project: context only matches the specified activeProjectId", async () => {
+    const multiProjectInput = makeInput({
+      rawServerProjects: [
+        {
+          id: "proj_A",
+          user_id: "user_1",
+          title: "Project A",
+          sort_order: 0,
+          collapsed: false,
+          active_session_id: "sess_A",
+          created_at: "2024-01-01T00:00:00Z",
+          updated_at: "2024-01-01T00:00:00Z",
+          deleted_at: null
+        },
+        {
+          id: "proj_B",
+          user_id: "user_1",
+          title: "Project B",
+          sort_order: 1,
+          collapsed: false,
+          active_session_id: "sess_B",
+          created_at: "2024-01-01T00:00:00Z",
+          updated_at: "2024-01-01T00:00:00Z",
+          deleted_at: null
+        }
+      ],
+      activeProjectId: "proj_A"
+    });
+
+    const result = await ensureGenerationContext(multiProjectInput);
+
+    // 应该返回 proj_A 的 sessionId，不是 proj_B 的
+    expect(result).toEqual({
+      projectId: "proj_A",
+      sessionId: "sess_A",
+      parentVersionNodeId: null
+    });
+  });
 });

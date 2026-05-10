@@ -231,6 +231,17 @@ export default function CreatorWorkspace({
   } = useBranchMeta();
   const workbench = useWorkbench();
 
+  // Fix #1：server projects 加载后自动对齐 activeProjectId
+  // 如果当前 activeProjectId 不在 creatorProjects 列表中，自动切到第一个
+  useEffect(() => {
+    if (creatorProjects.length === 0) return;
+    const exists = creatorProjects.some((p) => p.id === activeProjectId);
+    if (!exists) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setActiveProjectId(creatorProjects[0].id as CreatorProjectId);
+    }
+  }, [creatorProjects, activeProjectId]);
+
   // server 模式下当前 project 对应的 active_session_id
   const activeServerSessionId = useMemo(() => {
     if (workbench.mode !== "server") return null;
@@ -243,7 +254,7 @@ export default function CreatorWorkspace({
   // server-first VersionNode 加载
   const {
     nodes: serverVersionNodes,
-    refresh: refreshServerVersionNodes
+    refreshForSession: refreshServerVersionNodesForSession
   } = useVersionNodes(activeServerSessionId);
 
   // server node id 集合，用于验证 parentVersionNodeId
@@ -252,8 +263,8 @@ export default function CreatorWorkspace({
     [serverVersionNodes]
   );
 
-  // 是否处于 server 有效模式（server + 有 session）
-  const isServerNodeMode = workbench.mode === "server" && activeServerSessionId !== null;
+  // 是否处于 server 有效模式（server + 有 session 或至少有 server projects）
+  const isServerNodeMode = workbench.mode === "server";
 
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const maskDrawingRef = useRef(false);
@@ -268,19 +279,14 @@ export default function CreatorWorkspace({
   );
   const selectedCommercialSizeId =
     commercialSizePresets.find((preset) => preset.size === size)?.id ?? "custom";
-  // server mode 有 session 时使用 server nodes；fallback 使用本地 nodes
-  const effectiveVersionNodes = isServerNodeMode
-    ? serverVersionNodes
-    : versionNodes;
 
   const sidebarProjects = useMemo<SidebarProjectGroup[]>(
     () =>
       creatorProjects.map((project) => {
+        // Fix #2：server mode 下只有 active project 使用 server nodes
         const nodes = isServerNodeMode
-          // server mode：server nodes 已按 session 加载，直接用
-          ? effectiveVersionNodes
-          // fallback：按 nodeProjectIds 过滤
-          : effectiveVersionNodes.filter(
+          ? (project.id === activeProjectId ? serverVersionNodes : [])
+          : versionNodes.filter(
               (node) => (nodeProjectIds[node.id] ?? "commercial") === project.id
             );
 
@@ -323,7 +329,7 @@ export default function CreatorWorkspace({
           )
         };
       }),
-    [creatorProjects, nodeProjectIds, effectiveVersionNodes, branchMetaById, isServerNodeMode]
+    [creatorProjects, nodeProjectIds, serverVersionNodes, versionNodes, branchMetaById, isServerNodeMode, activeProjectId]
   );
   const activeProjectGroup = useMemo<SidebarProjectGroup>(
     () =>
@@ -660,7 +666,8 @@ export default function CreatorWorkspace({
 
       if (generationContext) {
         // server context：不追加本地 node，刷新 server version nodes
-        void refreshServerVersionNodes();
+        // 使用 generationContext.sessionId 绕过可能过期的闭包 sessionId
+        void refreshServerVersionNodesForSession(generationContext.sessionId);
       } else {
         // fallback/no-context：保持旧行为，追加本地 node
         commitGenerationResult(nextResult, requestParams);
@@ -742,7 +749,7 @@ export default function CreatorWorkspace({
         return;
       }
 
-      await readGenerationStream(response.body, requestParams, !!generationContext);
+      await readGenerationStream(response.body, requestParams, generationContext?.sessionId ?? null);
     } catch {
       setErrorMessage("网络错误，请检查流式生成服务。");
       setCurrentTask({
@@ -762,7 +769,7 @@ export default function CreatorWorkspace({
   async function readGenerationStream(
     body: ReadableStream<Uint8Array>,
     requestParams: ImageGenerationParams,
-    isServerContext: boolean = false
+    serverSessionId: string | null = null
   ) {
     const reader = body.getReader();
     const decoder = new TextDecoder();
@@ -819,9 +826,9 @@ export default function CreatorWorkspace({
             upstream_request_id: upstreamRequestId
           };
 
-          if (isServerContext) {
+          if (serverSessionId) {
             // server context：不追加本地 node，刷新 server version nodes
-            void refreshServerVersionNodes();
+            void refreshServerVersionNodesForSession(serverSessionId);
           } else {
             commitGenerationResult(nextResult, requestParams);
           }
