@@ -1,4 +1,5 @@
 import { createId, redactSensitiveValue } from "@/server/services/key-binding-service";
+import { createPostgresPrismaClient } from "@/server/services/prisma-client-factory";
 
 export type JobRuntimeEventType =
   | "queued"
@@ -195,11 +196,11 @@ async function getPrismaJobRuntimeEventClient() {
     const prismaModule = (await import(
       /* turbopackIgnore: true */ prismaClientPackage
     )) as {
-      PrismaClient?: new () => JobRuntimeEventPrismaClient;
+      PrismaClient?: new (options: { adapter: unknown }) => JobRuntimeEventPrismaClient;
     };
 
     globalThis.__psypicJobRuntimeEventPrismaClient = prismaModule.PrismaClient
-      ? new prismaModule.PrismaClient()
+      ? await createPostgresPrismaClient(prismaModule.PrismaClient)
       : null;
   } catch {
     globalThis.__psypicJobRuntimeEventPrismaClient = null;

@@ -7,6 +7,7 @@ import {
   workbenchProjectUpdateSchema
 } from "@/lib/validation/workbench";
 import { createId } from "@/server/services/key-binding-service";
+import { createPostgresPrismaClient } from "@/server/services/prisma-client-factory";
 
 export type WorkbenchServiceErrorCode =
   | "not_found"
@@ -419,11 +420,11 @@ export async function getWorkbenchPrismaClient() {
     const prismaModule = (await import(
       /* turbopackIgnore: true */ prismaClientPackage
     )) as {
-      PrismaClient?: new () => PrismaWorkbenchClient;
+      PrismaClient?: new (options: { adapter: unknown }) => PrismaWorkbenchClient;
     };
 
     globalThis.__psypicWorkbenchPrismaClient = prismaModule.PrismaClient
-      ? new prismaModule.PrismaClient()
+      ? await createPostgresPrismaClient(prismaModule.PrismaClient)
       : null;
   } catch {
     globalThis.__psypicWorkbenchPrismaClient = null;

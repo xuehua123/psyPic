@@ -8,6 +8,7 @@ import {
   writeFileSync
 } from "node:fs";
 import type { KeyBindingLimits } from "@/server/services/key-binding-service";
+import { createPostgresPrismaClient } from "@/server/services/prisma-client-factory";
 
 type RuntimeMaxSizeTier = "2K" | "4K";
 
@@ -343,11 +344,11 @@ async function getPrismaRuntimeSettingsClient() {
     const prismaModule = (await import(
       /* turbopackIgnore: true */ prismaClientPackage
     )) as {
-      PrismaClient?: new () => PrismaRuntimeSettingsClient;
+      PrismaClient?: new (options: { adapter: unknown }) => PrismaRuntimeSettingsClient;
     };
 
     globalThis.__psypicRuntimeSettingsPrismaClient = prismaModule.PrismaClient
-      ? new prismaModule.PrismaClient()
+      ? await createPostgresPrismaClient(prismaModule.PrismaClient)
       : null;
   } catch {
     globalThis.__psypicRuntimeSettingsPrismaClient = null;

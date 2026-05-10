@@ -8,6 +8,7 @@ import {
   writeFileSync
 } from "node:fs";
 import { createId, redactSensitiveValue } from "@/server/services/key-binding-service";
+import { createPostgresPrismaClient } from "@/server/services/prisma-client-factory";
 
 export type AuditLogRecord = {
   id: string;
@@ -307,11 +308,11 @@ async function getPrismaAuditClient() {
     const prismaModule = (await import(
       /* turbopackIgnore: true */ prismaClientPackage
     )) as {
-      PrismaClient?: new () => PrismaAuditClient;
+      PrismaClient?: new (options: { adapter: unknown }) => PrismaAuditClient;
     };
 
     globalThis.__psypicAuditPrismaClient = prismaModule.PrismaClient
-      ? new prismaModule.PrismaClient()
+      ? await createPostgresPrismaClient(prismaModule.PrismaClient)
       : null;
   } catch {
     globalThis.__psypicAuditPrismaClient = null;

@@ -1,5 +1,6 @@
 import type { ImageGenerationParams } from "@/lib/validation/image-params";
 import { createId } from "@/server/services/key-binding-service";
+import { createPostgresPrismaClient } from "@/server/services/prisma-client-factory";
 import {
   getImageLibraryAssetForUser,
   getImageTaskForUser
@@ -1224,11 +1225,11 @@ async function getPrismaCommunityClient() {
     const prismaModule = (await import(
       /* turbopackIgnore: true */ prismaClientPackage
     )) as {
-      PrismaClient?: new () => PrismaCommunityClient;
+      PrismaClient?: new (options: { adapter: unknown }) => PrismaCommunityClient;
     };
 
     globalThis.__psypicCommunityPrismaClient = prismaModule.PrismaClient
-      ? new prismaModule.PrismaClient()
+      ? await createPostgresPrismaClient(prismaModule.PrismaClient)
       : null;
   } catch {
     globalThis.__psypicCommunityPrismaClient = null;

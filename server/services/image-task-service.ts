@@ -3,6 +3,7 @@ import type {
   ImageWorkbenchContext
 } from "@/lib/validation/image-params";
 import { createId, redactSensitiveValue } from "@/server/services/key-binding-service";
+import { createPostgresPrismaClient } from "@/server/services/prisma-client-factory";
 import type { Sub2APIUsage } from "@/server/services/sub2api-client";
 import { recordJobRuntimeEvent } from "@/server/services/job-runtime-event-service";
 import {
@@ -1216,11 +1217,11 @@ async function getPrismaImageTaskClient() {
     const prismaModule = (await import(
       /* turbopackIgnore: true */ prismaClientPackage
     )) as {
-      PrismaClient?: new () => PrismaImageTaskClient;
+      PrismaClient?: new (options: { adapter: unknown }) => PrismaImageTaskClient;
     };
 
     globalThis.__psypicImageTaskPrismaClient = prismaModule.PrismaClient
-      ? new prismaModule.PrismaClient()
+      ? await createPostgresPrismaClient(prismaModule.PrismaClient)
       : null;
   } catch {
     globalThis.__psypicImageTaskPrismaClient = null;

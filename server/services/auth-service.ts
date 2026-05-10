@@ -7,6 +7,7 @@ import {
   type KeyBinding,
   type KeyBindingLimits
 } from "@/server/services/key-binding-service";
+import { createPostgresPrismaClient } from "@/server/services/prisma-client-factory";
 import type { PsyPicSession } from "@/server/services/session-service";
 
 const scryptAsync = promisify(scrypt);
@@ -441,11 +442,11 @@ async function getPrismaAuthClient() {
     const prismaModule = (await import(
       /* turbopackIgnore: true */ prismaClientPackage
     )) as {
-      PrismaClient?: new () => PrismaAuthClient;
+      PrismaClient?: new (options: { adapter: unknown }) => PrismaAuthClient;
     };
 
     globalThis.__psypicAuthPrismaClient = prismaModule.PrismaClient
-      ? new prismaModule.PrismaClient()
+      ? await createPostgresPrismaClient(prismaModule.PrismaClient)
       : null;
   } catch {
     globalThis.__psypicAuthPrismaClient = null;
