@@ -9,6 +9,7 @@ vi.mock("@/lib/creator/use-workbench", () => ({
   useWorkbench: () => ({
     mode: "fallback",
     serverProjects: [],
+    rawServerProjects: [],
     retryAfter: undefined,
     createProject: vi.fn().mockResolvedValue(null),
     renameProject: vi.fn().mockResolvedValue(false),

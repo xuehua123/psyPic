@@ -45,6 +45,8 @@ export type UseWorkbenchReturn = {
   mode: WorkbenchMode;
   /** server projects 转换后的 StoredProject[]；fallback 模式下为空数组 */
   serverProjects: StoredProject[];
+  /** 原始 WorkbenchProject[]，供 generation context 查找 active_session_id */
+  rawServerProjects: WorkbenchProject[];
   /** 503 时的 Retry-After */
   retryAfter: string | undefined;
   /** server-first 创建项目；返回新项目或 null */
@@ -60,6 +62,7 @@ export type UseWorkbenchReturn = {
 export function useWorkbench(): UseWorkbenchReturn {
   const [mode, setMode] = useState<WorkbenchMode>("loading");
   const [serverProjects, setServerProjects] = useState<StoredProject[]>([]);
+  const [rawServerProjects, setRawServerProjects] = useState<WorkbenchProject[]>([]);
   const [retryAfter, setRetryAfter] = useState<string | undefined>(undefined);
   const isMountedRef = useRef(true);
 
@@ -94,6 +97,7 @@ export function useWorkbench(): UseWorkbenchReturn {
       }
       if (isMountedRef.current) {
         setServerProjects(projects.map(mapWorkbenchProjectToStoredProject));
+        setRawServerProjects(projects);
         setMode("server");
         setRetryAfter(undefined);
       }
@@ -161,6 +165,7 @@ export function useWorkbench(): UseWorkbenchReturn {
   return {
     mode,
     serverProjects,
+    rawServerProjects,
     retryAfter,
     createProject,
     renameProject,

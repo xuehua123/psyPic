@@ -10,6 +10,7 @@ const mockWorkbenchReturn = vi.hoisted(() => {
   const value: UseWorkbenchReturn = {
     mode: "fallback",
     serverProjects: [],
+    rawServerProjects: [],
     retryAfter: undefined,
     createProject: vi.fn().mockResolvedValue(null),
     renameProject: vi.fn().mockResolvedValue(false),
@@ -40,6 +41,7 @@ describe("useProjects (no IndexedDB fallback)", () => {
     mockWorkbenchReturn.value = {
       mode: "fallback",
       serverProjects: [],
+      rawServerProjects: [],
       retryAfter: undefined,
       createProject: vi.fn().mockResolvedValue(null),
       renameProject: vi.fn().mockResolvedValue(false),
@@ -142,6 +144,7 @@ describe("useProjects (server mode isolation)", () => {
     mockWorkbenchReturn.value = {
       mode: "server",
       serverProjects: [],
+      rawServerProjects: [],
       retryAfter: undefined,
       createProject: vi.fn().mockResolvedValue(null),
       renameProject: vi.fn().mockResolvedValue(false),
@@ -162,6 +165,7 @@ describe("useProjects (server mode isolation)", () => {
     mockWorkbenchReturn.value = {
       mode: "server",
       serverProjects: [],
+      rawServerProjects: [],
       retryAfter: undefined,
       createProject: mockCreate,
       renameProject: vi.fn().mockResolvedValue(false),
@@ -198,6 +202,7 @@ describe("useProjects (server mode isolation)", () => {
     mockWorkbenchReturn.value = {
       mode: "server",
       serverProjects: [serverProject],
+      rawServerProjects: [],
       retryAfter: undefined,
       createProject: vi.fn().mockResolvedValue(null),
       renameProject: mockRename,
@@ -231,6 +236,7 @@ describe("useProjects (server mode isolation)", () => {
     mockWorkbenchReturn.value = {
       mode: "server",
       serverProjects: [serverProject],
+      rawServerProjects: [],
       retryAfter: undefined,
       createProject: vi.fn().mockResolvedValue(null),
       renameProject: vi.fn().mockResolvedValue(false),

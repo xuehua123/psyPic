@@ -106,6 +106,12 @@ import {
   type ImageGenerationParams,
   type Style
 } from "@/lib/validation/image-params";
+import { useWorkbench } from "@/lib/creator/use-workbench";
+import {
+  injectWorkbenchContext,
+  appendWorkbenchContextToFormData,
+  type GenerationWorkbenchContext
+} from "@/lib/creator/generation-context";
 
 const maskCanvasSize = 512;
 const defaultTemplateId = "tpl_ecommerce_main";
@@ -222,8 +228,37 @@ export default function CreatorWorkspace({
     markRead: markBranchRead,
     markUnread: markBranchUnread
   } = useBranchMeta();
+  const workbench = useWorkbench();
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const maskDrawingRef = useRef(false);
+
+  // Workbench generation context：server 模式下注入 project_id / session_id / parent_version_node_id
+  const generationContext = useMemo<GenerationWorkbenchContext | null>(() => {
+    if (workbench.mode !== "server") return null;
+
+    const rawProject = workbench.rawServerProjects.find(
+      (p) => p.id === activeProjectId
+    );
+    if (!rawProject?.active_session_id) return null;
+
+    // parent_version_node_id：来自 forkParentId 或 activeNodeId（可信 server node）
+    const parentNodeId = activeConversationId === "new"
+      ? null
+      : (forkParentId ?? activeNodeId);
+
+    return {
+      projectId: rawProject.id,
+      sessionId: rawProject.active_session_id,
+      parentVersionNodeId: parentNodeId
+    };
+  }, [
+    workbench.mode,
+    workbench.rawServerProjects,
+    activeProjectId,
+    activeConversationId,
+    forkParentId,
+    activeNodeId
+  ]);
 
   const mvpTemplates = useMemo(
     () => commercialTemplates.filter((template) => template.enabledForMvp),
@@ -571,12 +606,17 @@ export default function CreatorWorkspace({
         mode === "image" && referenceImages.length > 0
           ? {
               method: "POST",
-              body: buildEditFormData(requestParams, referenceImages, maskFile)
+              body: appendWorkbenchContextToFormData(
+                buildEditFormData(requestParams, referenceImages, maskFile),
+                generationContext
+              )
             }
           : {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify(requestParams)
+              body: JSON.stringify(
+                injectWorkbenchContext(requestParams, generationContext)
+              )
             }
       );
       const body = (await response.json()) as ApiGenerationResponse;
@@ -637,11 +677,16 @@ export default function CreatorWorkspace({
       const response = await fetch("/api/images/generations/stream", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          ...requestParams,
-          stream: true,
-          partial_images: partialImageCount
-        })
+        body: JSON.stringify(
+          injectWorkbenchContext(
+            {
+              ...requestParams,
+              stream: true,
+              partial_images: partialImageCount
+            },
+            generationContext
+          )
+        )
       });
 
       if (!response.ok || !response.body) {
