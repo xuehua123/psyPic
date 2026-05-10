@@ -3,16 +3,13 @@
 /**
  * 创作台项目 CRUD 的 React hook 层。
  *
- * 数据流：
- *   IndexedDB (`psypic_projects` store, see lib/creator/projects-store.ts)
- *     └─ listProjects() ─ toMeta() ─→ CreatorProjectMeta[]
+ * 数据流（server-first + local fallback）：
+ *   1. 先走 useWorkbench 尝试 server；成功则项目来自 server。
+ *   2. Server 不可用（503 / network_error）时，fallback 到 IndexedDB
+ *      （psypic_projects store），与原有行为完全一致。
+ *   3. 401/403 → auth_error 模式，仍显示本地数据（不阻断工作台）。
  *
- * 首次挂载若 IndexedDB 为空，写入 4 个 default seed
- * （`defaultProjectSeeds`）；IndexedDB 不可用（SSR / 旧浏览器）时直接
- * fallback 到 seed 数组（read-only），新建/重命名/删除变 no-op。
- *
- * 与 lib/prompts/prompt-favorites.ts 同模式：data 层 + hook 层分离，
- * 不引 dexie。
+ * 外部签名保持稳定：UseProjectsReturn 不变，CreatorWorkspace 不需要大重构。
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -28,6 +25,7 @@ import {
   type StoredProject
 } from "@/lib/creator/projects-store";
 import type { CreatorProjectId } from "@/lib/creator/types";
+import { useWorkbench } from "@/lib/creator/use-workbench";
 
 const FALLBACK_EMPTY_TITLE = "新项目对话";
 const FALLBACK_EMPTY_DESCRIPTION = "从这里开始一条新的版本对话。";
@@ -75,7 +73,10 @@ export function useProjects(): UseProjectsReturn {
   /** 防止 setState on unmounted —— 卸载后 reload 完成不再写状态。 */
   const isMountedRef = useRef(true);
 
-  const reload = useCallback(async () => {
+  const workbench = useWorkbench();
+
+  // 本地 IndexedDB 加载（fallback 路径）
+  const reloadLocal = useCallback(async () => {
     if (!canUseIndexedDB()) {
       if (isMountedRef.current) {
         setProjects(defaultProjectSeeds.map((seed) => ({ ...seed })));
@@ -92,6 +93,7 @@ export function useProjects(): UseProjectsReturn {
     setIsLoading(false);
   }, []);
 
+  // 初始化：seed + 本地加载
   useEffect(() => {
     isMountedRef.current = true;
 
@@ -111,18 +113,54 @@ export function useProjects(): UseProjectsReturn {
           description: seed.description
         }))
       );
-      await reload();
+      await reloadLocal();
     })();
 
     return () => {
       isMountedRef.current = false;
     };
-  }, [reload]);
+  }, [reloadLocal]);
+
+  // server-first 项目覆盖：当 workbench mode 为 server 且有数据时，用 server 项目
+  useEffect(() => {
+    if (workbench.mode === "server" && workbench.serverProjects.length > 0) {
+      if (isMountedRef.current) {
+        setProjects(workbench.serverProjects.map(toMeta));
+        setIsLoading(false);
+      }
+    } else if (workbench.mode !== "loading") {
+      // fallback 或 auth_error：保持本地数据（reloadLocal 已经设好了）
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
+    }
+  }, [workbench.mode, workbench.serverProjects]);
 
   const createProject = useCallback(
     async (title: string): Promise<CreatorProjectMeta | null> => {
       const trimmed = title.trim();
-      if (!trimmed || !canUseIndexedDB()) {
+      if (!trimmed) {
+        return null;
+      }
+
+      // server-first 尝试
+      if (workbench.mode === "server") {
+        const serverResult = await workbench.createProject(trimmed);
+        if (serverResult) {
+          // server 成功后 useWorkbench 自动刷新，
+          // useEffect 会把 serverProjects 同步到 projects
+          return {
+            id: serverResult.id as CreatorProjectId,
+            title: serverResult.title,
+            description: "",
+            emptyTitle: FALLBACK_EMPTY_TITLE,
+            emptyDescription: FALLBACK_EMPTY_DESCRIPTION
+          };
+        }
+      }
+
+      // fallback 到本地 IndexedDB
+      if (!canUseIndexedDB()) {
         return null;
       }
 
@@ -139,34 +177,57 @@ export function useProjects(): UseProjectsReturn {
         sortOrder: (await listProjects()).length
       };
       await saveProject(stored);
-      await reload();
+      await reloadLocal();
       return toMeta(stored);
     },
-    [reload]
+    [reloadLocal, workbench]
   );
 
   const renameProject = useCallback(
     async (id: CreatorProjectId, title: string): Promise<void> => {
       const trimmed = title.trim();
-      if (!trimmed || !canUseIndexedDB()) {
+      if (!trimmed) {
+        return;
+      }
+
+      // server-first 尝试
+      if (workbench.mode === "server") {
+        const success = await workbench.renameProject(id, trimmed);
+        if (success) return;
+      }
+
+      // fallback 到本地 IndexedDB
+      if (!canUseIndexedDB()) {
         return;
       }
       await renameStoredProject(id, trimmed);
-      await reload();
+      await reloadLocal();
     },
-    [reload]
+    [reloadLocal, workbench]
   );
 
   const deleteProject = useCallback(
     async (id: CreatorProjectId): Promise<void> => {
+      // server-first 尝试
+      if (workbench.mode === "server") {
+        const success = await workbench.deleteProject(id);
+        if (success) return;
+      }
+
+      // fallback 到本地 IndexedDB
       if (!canUseIndexedDB()) {
         return;
       }
       await deleteStoredProject(id);
-      await reload();
+      await reloadLocal();
     },
-    [reload]
+    [reloadLocal, workbench]
   );
+
+  const refresh = useCallback(async () => {
+    await workbench.refresh();
+    await reloadLocal();
+  }, [reloadLocal, workbench]);
 
   return useMemo(
     () => ({
@@ -175,8 +236,8 @@ export function useProjects(): UseProjectsReturn {
       createProject,
       renameProject,
       deleteProject,
-      refresh: reload
+      refresh
     }),
-    [projects, isLoading, createProject, renameProject, deleteProject, reload]
+    [projects, isLoading, createProject, renameProject, deleteProject, refresh]
   );
 }

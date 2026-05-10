@@ -4,6 +4,34 @@ import { describe, expect, it } from "vitest";
 import { vi } from "vitest";
 import CreatorWorkspace from "@/components/creator/CreatorWorkspace";
 
+// useWorkbench 默认返回 fallback 模式，避免内部 fetch 干扰测试中的 fetchSpy mock chain
+vi.mock("@/lib/creator/use-workbench", () => ({
+  useWorkbench: () => ({
+    mode: "fallback",
+    serverProjects: [],
+    retryAfter: undefined,
+    createProject: vi.fn().mockResolvedValue(null),
+    renameProject: vi.fn().mockResolvedValue(false),
+    deleteProject: vi.fn().mockResolvedValue(false),
+    refresh: vi.fn().mockResolvedValue(undefined)
+  })
+}));
+
+// getSession mock：阻止 SessionProvider 在 mount 时发起真实 fetch，避免消耗测试 fetchSpy chain
+vi.mock("@/lib/client/session-api", () => ({
+  getSession: vi.fn().mockResolvedValue({
+    success: true,
+    data: {
+      authenticated: false,
+      user: null,
+      binding: null,
+      limits: null,
+      features: null
+    },
+    requestId: "mock_session"
+  })
+}));
+
 describe("CreatorWorkspace", () => {
   it("renders the v0.1 creator shell as the first screen", () => {
     render(<CreatorWorkspace />);

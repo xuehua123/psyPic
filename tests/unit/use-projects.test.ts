@@ -1,8 +1,24 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { defaultProjectSeeds } from "@/lib/creator/projects";
 import { useProjects } from "@/lib/creator/use-projects";
+
+/**
+ * useWorkbench mock：默认返回 fallback 模式，确保 useProjects 走原有 IndexedDB
+ * fallback 路径。server-first 覆盖在 use-workbench.test.ts 中单独测试。
+ */
+vi.mock("@/lib/creator/use-workbench", () => ({
+  useWorkbench: () => ({
+    mode: "fallback",
+    serverProjects: [],
+    retryAfter: undefined,
+    createProject: vi.fn().mockResolvedValue(null),
+    renameProject: vi.fn().mockResolvedValue(false),
+    deleteProject: vi.fn().mockResolvedValue(false),
+    refresh: vi.fn().mockResolvedValue(undefined)
+  })
+}));
 
 /**
  * jsdom 不带 IndexedDB；这组测试覆盖 hook 的 **fallback 路径**：
