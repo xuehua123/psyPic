@@ -121,9 +121,10 @@ export function useProjects(): UseProjectsReturn {
     };
   }, [reloadLocal]);
 
-  // server-first 项目覆盖：当 workbench mode 为 server 且有数据时，用 server 项目
+  // server-first 项目覆盖：当 workbench mode 为 server 时，无条件用 server 项目
+  // （即使是空数组也必须覆盖，避免本地 stale 数据与 server 出现 drift）
   useEffect(() => {
-    if (workbench.mode === "server" && workbench.serverProjects.length > 0) {
+    if (workbench.mode === "server") {
       if (isMountedRef.current) {
         setProjects(workbench.serverProjects.map(toMeta));
         setIsLoading(false);
@@ -143,7 +144,7 @@ export function useProjects(): UseProjectsReturn {
         return null;
       }
 
-      // server-first 尝试
+      // server 模式：只走 server，不 fallthrough 到本地 IndexedDB
       if (workbench.mode === "server") {
         const serverResult = await workbench.createProject(trimmed);
         if (serverResult) {
@@ -157,9 +158,11 @@ export function useProjects(): UseProjectsReturn {
             emptyDescription: FALLBACK_EMPTY_DESCRIPTION
           };
         }
+        // server 失败：直接返回 null，不写本地 IndexedDB
+        return null;
       }
 
-      // fallback 到本地 IndexedDB
+      // 非 server 模式：fallback 到本地 IndexedDB
       if (!canUseIndexedDB()) {
         return null;
       }
@@ -172,8 +175,6 @@ export function useProjects(): UseProjectsReturn {
         isBuiltin: false,
         createdAt: now,
         updatedAt: now,
-        // 排到末尾：用 listProjects 长度作为 sortOrder（够用，
-        // 后续如果做拖拽排序可以重做）
         sortOrder: (await listProjects()).length
       };
       await saveProject(stored);
@@ -190,13 +191,14 @@ export function useProjects(): UseProjectsReturn {
         return;
       }
 
-      // server-first 尝试
+      // server 模式：只走 server，不 fallthrough 到本地 IndexedDB
       if (workbench.mode === "server") {
-        const success = await workbench.renameProject(id, trimmed);
-        if (success) return;
+        await workbench.renameProject(id, trimmed);
+        // 无论成功失败都不写本地，避免 drift
+        return;
       }
 
-      // fallback 到本地 IndexedDB
+      // 非 server 模式：fallback 到本地 IndexedDB
       if (!canUseIndexedDB()) {
         return;
       }
@@ -208,13 +210,14 @@ export function useProjects(): UseProjectsReturn {
 
   const deleteProject = useCallback(
     async (id: CreatorProjectId): Promise<void> => {
-      // server-first 尝试
+      // server 模式：只走 server，不 fallthrough 到本地 IndexedDB
       if (workbench.mode === "server") {
-        const success = await workbench.deleteProject(id);
-        if (success) return;
+        await workbench.deleteProject(id);
+        // 无论成功失败都不写本地，避免 drift
+        return;
       }
 
-      // fallback 到本地 IndexedDB
+      // 非 server 模式：fallback 到本地 IndexedDB
       if (!canUseIndexedDB()) {
         return;
       }
