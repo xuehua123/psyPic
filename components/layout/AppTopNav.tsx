@@ -5,6 +5,7 @@ import { Compass, LayoutDashboard, Settings, Shield } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { SessionGate } from "@/components/auth/SessionGate";
 import { cn } from "@/lib/utils";
 
 type AppTopNavProps = {
@@ -107,8 +108,10 @@ function UtilityNav({
   showAdminLink: boolean;
 }) {
   return (
-    <div aria-label="工具区" className="flex items-center gap-1" role="navigation">
-      {showAdminLink ? (
+    <div aria-label="工具区" className="flex items-center gap-4" role="navigation">
+      <SessionGate />
+      <div className="flex items-center gap-1 border-l border-border pl-4">
+        {showAdminLink ? (
         <UtilityLink
           active={matchPath(currentPath, "/admin")}
           href="/admin"
@@ -116,13 +119,14 @@ function UtilityNav({
           label="管理台"
         />
       ) : null}
-      <UtilityLink
-        active={matchPath(currentPath, "/settings")}
-        href="/settings"
-        icon={Settings}
-        label="设置"
-      />
-      <ThemeToggle />
+        <UtilityLink
+          active={matchPath(currentPath, "/settings")}
+          href="/settings"
+          icon={Settings}
+          label="设置"
+        />
+        <ThemeToggle />
+      </div>
     </div>
   );
 }

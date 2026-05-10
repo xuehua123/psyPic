@@ -3,6 +3,8 @@
 import { KeyRound, Save } from "lucide-react";
 import { type FormEvent, useState } from "react";
 
+import { useSession } from "@/components/auth/SessionProvider";
+import { bindManualKey } from "@/lib/client/manual-key-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +30,7 @@ export default function ApiSettingsForm() {
   });
   const [message, setMessage] = useState("");
   const [variant, setVariant] = useState<"success" | "error" | null>(null);
+  const { refreshSession } = useSession();
 
   function updateDraft<Key extends keyof DraftSettings>(
     key: Key,
@@ -41,24 +44,21 @@ export default function ApiSettingsForm() {
     setMessage("");
     setVariant(null);
 
-    const response = await fetch("/api/settings/manual-key", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        base_url: draft.baseUrl,
-        api_key: draft.apiKey,
-        default_model: draft.defaultModel
-      })
-    });
+    const result = await bindManualKey(
+      draft.baseUrl,
+      draft.apiKey,
+      draft.defaultModel
+    );
 
-    if (response.ok) {
+    if (result.success) {
       setDraft((current) => ({ ...current, apiKey: "" }));
       setMessage("已通过 BFF 建立 key binding。");
       setVariant("success");
+      await refreshSession();
       return;
     }
 
-    setMessage("保存失败，请检查 Base URL 和 API Key。");
+    setMessage(result.error.message || "保存失败，请检查 Base URL 和 API Key。");
     setVariant("error");
   }
 
