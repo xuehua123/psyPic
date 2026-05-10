@@ -109,9 +109,10 @@ import {
 import { useWorkbench } from "@/lib/creator/use-workbench";
 import {
   injectWorkbenchContext,
-  appendWorkbenchContextToFormData,
-  type GenerationWorkbenchContext
+  appendWorkbenchContextToFormData
 } from "@/lib/creator/generation-context";
+import { useVersionNodes } from "@/lib/creator/use-version-nodes";
+import { ensureGenerationContext } from "@/lib/creator/ensure-generation-context";
 
 const maskCanvasSize = 512;
 const defaultTemplateId = "tpl_ecommerce_main";
@@ -229,36 +230,33 @@ export default function CreatorWorkspace({
     markUnread: markBranchUnread
   } = useBranchMeta();
   const workbench = useWorkbench();
-  const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const maskDrawingRef = useRef(false);
 
-  // Workbench generation context：server 模式下注入 project_id / session_id / parent_version_node_id
-  const generationContext = useMemo<GenerationWorkbenchContext | null>(() => {
+  // server 模式下当前 project 对应的 active_session_id
+  const activeServerSessionId = useMemo(() => {
     if (workbench.mode !== "server") return null;
-
     const rawProject = workbench.rawServerProjects.find(
       (p) => p.id === activeProjectId
     );
-    if (!rawProject?.active_session_id) return null;
+    return rawProject?.active_session_id ?? null;
+  }, [workbench.mode, workbench.rawServerProjects, activeProjectId]);
 
-    // parent_version_node_id：来自 forkParentId 或 activeNodeId（可信 server node）
-    const parentNodeId = activeConversationId === "new"
-      ? null
-      : (forkParentId ?? activeNodeId);
+  // server-first VersionNode 加载
+  const {
+    nodes: serverVersionNodes,
+    refresh: refreshServerVersionNodes
+  } = useVersionNodes(activeServerSessionId);
 
-    return {
-      projectId: rawProject.id,
-      sessionId: rawProject.active_session_id,
-      parentVersionNodeId: parentNodeId
-    };
-  }, [
-    workbench.mode,
-    workbench.rawServerProjects,
-    activeProjectId,
-    activeConversationId,
-    forkParentId,
-    activeNodeId
-  ]);
+  // server node id 集合，用于验证 parentVersionNodeId
+  const serverNodeIds = useMemo(
+    () => new Set(serverVersionNodes.map((n) => n.id)),
+    [serverVersionNodes]
+  );
+
+  // 是否处于 server 有效模式（server + 有 session）
+  const isServerNodeMode = workbench.mode === "server" && activeServerSessionId !== null;
+
+  const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const maskDrawingRef = useRef(false);
 
   const mvpTemplates = useMemo(
     () => commercialTemplates.filter((template) => template.enabledForMvp),
@@ -270,12 +268,21 @@ export default function CreatorWorkspace({
   );
   const selectedCommercialSizeId =
     commercialSizePresets.find((preset) => preset.size === size)?.id ?? "custom";
+  // server mode 有 session 时使用 server nodes；fallback 使用本地 nodes
+  const effectiveVersionNodes = isServerNodeMode
+    ? serverVersionNodes
+    : versionNodes;
+
   const sidebarProjects = useMemo<SidebarProjectGroup[]>(
     () =>
       creatorProjects.map((project) => {
-        const nodes = versionNodes.filter(
-          (node) => (nodeProjectIds[node.id] ?? "commercial") === project.id
-        );
+        const nodes = isServerNodeMode
+          // server mode：server nodes 已按 session 加载，直接用
+          ? effectiveVersionNodes
+          // fallback：按 nodeProjectIds 过滤
+          : effectiveVersionNodes.filter(
+              (node) => (nodeProjectIds[node.id] ?? "commercial") === project.id
+            );
 
         return {
           project,
@@ -316,7 +323,7 @@ export default function CreatorWorkspace({
           )
         };
       }),
-    [creatorProjects, nodeProjectIds, versionNodes, branchMetaById]
+    [creatorProjects, nodeProjectIds, effectiveVersionNodes, branchMetaById, isServerNodeMode]
   );
   const activeProjectGroup = useMemo<SidebarProjectGroup>(
     () =>
@@ -601,6 +608,19 @@ export default function CreatorWorkspace({
         prompt: requestParams.prompt
       });
 
+      // 异步解析 workbench generation context（按需创建 session）
+      const candidateParentId = activeConversationId === "new"
+        ? null
+        : (forkParentId ?? activeNodeId);
+      const generationContext = await ensureGenerationContext({
+        mode: workbench.mode,
+        rawServerProjects: workbench.rawServerProjects,
+        activeProjectId,
+        candidateParentNodeId: candidateParentId,
+        serverNodeIds,
+        refreshWorkbench: workbench.refresh
+      });
+
       const response = await fetch(
         mode === "image" ? "/api/images/edits" : "/api/images/generations",
         mode === "image" && referenceImages.length > 0
@@ -637,7 +657,15 @@ export default function CreatorWorkspace({
         request_id: body.request_id ?? "",
         upstream_request_id: body.upstream_request_id
       };
-      commitGenerationResult(nextResult, requestParams);
+
+      if (generationContext) {
+        // server context：不追加本地 node，刷新 server version nodes
+        void refreshServerVersionNodes();
+      } else {
+        // fallback/no-context：保持旧行为，追加本地 node
+        commitGenerationResult(nextResult, requestParams);
+      }
+
       setCurrentTask({
         id: nextResult.task_id,
         type: taskType,
@@ -673,6 +701,19 @@ export default function CreatorWorkspace({
       prompt: requestParams.prompt
     });
 
+    // 异步解析 workbench generation context
+    const candidateParentId = activeConversationId === "new"
+      ? null
+      : (forkParentId ?? activeNodeId);
+    const generationContext = await ensureGenerationContext({
+      mode: workbench.mode,
+      rawServerProjects: workbench.rawServerProjects,
+      activeProjectId,
+      candidateParentNodeId: candidateParentId,
+      serverNodeIds,
+      refreshWorkbench: workbench.refresh
+    });
+
     try {
       const response = await fetch("/api/images/generations/stream", {
         method: "POST",
@@ -701,7 +742,7 @@ export default function CreatorWorkspace({
         return;
       }
 
-      await readGenerationStream(response.body, requestParams);
+      await readGenerationStream(response.body, requestParams, !!generationContext);
     } catch {
       setErrorMessage("网络错误，请检查流式生成服务。");
       setCurrentTask({
@@ -720,7 +761,8 @@ export default function CreatorWorkspace({
 
   async function readGenerationStream(
     body: ReadableStream<Uint8Array>,
-    requestParams: ImageGenerationParams
+    requestParams: ImageGenerationParams,
+    isServerContext: boolean = false
   ) {
     const reader = body.getReader();
     const decoder = new TextDecoder();
@@ -777,7 +819,12 @@ export default function CreatorWorkspace({
             upstream_request_id: upstreamRequestId
           };
 
-          commitGenerationResult(nextResult, requestParams);
+          if (isServerContext) {
+            // server context：不追加本地 node，刷新 server version nodes
+            void refreshServerVersionNodes();
+          } else {
+            commitGenerationResult(nextResult, requestParams);
+          }
           setCurrentTask({
             id: taskId,
             type: "generation",
