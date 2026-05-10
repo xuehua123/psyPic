@@ -1,7 +1,16 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, beforeAll } from "vitest";
 
 import AppShell from "@/components/layout/AppShell";
+
+beforeAll(() => {
+  vi.stubGlobal("fetch", vi.fn().mockImplementation(() => Promise.resolve(
+    new Response(JSON.stringify({ data: { authenticated: false } }), {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    })
+  )));
+});
 
 describe("AppShell", () => {
   it("renders the PsyPic brand and the spec-mandated minimal main navigation", () => {

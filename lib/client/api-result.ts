@@ -4,6 +4,7 @@ export type ApiResult<T> =
       success: false;
       error: { code: string; message: string; details?: unknown };
       requestId?: string;
+      retryAfter?: string;
     };
 
 export async function fetchApi<T>(
@@ -15,6 +16,7 @@ export async function fetchApi<T>(
     const body = await response.json().catch(() => null);
 
     if (!response.ok || !body || body.error) {
+      const retryAfter = response.headers.get("retry-after") ?? undefined;
       return {
         success: false,
         error: {
@@ -22,7 +24,8 @@ export async function fetchApi<T>(
           message: body?.error?.message ?? "请求失败",
           details: body?.error?.details
         },
-        requestId: body?.request_id
+        requestId: body?.request_id,
+        retryAfter
       };
     }
 

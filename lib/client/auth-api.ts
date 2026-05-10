@@ -2,19 +2,15 @@ import { fetchApi, type ApiResult } from "./api-result";
 
 export type AuthUser = {
   id: string;
-  display_name: string;
-  email?: string;
-};
-
-export type AuthSession = {
-  id: string;
-  expires_at: string;
+  email: string | null;
+  display_name: string | null;
+  role: "user" | "admin";
+  last_login_at: string | null;
 };
 
 export type AuthLoginResponse = {
   authenticated: true;
   user: AuthUser;
-  session: AuthSession;
 };
 
 export async function login(

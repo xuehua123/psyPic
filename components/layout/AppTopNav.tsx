@@ -41,10 +41,16 @@ export default function AppTopNav({
       aria-label="产品导航"
       className="sticky top-0 z-40 flex h-14 shrink-0 items-center border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70"
     >
-      <div className="mx-auto flex h-full w-full max-w-[1480px] items-center justify-between gap-6 px-5">
-        <Brand />
-        <PrimaryNav currentPath={currentPath} />
-        <UtilityNav currentPath={currentPath} showAdminLink={showAdminLink} />
+      <div className="mx-auto flex h-full w-full max-w-[1480px] items-center justify-between gap-4 overflow-x-auto px-4 md:gap-6 md:px-5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="shrink-0">
+          <Brand />
+        </div>
+        <div className="shrink-0">
+          <PrimaryNav currentPath={currentPath} />
+        </div>
+        <div className="shrink-0">
+          <UtilityNav currentPath={currentPath} showAdminLink={showAdminLink} />
+        </div>
       </div>
     </header>
   );
@@ -108,7 +114,7 @@ function UtilityNav({
   showAdminLink: boolean;
 }) {
   return (
-    <div aria-label="工具区" className="flex items-center gap-4" role="navigation">
+    <div aria-label="工具区" className="flex items-center gap-3 md:gap-4" role="navigation">
       <SessionGate />
       <div className="flex items-center gap-1 border-l border-border pl-4">
         {showAdminLink ? (
