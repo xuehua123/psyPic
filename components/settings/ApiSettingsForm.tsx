@@ -30,7 +30,22 @@ export default function ApiSettingsForm() {
   });
   const [message, setMessage] = useState("");
   const [variant, setVariant] = useState<"success" | "error" | null>(null);
-  const { refreshSession } = useSession();
+  const { state, refreshSession } = useSession();
+
+  if (state.status === "loading") {
+    return <div className="text-sm text-muted-foreground py-4">加载状态中...</div>;
+  }
+
+  if (state.status === "loaded" && !state.data.authenticated) {
+    return (
+      <div className="text-sm text-muted-foreground py-4 flex flex-col gap-2">
+        <div className="flex items-center gap-2 text-foreground font-medium">
+          <KeyRound className="size-4" /> 需登录后配置
+        </div>
+        请先在右上角或工作台完成登录，然后在此绑定 API Key。
+      </div>
+    );
+  }
 
   function updateDraft<Key extends keyof DraftSettings>(
     key: Key,

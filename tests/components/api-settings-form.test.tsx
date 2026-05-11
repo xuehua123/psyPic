@@ -10,7 +10,7 @@ describe("ApiSettingsForm", () => {
     const sessionStorageSpy = vi.spyOn(window.sessionStorage, "setItem");
     const fetchSpy = vi.fn().mockImplementation(() => {
       return Promise.resolve(
-        new Response(JSON.stringify({ data: { authenticated: false } }), {
+        new Response(JSON.stringify({ data: { authenticated: true } }), {
           status: 200,
           headers: { "content-type": "application/json" }
         })
@@ -31,7 +31,7 @@ describe("ApiSettingsForm", () => {
     );
 
     // wait for session to load
-    await waitFor(() => expect(fetchSpy).toHaveBeenCalledWith("/api/session", undefined));
+    await waitFor(() => expect(screen.getByLabelText("Sub2API Base URL")).toBeInTheDocument());
 
     const user = userEvent.setup();
     await user.type(
@@ -55,7 +55,7 @@ describe("ApiSettingsForm", () => {
     const fetchSpy = vi.fn().mockImplementation((url) => {
       if (url === "/api/session") {
         return Promise.resolve(
-          new Response(JSON.stringify({ data: { authenticated: false } }), {
+          new Response(JSON.stringify({ data: { authenticated: true } }), {
             status: 200,
             headers: { "content-type": "application/json" }
           })
@@ -77,6 +77,7 @@ describe("ApiSettingsForm", () => {
     );
 
     const user = userEvent.setup();
+    await waitFor(() => expect(screen.getByLabelText("Sub2API Base URL")).toBeInTheDocument());
     await user.type(
       screen.getByLabelText("Sub2API Base URL"),
       "https://sub2api.example.com/v1"

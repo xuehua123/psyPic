@@ -81,7 +81,7 @@ export default function SyncStatusIndicator({
       />
       <span data-testid="sync-status-label">
         {config.label}
-        {pendingCount > 0 && status !== "synced" && ` (${pendingCount})`}
+        {pendingCount > 0 && status !== "synced" && ` (${pendingCount} 待同步)`}
       </span>
       <style>{`
         @keyframes syncPulse {

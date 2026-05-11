@@ -47,6 +47,27 @@ vi.mock("@/lib/client/session-api", () => ({
   })
 }));
 
+// mock useSession to avoid requiring SessionProvider wrapper inside AppShell
+vi.mock("@/components/auth/SessionProvider", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/auth/SessionProvider")>();
+  return {
+    ...actual,
+    useSession: () => ({
+      state: {
+        status: "loaded",
+        data: {
+          authenticated: true,
+          user: { display_name: "Test User" },
+          binding: true,
+          limits: null,
+          features: null
+        }
+      },
+      refreshSession: vi.fn()
+    })
+  };
+});
+
 describe("CreatorWorkspace", () => {
   it("renders the v0.1 creator shell as the first screen", () => {
     render(<CreatorWorkspace />);

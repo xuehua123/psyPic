@@ -846,7 +846,8 @@ export default function CreatorWorkspace({
 
         if (event.event === "error") {
           const message = readString(data, "message") ?? "流式生成失败。";
-          setErrorMessage(message);
+          const requestIdStr = requestId ? `（request_id: ${requestId}）` : "";
+          setErrorMessage(`${message}${requestIdStr}`);
           setCurrentTask({
             id: readString(data, "task_id"),
             type: "generation",
@@ -854,7 +855,7 @@ export default function CreatorWorkspace({
             prompt: requestParams.prompt,
             error: {
               code: readString(data, "code") ?? "upstream_error",
-              message
+              message: `${message}${requestIdStr}`
             }
           });
         }
