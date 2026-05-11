@@ -9,7 +9,9 @@
  *   3. 失败时（503 / network_error）保持 fallback 状态，让调用方继续用本地数据。
  *   4. 401/403 不被当作 503 fallback 成功——保留为 auth/permission 状态。
  *   5. 提供 server-first CRUD（create/rename/delete project），成功后刷新 cache。
- *   6. 暴露 sync 状态（Cut 5），支持 outbox flush 和 conflict indicator。
+ *   6. 503/network_error 时 CRUD 写入 outbox + optimistic cache update。
+ *   7. 401/403 时 CRUD 不写 outbox，进入 needs_attention。
+ *   8. 暴露 sync 状态（Cut 5），支持 outbox flush 和 conflict indicator。
  *
  * 不做：
  *   - 不接 generation/edit context。
@@ -35,6 +37,7 @@ import {
 } from "./workbench-cache-store";
 import {
   listOutboxOperations,
+  addOutboxOperation,
   removeOutboxOperations
 } from "./workbench-outbox-store";
 import { mapWorkbenchProjectToStoredProject } from "./workbench-mappers";
@@ -76,6 +79,23 @@ export type UseWorkbenchReturn = {
   dismissSyncConflict: (clientMutationId: string) => void;
 };
 
+/** 判断 API 错误码是否为 auth 错误 */
+function isAuthError(code: string): boolean {
+  return code === "unauthorized" || code === "http_401" || code === "http_403" || code === "forbidden";
+}
+
+/** 判断 API 错误码是否可入 outbox（503 / network_error 等可重试错误） */
+function isRetryableError(code: string): boolean {
+  return !isAuthError(code);
+}
+
+/** 生成稳定 client_mutation_id */
+let mutationCounter = 0;
+function nextMutationId(): string {
+  mutationCounter += 1;
+  return `cmid_${Date.now()}_${mutationCounter}`;
+}
+
 export function useWorkbench(): UseWorkbenchReturn {
   const [mode, setMode] = useState<WorkbenchMode>("loading");
   const [serverProjects, setServerProjects] = useState<StoredProject[]>([]);
@@ -85,7 +105,13 @@ export function useWorkbench(): UseWorkbenchReturn {
   const isMountedRef = useRef(true);
   const isFlushingRef = useRef(false);
 
-  // sync engine 依赖：每次调用时构建以确保引用最新状态
+  // ref 镜像 syncState，解决闭包旧值问题
+  const syncStateRef = useRef<SyncState>(INITIAL_SYNC_STATE);
+  useEffect(() => {
+    syncStateRef.current = syncState;
+  }, [syncState]);
+
+  // sync engine 依赖
   const buildSyncDeps = useCallback((): SyncEngineDeps => ({
     listOutboxOperations,
     removeOutboxOperations,
@@ -128,13 +154,11 @@ export function useWorkbench(): UseWorkbenchReturn {
     if (result.success) {
       const projects = result.data?.items;
       if (!Array.isArray(projects)) {
-        // 响应格式不匹配 workbench list（可能是 fetch mock 干扰）
         if (isMountedRef.current) {
           setMode("fallback");
         }
         return;
       }
-      // 更新 cache
       for (const project of projects) {
         await saveCachedProject(project).catch(() => {});
       }
@@ -146,11 +170,10 @@ export function useWorkbench(): UseWorkbenchReturn {
       }
     } else {
       const code = result.error.code;
-      if (code === "unauthorized" || code === "http_401" || code === "http_403" || code === "forbidden") {
+      if (isAuthError(code)) {
         setMode("auth_error");
         setRetryAfter(undefined);
       } else {
-        // 503 / network_error / workbench_store_unavailable → fallback
         setMode("fallback");
         setRetryAfter(result.retryAfter);
       }
@@ -174,15 +197,14 @@ export function useWorkbench(): UseWorkbenchReturn {
     try {
       setSyncState((prev) => ({ ...prev, status: "syncing" }));
       const deps = buildSyncDeps();
-      const newState = await flushOutbox(syncState, deps);
+      // 使用 ref 镜像获取最新 syncState，避免闭包旧值
+      const newState = await flushOutbox(syncStateRef.current, deps);
       if (isMountedRef.current) {
         setSyncState(newState);
       }
     } finally {
       isFlushingRef.current = false;
     }
-  // syncState 在 flushOutbox 内使用但不加入 deps，避免连环触发
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [buildSyncDeps]);
 
   // app focus / online 时自动 flush
@@ -206,14 +228,61 @@ export function useWorkbench(): UseWorkbenchReturn {
     setSyncState((prev) => dismissConflict(prev, clientMutationId));
   }, []);
 
+  // --- CRUD with outbox fallback ---
+
   const createProject = useCallback(
     async (title: string): Promise<WorkbenchProject | null> => {
       const result = await apiCreateProject({ title });
+
       if (result.success) {
         await saveCachedProject(result.data).catch(() => {});
         await loadFromServer();
         return result.data;
       }
+
+      // API 失败 → 分流
+      const code = result.error?.code ?? "network_error";
+
+      if (isAuthError(code)) {
+        // auth 错误不写 outbox，进入 needs_attention
+        setSyncState((prev) => ({ ...prev, status: "needs_attention" }));
+        return null;
+      }
+
+      if (isRetryableError(code)) {
+        // 503/network_error → 写入 outbox + optimistic cache
+        const mutId = nextMutationId();
+        const optimisticId = `optimistic_${mutId}`;
+        const now = new Date().toISOString();
+
+        await addOutboxOperation({
+          client_mutation_id: mutId,
+          entity: "project",
+          action: "upsert",
+          data: { id: optimisticId, title, updated_at: now }
+        }).catch(() => {});
+
+        setSyncState((prev) => ({
+          ...prev,
+          status: "offline",
+          pendingCount: prev.pendingCount + 1,
+          retryAfter: result.retryAfter ?? prev.retryAfter
+        }));
+
+        // optimistic：返回假 project 给 UI
+        return {
+          id: optimisticId,
+          user_id: "",
+          title,
+          sort_order: 0,
+          collapsed: false,
+          active_session_id: null,
+          created_at: now,
+          updated_at: now,
+          deleted_at: null
+        };
+      }
+
       return null;
     },
     [loadFromServer]
@@ -222,11 +291,39 @@ export function useWorkbench(): UseWorkbenchReturn {
   const renameProject = useCallback(
     async (id: string, title: string): Promise<boolean> => {
       const result = await apiUpdateProject(id, { title });
+
       if (result.success) {
         await saveCachedProject(result.data).catch(() => {});
         await loadFromServer();
         return true;
       }
+
+      const code = result.error?.code ?? "network_error";
+
+      if (isAuthError(code)) {
+        setSyncState((prev) => ({ ...prev, status: "needs_attention" }));
+        return false;
+      }
+
+      if (isRetryableError(code)) {
+        const mutId = nextMutationId();
+        await addOutboxOperation({
+          client_mutation_id: mutId,
+          entity: "project",
+          action: "upsert",
+          data: { id, title, updated_at: new Date().toISOString() }
+        }).catch(() => {});
+
+        setSyncState((prev) => ({
+          ...prev,
+          status: "offline",
+          pendingCount: prev.pendingCount + 1,
+          retryAfter: result.retryAfter ?? prev.retryAfter
+        }));
+
+        return true; // optimistic success
+      }
+
       return false;
     },
     [loadFromServer]
@@ -235,11 +332,42 @@ export function useWorkbench(): UseWorkbenchReturn {
   const deleteProject = useCallback(
     async (id: string): Promise<boolean> => {
       const result = await apiDeleteProject(id);
+
       if (result.success) {
         await deleteCachedProject(id).catch(() => {});
         await loadFromServer();
         return true;
       }
+
+      const code = result.error?.code ?? "network_error";
+
+      if (isAuthError(code)) {
+        setSyncState((prev) => ({ ...prev, status: "needs_attention" }));
+        return false;
+      }
+
+      if (isRetryableError(code)) {
+        const mutId = nextMutationId();
+        await addOutboxOperation({
+          client_mutation_id: mutId,
+          entity: "project",
+          action: "delete",
+          data: { id, updated_at: new Date().toISOString() }
+        }).catch(() => {});
+
+        // optimistic cache delete
+        await deleteCachedProject(id).catch(() => {});
+
+        setSyncState((prev) => ({
+          ...prev,
+          status: "offline",
+          pendingCount: prev.pendingCount + 1,
+          retryAfter: result.retryAfter ?? prev.retryAfter
+        }));
+
+        return true; // optimistic success
+      }
+
       return false;
     },
     [loadFromServer]

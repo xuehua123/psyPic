@@ -215,6 +215,61 @@ describe("sync-engine: flushOutbox", () => {
     expect(pushCall.operations).toHaveLength(MAX_FLUSH_BATCH_SIZE);
   });
 
+  it("shows offline when remaining > 0 after bounded batch", async () => {
+    const ops = Array.from({ length: 30 }, (_, i) => makeOutboxOp(`mut_${i}`));
+    const deps = makeDeps({
+      listOutboxOperations: vi.fn().mockResolvedValue(ops),
+      pushWorkbenchChanges: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          push_results: ops.slice(0, MAX_FLUSH_BATCH_SIZE).map((op) => ({
+            client_mutation_id: op.client_mutation_id,
+            status: "applied" as const,
+            entity: "project" as const,
+            id: `proj_${op.client_mutation_id}`
+          })),
+          pulled: null
+        }
+      })
+    });
+
+    const result = await flushOutbox(state, deps);
+
+    // 剩余 5 个未推送 → 不能显示 synced
+    expect(result.pendingCount).toBe(5);
+    expect(result.status).toBe("offline");
+  });
+
+  it("enters needs_attention on non-auth error results without clearing outbox", async () => {
+    const deps = makeDeps({
+      listOutboxOperations: vi.fn().mockResolvedValue([makeOutboxOp("mut_bad")]),
+      pushWorkbenchChanges: vi.fn().mockResolvedValue({
+        success: true,
+        data: {
+          push_results: [
+            {
+              client_mutation_id: "mut_bad",
+              status: "error",
+              entity: "project",
+              action: "upsert",
+              id: "proj_bad",
+              code: "not_found",
+              message: "找不到"
+            }
+          ],
+          pulled: null
+        }
+      })
+    });
+
+    const result = await flushOutbox(state, deps);
+
+    expect(result.status).toBe("needs_attention");
+    // 非 auth error 不清除 outbox
+    expect(deps.removeOutboxOperations).not.toHaveBeenCalled();
+    expect(result.pendingCount).toBe(1);
+  });
+
   it("does not touch generation/edit context or Board Mode", async () => {
     // 验证 flushOutbox 不引用任何 generation/edit/board 概念
     const deps = makeDeps();

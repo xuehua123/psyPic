@@ -65,7 +65,7 @@ describe("conflict-resolver: resolvePushResults", () => {
     expect(resolved.clearedMutationIds).toContain("mut_auth");
   });
 
-  it("clears error mutations that are not auth errors", () => {
+  it("does NOT clear non-auth error mutations from outbox", () => {
     const results: WorkbenchSyncResult[] = [
       {
         client_mutation_id: "mut_bad",
@@ -81,7 +81,9 @@ describe("conflict-resolver: resolvePushResults", () => {
     const resolved = resolvePushResults(results);
 
     expect(resolved.hasAuthError).toBe(false);
-    expect(resolved.clearedMutationIds).toContain("mut_bad");
+    // 非 auth error 不清除 outbox，保留 pending
+    expect(resolved.clearedMutationIds).not.toContain("mut_bad");
+    expect(resolved.nonAuthErrorCount).toBe(1);
   });
 });
 

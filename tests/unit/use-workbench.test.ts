@@ -30,8 +30,11 @@ vi.mock("@/lib/creator/workbench-cache-store", () => ({
 }));
 
 // 模拟 workbench-outbox-store
+const mockAddOutboxOperation = vi.hoisted(() => vi.fn());
+
 vi.mock("@/lib/creator/workbench-outbox-store", () => ({
   listOutboxOperations: vi.fn().mockResolvedValue([]),
+  addOutboxOperation: mockAddOutboxOperation,
   removeOutboxOperations: vi.fn().mockResolvedValue(undefined)
 }));
 
@@ -232,5 +235,133 @@ describe("useWorkbench", () => {
 
     expect(typeof result.current.flushSync).toBe("function");
     expect(typeof result.current.dismissSyncConflict).toBe("function");
+  });
+
+  it("createProject writes to outbox on 503/network_error", async () => {
+    mockListProjects.mockResolvedValue({
+      success: true,
+      data: { items: [SERVER_PROJECT], next_cursor: null },
+      requestId: "req_1"
+    });
+    mockCreateProject.mockResolvedValue({
+      success: false,
+      error: { code: "workbench_store_unavailable", message: "unavailable" },
+      retryAfter: "30"
+    });
+    mockAddOutboxOperation.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useWorkbench());
+    await waitFor(() => expect(result.current.mode).toBe("server"));
+
+    let created: Awaited<ReturnType<typeof result.current.createProject>> = null;
+    await act(async () => {
+      created = await result.current.createProject("Offline Project");
+    });
+
+    // optimistic 返回了假 project
+    expect(created).not.toBeNull();
+    expect(created!.title).toBe("Offline Project");
+    // 写入了 outbox
+    expect(mockAddOutboxOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entity: "project",
+        action: "upsert",
+        data: expect.objectContaining({ title: "Offline Project" })
+      })
+    );
+    // syncState 更新
+    expect(result.current.syncState.status).toBe("offline");
+    expect(result.current.syncState.pendingCount).toBe(1);
+  });
+
+  it("renameProject writes to outbox on 503", async () => {
+    mockListProjects.mockResolvedValue({
+      success: true,
+      data: { items: [SERVER_PROJECT], next_cursor: null },
+      requestId: "req_1"
+    });
+    mockUpdateProject.mockResolvedValue({
+      success: false,
+      error: { code: "network_error", message: "网络错误" }
+    });
+    mockAddOutboxOperation.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useWorkbench());
+    await waitFor(() => expect(result.current.mode).toBe("server"));
+
+    let success = false;
+    await act(async () => {
+      success = await result.current.renameProject("proj_server_1", "Renamed Offline");
+    });
+
+    expect(success).toBe(true); // optimistic
+    expect(mockAddOutboxOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entity: "project",
+        action: "upsert",
+        data: expect.objectContaining({ id: "proj_server_1", title: "Renamed Offline" })
+      })
+    );
+    expect(result.current.syncState.status).toBe("offline");
+    expect(result.current.syncState.pendingCount).toBe(1);
+  });
+
+  it("deleteProject writes to outbox on 503", async () => {
+    mockListProjects.mockResolvedValue({
+      success: true,
+      data: { items: [SERVER_PROJECT], next_cursor: null },
+      requestId: "req_1"
+    });
+    mockDeleteProject.mockResolvedValue({
+      success: false,
+      error: { code: "workbench_store_unavailable", message: "unavailable" },
+      retryAfter: "30"
+    });
+    mockAddOutboxOperation.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useWorkbench());
+    await waitFor(() => expect(result.current.mode).toBe("server"));
+
+    let success = false;
+    await act(async () => {
+      success = await result.current.deleteProject("proj_server_1");
+    });
+
+    expect(success).toBe(true); // optimistic
+    expect(mockAddOutboxOperation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entity: "project",
+        action: "delete",
+        data: expect.objectContaining({ id: "proj_server_1" })
+      })
+    );
+    expect(result.current.syncState.status).toBe("offline");
+  });
+
+  it("createProject does NOT write to outbox on 401/403", async () => {
+    mockListProjects.mockResolvedValue({
+      success: true,
+      data: { items: [SERVER_PROJECT], next_cursor: null },
+      requestId: "req_1"
+    });
+    mockCreateProject.mockResolvedValue({
+      success: false,
+      error: { code: "unauthorized", message: "请先登录" }
+    });
+    mockAddOutboxOperation.mockResolvedValue(undefined);
+
+    const { result } = renderHook(() => useWorkbench());
+    await waitFor(() => expect(result.current.mode).toBe("server"));
+
+    let created: Awaited<ReturnType<typeof result.current.createProject>> = null;
+    await act(async () => {
+      created = await result.current.createProject("Auth Fail");
+    });
+
+    expect(created).toBeNull();
+    // 不写 outbox
+    expect(mockAddOutboxOperation).not.toHaveBeenCalled();
+    // 进入 needs_attention
+    expect(result.current.syncState.status).toBe("needs_attention");
   });
 });

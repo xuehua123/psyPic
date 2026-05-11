@@ -112,7 +112,7 @@ export async function flushOutbox(
   const pushResults = result.data?.push_results ?? [];
   const resolved = resolvePushResults(pushResults);
 
-  // 清理 outbox（applied + replayed + error）
+  // 清理 outbox（applied + replayed + auth error）
   if (resolved.clearedMutationIds.length > 0) {
     try {
       await deps.removeOutboxOperations(resolved.clearedMutationIds);
@@ -143,11 +143,11 @@ export async function flushOutbox(
 
   // 决定新状态
   let newStatus: SyncState["status"];
-  if (resolved.hasAuthError || allConflicts.length > 0) {
+  if (resolved.hasAuthError || allConflicts.length > 0 || resolved.nonAuthErrorCount > 0) {
     newStatus = "needs_attention";
   } else if (remaining > 0) {
-    // 还有剩余，但本次 batch 成功 → 仍需下次 flush
-    newStatus = "synced";
+    // bounded batch 后仍有剩余 → 不能显示 synced
+    newStatus = "offline";
   } else {
     newStatus = "synced";
   }
