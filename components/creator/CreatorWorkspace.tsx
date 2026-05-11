@@ -1826,6 +1826,8 @@ export default function CreatorWorkspace({
           onRefreshTask={(taskId) => void refreshTaskStatus(taskId)}
           onRetryGeneration={submitGeneration}
           partialImages={partialImages}
+          workbenchMode={workbench.mode}
+          workbenchRetryAfter={workbench.retryAfter}
         />
 
         <Composer />

@@ -98,4 +98,29 @@ describe("ApiSettingsForm", () => {
       })
     ));
   });
+
+  it("shows login requirement when user is not authenticated", async () => {
+    const fetchSpy = vi.fn().mockImplementation((url) => {
+      if (url === "/api/session") {
+        return Promise.resolve(
+          new Response(JSON.stringify({ data: { authenticated: false } }), {
+            status: 200,
+            headers: { "content-type": "application/json" }
+          })
+        );
+      }
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+
+    render(
+      <SessionProvider>
+        <ApiSettingsForm />
+      </SessionProvider>
+    );
+
+    await waitFor(() => expect(screen.getByText(/需登录后配置/i)).toBeInTheDocument());
+    expect(screen.queryByLabelText("Sub2API Base URL")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("API Key")).not.toBeInTheDocument();
+  });
 });

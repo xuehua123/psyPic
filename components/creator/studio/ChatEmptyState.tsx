@@ -18,7 +18,6 @@ import SectionHeading from "@/components/creator/studio/SectionHeading";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
 import { Sparkles, KeyRound, AlertTriangle, WifiOff } from "lucide-react";
 import { useSession } from "@/components/auth/SessionProvider";
-import { useWorkbench } from "@/lib/creator/use-workbench";
 import { useState } from "react";
 import { AuthDialog } from "@/components/auth/AuthDialog";
 import Link from "next/link";
@@ -27,15 +26,18 @@ import { Button } from "@/components/ui/button";
 type ChatEmptyStateProps = {
   emptyTitle: string;
   emptyDescription: string;
+  workbenchMode?: "loading" | "server" | "fallback" | "auth_error";
+  workbenchRetryAfter?: string | null;
 };
 
 export default function ChatEmptyState({
   emptyTitle,
-  emptyDescription
+  emptyDescription,
+  workbenchMode,
+  workbenchRetryAfter
 }: ChatEmptyStateProps) {
   const { mvpTemplates, selectCommercialTemplate } = useCreatorStudio();
   const { state: sessionState } = useSession();
-  const workbench = useWorkbench();
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
 
   const quickTemplates = mvpTemplates.slice(0, 4);
@@ -88,10 +90,10 @@ export default function ChatEmptyState({
           <span className="template-pill">新对话</span>
           <h2>{emptyTitle}</h2>
           <p>{emptyDescription}</p>
-          {workbench.mode === "fallback" && (
+          {workbenchMode === "fallback" && (
             <div className="mt-2 text-sm text-yellow-600 dark:text-yellow-500 flex items-center justify-center gap-1">
               <WifiOff className="size-4" /> 本地离线模式：云端同步不可用
-              {workbench.retryAfter && ` (请稍后重试)`}
+              {workbenchRetryAfter && ` (请稍后重试)`}
             </div>
           )}
         </div>

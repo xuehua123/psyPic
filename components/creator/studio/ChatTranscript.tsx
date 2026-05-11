@@ -36,7 +36,9 @@ export default function ChatTranscript({
   onCancelTask,
   onRefreshTask,
   onRetryGeneration,
-  partialImages
+  partialImages,
+  workbenchMode,
+  workbenchRetryAfter
 }: {
   currentTask: CurrentTask | null;
   displayedVersionNodes: CreatorVersionNode[];
@@ -47,6 +49,8 @@ export default function ChatTranscript({
   onRefreshTask: (taskId: string) => void;
   onRetryGeneration: () => void;
   partialImages: GenerationImage[];
+  workbenchMode?: "loading" | "server" | "fallback" | "auth_error";
+  workbenchRetryAfter?: string | null;
 }) {
   return (
     <div
@@ -58,6 +62,8 @@ export default function ChatTranscript({
         <ChatEmptyState
           emptyDescription={emptyDescription}
           emptyTitle={emptyTitle}
+          workbenchMode={workbenchMode}
+          workbenchRetryAfter={workbenchRetryAfter}
         />
       ) : (
         displayedVersionNodes.map((node, index) => (
