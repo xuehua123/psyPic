@@ -28,6 +28,7 @@ export function useJobRuntimeEvents(options: {
 
   const fetchEvents = useCallback(async () => {
     if (!taskId && !versionNodeId) {
+      ++requestIdRef.current;
       setState(prev => ({ ...prev, events: [], mode: "ready", error: null }));
       return;
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useCreatorStudio } from "./CreatorStudioContext";
 import { useJobRuntimeEvents } from "@/lib/creator/use-job-runtime-events";
 import { Activity, AlertCircle, CheckCircle2, Clock, PlayCircle, XCircle } from "lucide-react";
@@ -50,6 +50,8 @@ export default function TaskDockSection({
     versionNodeId: targetNodeId
   });
 
+  const finalRefreshDoneRef = useRef<{ taskId: string; status: string } | null>(null);
+
   useEffect(() => {
     if (!activeTaskId || !activeTaskStatus) {
       return;
@@ -62,7 +64,18 @@ export default function TaskDockSection({
       activeTaskStatus === "timed_out";
 
     if (isTerminal) {
+      if (
+        finalRefreshDoneRef.current?.taskId !== activeTaskId ||
+        finalRefreshDoneRef.current?.status !== activeTaskStatus
+      ) {
+        finalRefreshDoneRef.current = { taskId: activeTaskId, status: activeTaskStatus };
+        void refresh();
+      }
       return;
+    }
+
+    if (finalRefreshDoneRef.current?.taskId !== activeTaskId) {
+      finalRefreshDoneRef.current = null;
     }
 
     const interval = setInterval(() => {

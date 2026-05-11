@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import TaskDockSection from "@/components/creator/studio/TaskDockSection";
 import * as useCreatorStudioModule from "@/components/creator/studio/CreatorStudioContext";
@@ -84,7 +84,10 @@ describe("TaskDockSection", () => {
         { id: "1", type: "queued", created_at: "2024-01-01T00:00:00Z" },
         { id: "2", type: "running", created_at: "2024-01-01T00:00:01Z" },
         { id: "3", type: "partial_image", created_at: "2024-01-01T00:00:02Z" },
-        { id: "4", type: "succeeded", created_at: "2024-01-01T00:00:03Z" }
+        { id: "4", type: "succeeded", created_at: "2024-01-01T00:00:03Z" },
+        { id: "5", type: "failed", created_at: "2024-01-01T00:00:04Z" },
+        { id: "6", type: "canceled", created_at: "2024-01-01T00:00:05Z" },
+        { id: "7", type: "timed_out", created_at: "2024-01-01T00:00:06Z" }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ] as any,
       isLoading: false,
@@ -103,6 +106,12 @@ describe("TaskDockSection", () => {
     expect(screen.getByText("生成预览图")).toBeInTheDocument();
     expect(screen.getByTestId("event-item-succeeded")).toBeInTheDocument();
     expect(screen.getByText("生成成功")).toBeInTheDocument();
+    expect(screen.getByTestId("event-item-failed")).toBeInTheDocument();
+    expect(screen.getByText("生成失败")).toBeInTheDocument();
+    expect(screen.getByTestId("event-item-canceled")).toBeInTheDocument();
+    expect(screen.getByText("已取消")).toBeInTheDocument();
+    expect(screen.getByTestId("event-item-timed_out")).toBeInTheDocument();
+    expect(screen.getByText("超时")).toBeInTheDocument();
   });
 
   it("handles auth_error mode", () => {
@@ -151,5 +160,97 @@ describe("TaskDockSection", () => {
     render(<TaskDockSection />);
 
     expect(screen.getByText("加载中...")).toBeInTheDocument();
+  });
+
+  it("polls while activeTaskStatus is not terminal", () => {
+    vi.useFakeTimers();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCreatorStudio.mockReturnValue({ activeNodeId: null } as any);
+    const mockRefresh = vi.fn();
+    mockUseJobRuntimeEvents.mockReturnValue({
+      events: [],
+      isLoading: false,
+      error: null,
+      mode: "ready",
+      refresh: mockRefresh
+    });
+
+    const { unmount } = render(<TaskDockSection activeTaskId="task_1" activeTaskStatus="running" />);
+
+    vi.advanceTimersByTime(2000);
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(2000);
+    expect(mockRefresh).toHaveBeenCalledTimes(2);
+
+    unmount();
+    vi.useRealTimers();
+  });
+
+  it("does final refresh when activeTaskStatus becomes terminal, then stops polling", () => {
+    vi.useFakeTimers();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCreatorStudio.mockReturnValue({ activeNodeId: null } as any);
+    const mockRefresh = vi.fn();
+    mockUseJobRuntimeEvents.mockReturnValue({
+      events: [],
+      isLoading: false,
+      error: null,
+      mode: "ready",
+      refresh: mockRefresh
+    });
+
+    const { rerender, unmount } = render(<TaskDockSection activeTaskId="task_1" activeTaskStatus="running" />);
+
+    vi.advanceTimersByTime(2000);
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+
+    rerender(<TaskDockSection activeTaskId="task_1" activeTaskStatus="succeeded" />);
+
+    // One final refresh should be called immediately because status changed to terminal
+    expect(mockRefresh).toHaveBeenCalledTimes(2);
+
+    // Polling should stop
+    vi.advanceTimersByTime(4000);
+    expect(mockRefresh).toHaveBeenCalledTimes(2);
+
+    unmount();
+    vi.useRealTimers();
+  });
+
+  it("target 清空后旧请求不能覆盖空状态 (stale request guard)", async () => {
+    const actualModule = await vi.importActual<typeof import("@/lib/creator/use-job-runtime-events")>("@/lib/creator/use-job-runtime-events");
+    const { useJobRuntimeEvents: actualUseJobRuntimeEvents } = actualModule;
+    
+    const workbenchApi = await import("@/lib/creator/workbench-api");
+    const spy = vi.spyOn(workbenchApi, "listJobRuntimeEvents").mockImplementation(async () => {
+      return new Promise(resolve => {
+        setTimeout(() => {
+          resolve({
+            success: true,
+            data: { items: [{ id: "delayed", type: "succeeded", created_at: "" }], next_cursor: null }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any);
+        }, 100);
+      });
+    });
+
+    const { result, rerender } = renderHook((props: Parameters<typeof actualUseJobRuntimeEvents>[0]) => actualUseJobRuntimeEvents(props), {
+      initialProps: { taskId: "task_1", versionNodeId: null, autoFetch: true } as Parameters<typeof actualUseJobRuntimeEvents>[0]
+    });
+
+    // We quickly clear the target before the fetch resolves
+    rerender({ taskId: null, versionNodeId: null, autoFetch: true });
+
+    // The state should be empty
+    expect(result.current.events).toEqual([]);
+
+    // Wait for the delayed fetch to complete
+    await waitFor(() => new Promise(r => setTimeout(r, 150)));
+
+    // Ensure the old fetch didn't overwrite the empty state
+    expect(result.current.events).toEqual([]);
+
+    spy.mockRestore();
   });
 });
