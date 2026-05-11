@@ -15,7 +15,10 @@ const mockWorkbenchReturn = vi.hoisted(() => {
     createProject: vi.fn().mockResolvedValue(null),
     renameProject: vi.fn().mockResolvedValue(false),
     deleteProject: vi.fn().mockResolvedValue(false),
-    refresh: vi.fn().mockResolvedValue(undefined)
+    refresh: vi.fn().mockResolvedValue(undefined),
+    syncState: { status: "synced", pendingCount: 0, conflicts: [], lastSyncTime: null, retryAfter: null },
+    flushSync: vi.fn().mockResolvedValue(undefined),
+    dismissSyncConflict: vi.fn()
   };
   return { value };
 });
@@ -46,7 +49,10 @@ describe("useProjects (no IndexedDB fallback)", () => {
       createProject: vi.fn().mockResolvedValue(null),
       renameProject: vi.fn().mockResolvedValue(false),
       deleteProject: vi.fn().mockResolvedValue(false),
-      refresh: vi.fn().mockResolvedValue(undefined)
+      refresh: vi.fn().mockResolvedValue(undefined),
+      syncState: { status: "synced" as const, pendingCount: 0, conflicts: [], lastSyncTime: null, retryAfter: null },
+      flushSync: vi.fn().mockResolvedValue(undefined),
+      dismissSyncConflict: vi.fn()
     };
   });
 
@@ -149,7 +155,10 @@ describe("useProjects (server mode isolation)", () => {
       createProject: vi.fn().mockResolvedValue(null),
       renameProject: vi.fn().mockResolvedValue(false),
       deleteProject: vi.fn().mockResolvedValue(false),
-      refresh: vi.fn().mockResolvedValue(undefined)
+      refresh: vi.fn().mockResolvedValue(undefined),
+      syncState: { status: "synced" as const, pendingCount: 0, conflicts: [], lastSyncTime: null, retryAfter: null },
+      flushSync: vi.fn().mockResolvedValue(undefined),
+      dismissSyncConflict: vi.fn()
     };
 
     const { result } = renderHook(() => useProjects());
@@ -170,7 +179,10 @@ describe("useProjects (server mode isolation)", () => {
       createProject: mockCreate,
       renameProject: vi.fn().mockResolvedValue(false),
       deleteProject: vi.fn().mockResolvedValue(false),
-      refresh: vi.fn().mockResolvedValue(undefined)
+      refresh: vi.fn().mockResolvedValue(undefined),
+      syncState: { status: "synced" as const, pendingCount: 0, conflicts: [], lastSyncTime: null, retryAfter: null },
+      flushSync: vi.fn().mockResolvedValue(undefined),
+      dismissSyncConflict: vi.fn()
     };
 
     const { result } = renderHook(() => useProjects());
@@ -207,7 +219,10 @@ describe("useProjects (server mode isolation)", () => {
       createProject: vi.fn().mockResolvedValue(null),
       renameProject: mockRename,
       deleteProject: vi.fn().mockResolvedValue(false),
-      refresh: vi.fn().mockResolvedValue(undefined)
+      refresh: vi.fn().mockResolvedValue(undefined),
+      syncState: { status: "synced" as const, pendingCount: 0, conflicts: [], lastSyncTime: null, retryAfter: null },
+      flushSync: vi.fn().mockResolvedValue(undefined),
+      dismissSyncConflict: vi.fn()
     };
 
     const { result } = renderHook(() => useProjects());
@@ -241,7 +256,10 @@ describe("useProjects (server mode isolation)", () => {
       createProject: vi.fn().mockResolvedValue(null),
       renameProject: vi.fn().mockResolvedValue(false),
       deleteProject: mockDelete,
-      refresh: vi.fn().mockResolvedValue(undefined)
+      refresh: vi.fn().mockResolvedValue(undefined),
+      syncState: { status: "synced" as const, pendingCount: 0, conflicts: [], lastSyncTime: null, retryAfter: null },
+      flushSync: vi.fn().mockResolvedValue(undefined),
+      dismissSyncConflict: vi.fn()
     };
 
     const { result } = renderHook(() => useProjects());

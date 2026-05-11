@@ -1802,6 +1802,10 @@ export default function CreatorWorkspace({
         onToggleArchiveSession={handleToggleArchiveSession}
         onTogglePinSession={handleTogglePinSession}
         sidebarProjects={sidebarProjects}
+        syncStatus={workbench.mode === "server" ? workbench.syncState.status : undefined}
+        syncPendingCount={workbench.syncState.pendingCount}
+        syncConflictCount={workbench.syncState.conflicts.length}
+        onSyncRetry={workbench.flushSync}
       />
 
       <section className="chat-workspace" data-testid="center-workspace">
@@ -1910,6 +1914,10 @@ export default function CreatorWorkspace({
               onToggleArchiveSession={handleToggleArchiveSession}
               onTogglePinSession={handleTogglePinSession}
               sidebarProjects={sidebarProjects}
+              syncStatus={workbench.mode === "server" ? workbench.syncState.status : undefined}
+              syncPendingCount={workbench.syncState.pendingCount}
+              syncConflictCount={workbench.syncState.conflicts.length}
+              onSyncRetry={workbench.flushSync}
             />
           </div>
         </SheetContent>

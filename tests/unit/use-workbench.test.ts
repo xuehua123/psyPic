@@ -8,19 +8,31 @@ const mockListProjects = vi.hoisted(() => vi.fn());
 const mockCreateProject = vi.hoisted(() => vi.fn());
 const mockUpdateProject = vi.hoisted(() => vi.fn());
 const mockDeleteProject = vi.hoisted(() => vi.fn());
+const mockPushWorkbenchChanges = vi.hoisted(() => vi.fn());
+const mockPullWorkbenchChanges = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/creator/workbench-api", () => ({
   listProjects: mockListProjects,
   createProject: mockCreateProject,
   updateProject: mockUpdateProject,
-  deleteProject: mockDeleteProject
+  deleteProject: mockDeleteProject,
+  pushWorkbenchChanges: mockPushWorkbenchChanges,
+  pullWorkbenchChanges: mockPullWorkbenchChanges
 }));
 
 // 模拟 workbench-cache-store（jsdom 无真实 IndexedDB）
 vi.mock("@/lib/creator/workbench-cache-store", () => ({
   listCachedProjects: vi.fn().mockResolvedValue([]),
   saveCachedProject: vi.fn().mockResolvedValue(undefined),
-  deleteCachedProject: vi.fn().mockResolvedValue(undefined)
+  deleteCachedProject: vi.fn().mockResolvedValue(undefined),
+  deleteCachedSession: vi.fn().mockResolvedValue(undefined),
+  deleteCachedVersionNode: vi.fn().mockResolvedValue(undefined)
+}));
+
+// 模拟 workbench-outbox-store
+vi.mock("@/lib/creator/workbench-outbox-store", () => ({
+  listOutboxOperations: vi.fn().mockResolvedValue([]),
+  removeOutboxOperations: vi.fn().mockResolvedValue(undefined)
 }));
 
 const SERVER_PROJECT = {
@@ -191,5 +203,34 @@ describe("useWorkbench", () => {
 
     expect(success).toBe(true);
     expect(mockDeleteProject).toHaveBeenCalledWith("proj_server_1");
+  });
+
+  it("exposes initial syncState as synced", async () => {
+    mockListProjects.mockResolvedValue({
+      success: true,
+      data: { items: [SERVER_PROJECT], next_cursor: null },
+      requestId: "req_1"
+    });
+
+    const { result } = renderHook(() => useWorkbench());
+    await waitFor(() => expect(result.current.mode).toBe("server"));
+
+    expect(result.current.syncState.status).toBe("synced");
+    expect(result.current.syncState.pendingCount).toBe(0);
+    expect(result.current.syncState.conflicts).toHaveLength(0);
+  });
+
+  it("provides flushSync and dismissSyncConflict methods", async () => {
+    mockListProjects.mockResolvedValue({
+      success: true,
+      data: { items: [SERVER_PROJECT], next_cursor: null },
+      requestId: "req_1"
+    });
+
+    const { result } = renderHook(() => useWorkbench());
+    await waitFor(() => expect(result.current.mode).toBe("server"));
+
+    expect(typeof result.current.flushSync).toBe("function");
+    expect(typeof result.current.dismissSyncConflict).toBe("function");
   });
 });
