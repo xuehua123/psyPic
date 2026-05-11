@@ -21,6 +21,17 @@ vi.mock("@/lib/creator/use-workbench", () => ({
   })
 }));
 
+// mock useJobRuntimeEvents to avoid consuming fetchSpy mock chain
+vi.mock("@/lib/creator/use-job-runtime-events", () => ({
+  useJobRuntimeEvents: () => ({
+    events: [],
+    isLoading: false,
+    error: null,
+    mode: "ready",
+    refresh: vi.fn()
+  })
+}));
+
 // getSession mock：阻止 SessionProvider 在 mount 时发起真实 fetch，避免消耗测试 fetchSpy chain
 vi.mock("@/lib/client/session-api", () => ({
   getSession: vi.fn().mockResolvedValue({

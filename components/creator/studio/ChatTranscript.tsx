@@ -22,6 +22,7 @@ import ChatEmptyState from "@/components/creator/studio/ChatEmptyState";
 import ChatTurn from "@/components/creator/studio/ChatTurn";
 import PartialPreviewStrip from "@/components/creator/studio/PartialPreviewStrip";
 import TaskStatusStrip from "@/components/creator/studio/TaskStatusStrip";
+import TaskDockSection from "@/components/creator/studio/TaskDockSection";
 
 import type { CurrentTask, GenerationImage } from "@/lib/creator/types";
 import type { CreatorVersionNode } from "@/lib/creator/version-graph";
@@ -71,6 +72,8 @@ export default function ChatTranscript({
         onRefreshTask={onRefreshTask}
         onRetryGeneration={onRetryGeneration}
       />
+
+      <TaskDockSection activeTaskId={currentTask?.id} />
 
       <PartialPreviewStrip partialImages={partialImages} />
     </div>

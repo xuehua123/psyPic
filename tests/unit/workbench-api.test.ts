@@ -45,4 +45,13 @@ describe("workbench-api", () => {
     // 前端不应该暴露 deleteVersionNode，删除必须走 sync push。
     expect("deleteVersionNode" in workbenchApi).toBe(false);
   });
+
+  it("calls listJobRuntimeEvents with correct url parameters", async () => {
+    mockFetchApi.mockResolvedValue({ success: true, data: { items: [], next_cursor: null } });
+    await workbenchApi.listJobRuntimeEvents("task_1", undefined, "cur_x", 15);
+    expect(mockFetchApi).toHaveBeenCalledWith("/api/workbench/job-runtime-events?task_id=task_1&cursor=cur_x&limit=15");
+
+    await workbenchApi.listJobRuntimeEvents(undefined, "node_1", undefined, 50);
+    expect(mockFetchApi).toHaveBeenCalledWith("/api/workbench/job-runtime-events?version_node_id=node_1&limit=50");
+  });
 });
