@@ -59,8 +59,8 @@ vi.mock("@/components/auth/SessionProvider", async (importOriginal) => {
         status: "loaded",
         data: {
           authenticated: true,
-          user: { display_name: "Test User" },
-          binding: true,
+          user: { id: "user-1", email: "test@example.com", display_name: "Test User", role: "user", last_login_at: "2026-05-11T00:00:00Z" },
+          binding: { id: "binding-1", base_url: "https://api.openai.com", default_model: "gpt-4", enabled_models: ["gpt-4"] },
           limits: null,
           features: null
         }
@@ -1656,8 +1656,8 @@ describe("CreatorWorkspace", () => {
         status: "loaded",
         data: {
           authenticated: true,
-          user: { display_name: "Test User" },
-          binding: true,
+          user: { id: "user-1", email: "test@example.com", display_name: "Test User", role: "user", last_login_at: "2026-05-11T00:00:00Z" },
+          binding: { id: "binding-1", base_url: "https://api.openai.com", default_model: "gpt-4", enabled_models: ["gpt-4"] },
           limits: null,
           features: null
         }
@@ -1670,7 +1670,7 @@ describe("CreatorWorkspace", () => {
       mode: "fallback",
       serverProjects: [],
       rawServerProjects: [],
-      retryAfter: new Date(),
+      retryAfter: new Date().toISOString(),
       createProject: vi.fn(),
       renameProject: vi.fn(),
       deleteProject: vi.fn(),
