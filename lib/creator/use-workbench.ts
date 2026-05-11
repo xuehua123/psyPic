@@ -250,27 +250,13 @@ export function useWorkbench(): UseWorkbenchReturn {
       }
 
       if (isRetryableError(code)) {
-        // 503/network_error → 写入 outbox + optimistic cache
+        // 503/network_error → 写入 outbox + 真实 optimistic cache/state update
         const mutId = nextMutationId();
         const optimisticId = `optimistic_${mutId}`;
         const now = new Date().toISOString();
 
-        await addOutboxOperation({
-          client_mutation_id: mutId,
-          entity: "project",
-          action: "upsert",
-          data: { id: optimisticId, title, updated_at: now }
-        }).catch(() => {});
-
-        setSyncState((prev) => ({
-          ...prev,
-          status: "offline",
-          pendingCount: prev.pendingCount + 1,
-          retryAfter: result.retryAfter ?? prev.retryAfter
-        }));
-
-        // optimistic：返回假 project 给 UI
-        return {
+        // 构造完整 optimistic WorkbenchProject
+        const optimisticProject: WorkbenchProject = {
           id: optimisticId,
           user_id: "",
           title,
@@ -281,6 +267,29 @@ export function useWorkbench(): UseWorkbenchReturn {
           updated_at: now,
           deleted_at: null
         };
+
+        await addOutboxOperation({
+          client_mutation_id: mutId,
+          entity: "project",
+          action: "upsert",
+          data: { id: optimisticId, title, updated_at: now }
+        }).catch(() => {});
+
+        // 写入 cache
+        await saveCachedProject(optimisticProject).catch(() => {});
+
+        // 立即更新 hook state
+        setRawServerProjects((prev) => [...prev, optimisticProject]);
+        setServerProjects((prev) => [...prev, mapWorkbenchProjectToStoredProject(optimisticProject)]);
+
+        setSyncState((prev) => ({
+          ...prev,
+          status: "offline",
+          pendingCount: prev.pendingCount + 1,
+          retryAfter: result.retryAfter ?? prev.retryAfter
+        }));
+
+        return optimisticProject;
       }
 
       return null;
@@ -307,12 +316,32 @@ export function useWorkbench(): UseWorkbenchReturn {
 
       if (isRetryableError(code)) {
         const mutId = nextMutationId();
+        const now = new Date().toISOString();
+
         await addOutboxOperation({
           client_mutation_id: mutId,
           entity: "project",
           action: "upsert",
-          data: { id, title, updated_at: new Date().toISOString() }
+          data: { id, title, updated_at: now }
         }).catch(() => {});
+
+        // 找到现有 project 构建 updated optimistic project
+        setRawServerProjects((prev) => {
+          const updated = prev.map((p) =>
+            p.id === id ? { ...p, title, updated_at: now } : p
+          );
+          // 同步写 cache（找到更新后的项）
+          const found = updated.find((p) => p.id === id);
+          if (found) {
+            void saveCachedProject(found).catch(() => {});
+          }
+          return updated;
+        });
+        setServerProjects((prev) =>
+          prev.map((p) =>
+            p.id === id ? { ...p, title, updatedAt: now } : p
+          )
+        );
 
         setSyncState((prev) => ({
           ...prev,
@@ -355,8 +384,10 @@ export function useWorkbench(): UseWorkbenchReturn {
           data: { id, updated_at: new Date().toISOString() }
         }).catch(() => {});
 
-        // optimistic cache delete
+        // optimistic cache delete + 立即更新 hook state
         await deleteCachedProject(id).catch(() => {});
+        setRawServerProjects((prev) => prev.filter((p) => p.id !== id));
+        setServerProjects((prev) => prev.filter((p) => p.id !== id));
 
         setSyncState((prev) => ({
           ...prev,

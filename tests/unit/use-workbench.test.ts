@@ -21,10 +21,13 @@ vi.mock("@/lib/creator/workbench-api", () => ({
 }));
 
 // 模拟 workbench-cache-store（jsdom 无真实 IndexedDB）
+const mockSaveCachedProject = vi.hoisted(() => vi.fn());
+const mockDeleteCachedProject = vi.hoisted(() => vi.fn());
+
 vi.mock("@/lib/creator/workbench-cache-store", () => ({
   listCachedProjects: vi.fn().mockResolvedValue([]),
-  saveCachedProject: vi.fn().mockResolvedValue(undefined),
-  deleteCachedProject: vi.fn().mockResolvedValue(undefined),
+  saveCachedProject: mockSaveCachedProject,
+  deleteCachedProject: mockDeleteCachedProject,
   deleteCachedSession: vi.fn().mockResolvedValue(undefined),
   deleteCachedVersionNode: vi.fn().mockResolvedValue(undefined)
 }));
@@ -53,6 +56,8 @@ const SERVER_PROJECT = {
 describe("useWorkbench", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSaveCachedProject.mockResolvedValue(undefined);
+    mockDeleteCachedProject.mockResolvedValue(undefined);
   });
 
   it("enters server mode when listProjects succeeds", async () => {
@@ -258,7 +263,7 @@ describe("useWorkbench", () => {
       created = await result.current.createProject("Offline Project");
     });
 
-    // optimistic 返回了假 project
+    // optimistic 返回了完整 project
     expect(created).not.toBeNull();
     expect(created!.title).toBe("Offline Project");
     // 写入了 outbox
@@ -268,6 +273,16 @@ describe("useWorkbench", () => {
         action: "upsert",
         data: expect.objectContaining({ title: "Offline Project" })
       })
+    );
+    // cache 写入
+    expect(mockSaveCachedProject).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Offline Project", deleted_at: null })
+    );
+    // hook state 立即更新
+    expect(result.current.serverProjects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: "Offline Project" })
+      ])
     );
     // syncState 更新
     expect(result.current.syncState.status).toBe("offline");
@@ -302,6 +317,13 @@ describe("useWorkbench", () => {
         data: expect.objectContaining({ id: "proj_server_1", title: "Renamed Offline" })
       })
     );
+    // cache 写入
+    expect(mockSaveCachedProject).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "proj_server_1", title: "Renamed Offline" })
+    );
+    // hook state 立即更新
+    const renamed = result.current.serverProjects.find((p) => p.id === "proj_server_1");
+    expect(renamed?.title).toBe("Renamed Offline");
     expect(result.current.syncState.status).toBe("offline");
     expect(result.current.syncState.pendingCount).toBe(1);
   });
@@ -335,6 +357,11 @@ describe("useWorkbench", () => {
         data: expect.objectContaining({ id: "proj_server_1" })
       })
     );
+    // cache 删除
+    expect(mockDeleteCachedProject).toHaveBeenCalledWith("proj_server_1");
+    // hook state 立即移除
+    const found = result.current.serverProjects.find((p) => p.id === "proj_server_1");
+    expect(found).toBeUndefined();
     expect(result.current.syncState.status).toBe("offline");
   });
 
