@@ -73,7 +73,7 @@ export default function ChatTranscript({
         onRetryGeneration={onRetryGeneration}
       />
 
-      <TaskDockSection activeTaskId={currentTask?.id} />
+      <TaskDockSection activeTaskId={currentTask?.id} activeTaskStatus={currentTask?.status} />
 
       <PartialPreviewStrip partialImages={partialImages} />
     </div>

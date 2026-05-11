@@ -136,4 +136,20 @@ describe("TaskDockSection", () => {
 
     expect(screen.getByText("无法连接服务器，暂时无法查看日志")).toBeInTheDocument();
   });
+
+  it("handles loading mode with empty events", () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCreatorStudio.mockReturnValue({ activeNodeId: "node_1" } as any);
+    mockUseJobRuntimeEvents.mockReturnValue({
+      events: [],
+      isLoading: true,
+      error: null,
+      mode: "loading",
+      refresh: vi.fn()
+    });
+
+    render(<TaskDockSection />);
+
+    expect(screen.getByText("加载中...")).toBeInTheDocument();
+  });
 });

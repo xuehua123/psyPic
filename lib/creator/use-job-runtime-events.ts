@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { listJobRuntimeEvents } from "./workbench-api";
 import type { WorkbenchJobRuntimeEvent } from "./workbench-types";
 
@@ -24,13 +24,17 @@ export function useJobRuntimeEvents(options: {
     mode: "ready"
   });
 
+  const requestIdRef = useRef(0);
+
   const fetchEvents = useCallback(async () => {
     if (!taskId && !versionNodeId) {
       setState(prev => ({ ...prev, events: [], mode: "ready", error: null }));
       return;
     }
 
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    const currentRequestId = ++requestIdRef.current;
+
+    setState(prev => ({ ...prev, isLoading: true, error: null, mode: "loading" }));
 
     // Fetch up to a reasonable limit for the dock, e.g. 50
     const result = await listJobRuntimeEvents(
@@ -39,6 +43,10 @@ export function useJobRuntimeEvents(options: {
       undefined,
       50
     );
+
+    if (currentRequestId !== requestIdRef.current) {
+      return;
+    }
 
     if (result.success) {
       setState({

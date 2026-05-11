@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useCreatorStudio } from "./CreatorStudioContext";
 import { useJobRuntimeEvents } from "@/lib/creator/use-job-runtime-events";
 import { Activity, AlertCircle, CheckCircle2, Clock, PlayCircle, XCircle } from "lucide-react";
@@ -32,9 +33,11 @@ function getStatusLabel(type: WorkbenchJobRuntimeEventType) {
 }
 
 export default function TaskDockSection({
-  activeTaskId
+  activeTaskId,
+  activeTaskStatus
 }: {
   activeTaskId?: string | null;
+  activeTaskStatus?: string | null;
 }) {
   const { activeNodeId } = useCreatorStudio();
 
@@ -42,10 +45,32 @@ export default function TaskDockSection({
   const targetTaskId = activeTaskId || null;
   const targetNodeId = activeTaskId ? null : activeNodeId;
 
-  const { events, mode, isLoading } = useJobRuntimeEvents({
+  const { events, mode, isLoading, refresh } = useJobRuntimeEvents({
     taskId: targetTaskId,
     versionNodeId: targetNodeId
   });
+
+  useEffect(() => {
+    if (!activeTaskId || !activeTaskStatus) {
+      return;
+    }
+
+    const isTerminal =
+      activeTaskStatus === "succeeded" ||
+      activeTaskStatus === "failed" ||
+      activeTaskStatus === "canceled" ||
+      activeTaskStatus === "timed_out";
+
+    if (isTerminal) {
+      return;
+    }
+
+    const interval = setInterval(() => {
+      void refresh();
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [activeTaskId, activeTaskStatus, refresh]);
 
   if (!targetTaskId && !targetNodeId) {
     return (
@@ -71,7 +96,9 @@ export default function TaskDockSection({
         <div className="text-yellow-600 text-sm">无法连接服务器，暂时无法查看日志</div>
       ) : mode === "error" ? (
         <div className="text-red-500 text-sm">加载任务日志失败</div>
-      ) : events.length === 0 && !isLoading ? (
+      ) : mode === "loading" && events.length === 0 ? (
+        <div className="text-muted-foreground text-sm">加载中...</div>
+      ) : events.length === 0 ? (
         <div className="text-muted-foreground text-sm">暂无日志事件</div>
       ) : (
         <div className="flex flex-col gap-2 max-h-[150px] overflow-y-auto pr-2">
