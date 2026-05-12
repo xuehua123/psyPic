@@ -54,24 +54,29 @@ describe("CommunityWorkDetailPage", () => {
     expect(screen.getByText("PsyPic")).toBeInTheDocument();
   });
 
-  it.skip("loads a same-generation draft without exposing hidden fields", async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          data: {
-            draft: {
-              prompt: "按公开标签生成相似商业图片。",
-              params: {
-                size: "1024x1024",
-                quality: "medium"
+  it("loads a same-generation draft without exposing hidden fields", async () => {
+    const fetchSpy = vi.fn().mockImplementation((url: string) => {
+      if (url === "/api/session") {
+        return Promise.resolve(new Response(JSON.stringify({ data: { user: null } }), { status: 200 }));
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              draft: {
+                prompt: "按公开标签生成相似商业图片。",
+                params: {
+                  size: "1024x1024",
+                  quality: "medium"
+                }
               }
-            }
-          },
-          request_id: "psypic_req_same_123"
-        }),
-        { status: 200, headers: { "content-type": "application/json" } }
-      )
-    );
+            },
+            request_id: "psypic_req_same_123"
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      );
+    });
     vi.stubGlobal("fetch", fetchSpy);
 
     render(
@@ -111,18 +116,23 @@ describe("CommunityWorkDetailPage", () => {
     );
   });
 
-  it.skip("submits reports from the detail page", async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          data: {
-            report_id: "report_detail_123",
-            status: "open"
-          }
-        }),
-        { status: 200, headers: { "content-type": "application/json" } }
-      )
-    );
+  it("submits reports from the detail page", async () => {
+    const fetchSpy = vi.fn().mockImplementation((url: string) => {
+      if (url === "/api/session") {
+        return Promise.resolve(new Response(JSON.stringify({ data: { user: null } }), { status: 200 }));
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              report_id: "report_detail_123",
+              status: "open"
+            }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      );
+    });
     vi.stubGlobal("fetch", fetchSpy);
 
     render(
