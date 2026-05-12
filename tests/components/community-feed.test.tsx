@@ -62,18 +62,23 @@ describe("CommunityFeedPage", () => {
     ).not.toBeInTheDocument();
   });
 
-  it.skip("updates like state from the feed card", async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          data: {
-            like_count: 4,
-            liked: true
-          }
-        }),
-        { status: 200, headers: { "content-type": "application/json" } }
-      )
-    );
+  it("updates like state from the feed card", async () => {
+    const fetchSpy = vi.fn().mockImplementation((url: string) => {
+      if (url === "/api/session") {
+        return Promise.resolve(new Response(JSON.stringify({ data: { user: null } }), { status: 200 }));
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: {
+              like_count: 4,
+              liked: true
+            }
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        )
+      );
+    });
     vi.stubGlobal("fetch", fetchSpy);
 
     render(
