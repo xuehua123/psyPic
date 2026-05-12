@@ -4,11 +4,6 @@ import path from "node:path";
 
 test.describe.configure({ mode: "serial" });
 
-const testUser = {
-  email: `e2e-workbench-${Date.now()}@example.com`,
-  password: "Password123!"
-};
-
 async function bindE2ESession(page: Page, role: "admin" | "user") {
   const response = await page.request.post("/api/e2e/session", {
     data: { role },
