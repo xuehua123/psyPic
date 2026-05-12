@@ -15,12 +15,13 @@
 ## 3. 前后端契约现状分析
 - **后端已就绪**：
   - `VersionNode` 已经支持存储 Board 快照与关联关系。
-  - `/api/images/edits` 原生支持接收 `image` (Reference) 和 `mask` 参数，只需前端将 Board 导出为这两种格式即可直接对接，无需后端新开“基于 Board 生成”的专用接口。
+  - `/api/images/edits` 除了原生支持接收 `image` (Reference) 和 `mask` 参数外，已经支持接收 `board_document_id`、`board_snapshot`、`board_export_asset_id`。
+  - **重要契约**：Board edit submit 时必须同时传 `image/mask` 和 `board_*` context 字段，这样 `board_*` 才能写入并绑定到新产生的 `VersionNode` 上。当**没有** Board context 时（即原有流程），**不得**发送任何 `board_*` 字段，以确保原有的 generation/edit 流程原封不动，不受影响。
 - **前端待实现**：
   - 基于 Konva 的 Board Canvas UI 及相关控制面板（Layer / Transform / Brush）。
   - BoardDocument 本地 IndexedDB 存储（local-first 策略）。
   - Board 展平导出逻辑（导出为主图 PNG 和 alpha mask PNG）。
-  - `generation-context.ts` 中需要在发起生成请求时，补充附带 `board_document_id` 等字段到上下文中，以便写入 VersionNode。
+  - `generation-context.ts` 中需要在发起生成请求时，扩展其内部类型与 helper 方法以支持附带 `board_document_id`、`board_snapshot` 等字段到上下文中，以便写入 VersionNode。
 
 ## 4. 第一阶段核心禁令 (Non-breaking Rule)
 - Board Mode 第一阶段**绝对不能破坏**现有的 Chat / VersionNode / Generation 流程。
@@ -34,7 +35,7 @@
 - **目标**：建立 BoardDocument 和 BoardLayer 的类型定义，并在前端实现 IndexedDB 的本地存储层。
 - **文件范围**：
   - `lib/creator/board/types.ts`
-  - `lib/creator/board/board-store.ts` (基于 idb 或类似封装)
+  - `lib/creator/board/board-store.ts` (要求复用项目现有 IndexedDB / Dexie / store 模式，与 workbench-cache-store 或 workbench-outbox-store 风格保持一致，**切勿**引入另一套全新的本地存储抽象)
 - **验收条件**：定义完整的数据模型，并且可以通过单元测试进行存取验证。
 - **禁止事项**：不要编写任何 React UI 代码，不要引入 Konva。
 
@@ -44,7 +45,7 @@
   - `components/creator/CreatorWorkspace.tsx`
   - `components/creator/board/BoardMode.tsx`
   - `components/creator/board/BoardStage.tsx`
-- **验收条件**：用户可在顶部 Tab 切换 "Transcript" 和 "Board"。切换到 Board 时展示一个空白的 Konva Canvas 及空占位符面板。
+- **验收条件**：用户可在顶部 Tab 切换 "Transcript" 和 "Board"。切换到 Board 时展示一个空白的 Konva Canvas 及空占位符面板。由于当前项目尚无 konva/react-konva，引入时必须更新 `package.json` 和 `pnpm-lock.yaml`；同时**必须**使用 client-only 或 dynamic import 等价策略，以避免 Next.js SSR 或 window/canvas is not defined 问题。验收必须包含 Canvas 渲染出的 non-blank smoke test 或组件测试验证，不能只看页面能否打开。
 - **禁止事项**：不要实现复杂的拖拽与图层操作逻辑。
 
 ### Cut 3: Asset/layer placement
