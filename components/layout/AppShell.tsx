@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 
 import AppTopNav from "@/components/layout/AppTopNav";
+import { SessionProvider } from "@/components/auth/SessionProvider";
 import { cn } from "@/lib/utils";
 
 type AppShellProps = {
@@ -23,10 +24,11 @@ export default function AppShell({
   bodyClassName
 }: AppShellProps) {
   return (
-    <div
-      className="flex h-dvh min-h-dvh flex-col overflow-hidden bg-background text-foreground"
-      data-testid="app-shell"
-    >
+    <SessionProvider>
+      <div
+        className="flex h-dvh min-h-dvh flex-col overflow-hidden bg-background text-foreground"
+        data-testid="app-shell"
+      >
       <AppTopNav currentPath={currentPath} showAdminLink={showAdminLink} />
       <div
         className={cn(
@@ -37,5 +39,6 @@ export default function AppShell({
         {children}
       </div>
     </div>
+    </SessionProvider>
   );
 }

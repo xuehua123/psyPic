@@ -61,6 +61,7 @@
     "autoprefixer": "latest",
     "eslint": "latest",
     "eslint-plugin-react-hooks": "latest",
+    "fake-indexeddb": "^6.2.5",
     "globals": "latest",
     "jsdom": "latest",
     "postcss": "latest",

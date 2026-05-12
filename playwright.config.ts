@@ -28,14 +28,14 @@ export default defineConfig({
       SESSION_SECRET: "psypic-e2e-session-secret",
       SUB2API_TIMEOUT_MS: "30000"
     },
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
     url: `${baseURL}/api/health`
   },
   projects: [
     {
       name: "desktop-chromium",
-      testMatch: /.*\.desktop\.spec\.ts/,
+      testMatch: /.*(\.desktop|workbench-.*)\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1440, height: 1000 }
@@ -43,7 +43,7 @@ export default defineConfig({
     },
     {
       name: "mobile-chromium",
-      testMatch: /.*\.mobile\.spec\.ts/,
+      testMatch: /.*(\.mobile|workbench-.*)\.spec\.ts/,
       use: {
         ...devices["Pixel 5"]
       }

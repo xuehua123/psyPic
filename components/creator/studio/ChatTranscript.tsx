@@ -22,6 +22,7 @@ import ChatEmptyState from "@/components/creator/studio/ChatEmptyState";
 import ChatTurn from "@/components/creator/studio/ChatTurn";
 import PartialPreviewStrip from "@/components/creator/studio/PartialPreviewStrip";
 import TaskStatusStrip from "@/components/creator/studio/TaskStatusStrip";
+import TaskDockSection from "@/components/creator/studio/TaskDockSection";
 
 import type { CurrentTask, GenerationImage } from "@/lib/creator/types";
 import type { CreatorVersionNode } from "@/lib/creator/version-graph";
@@ -35,7 +36,9 @@ export default function ChatTranscript({
   onCancelTask,
   onRefreshTask,
   onRetryGeneration,
-  partialImages
+  partialImages,
+  workbenchMode,
+  workbenchRetryAfter
 }: {
   currentTask: CurrentTask | null;
   displayedVersionNodes: CreatorVersionNode[];
@@ -46,6 +49,8 @@ export default function ChatTranscript({
   onRefreshTask: (taskId: string) => void;
   onRetryGeneration: () => void;
   partialImages: GenerationImage[];
+  workbenchMode?: "loading" | "server" | "fallback" | "auth_error";
+  workbenchRetryAfter?: string | null;
 }) {
   return (
     <div
@@ -57,6 +62,8 @@ export default function ChatTranscript({
         <ChatEmptyState
           emptyDescription={emptyDescription}
           emptyTitle={emptyTitle}
+          workbenchMode={workbenchMode}
+          workbenchRetryAfter={workbenchRetryAfter}
         />
       ) : (
         displayedVersionNodes.map((node, index) => (
@@ -71,6 +78,8 @@ export default function ChatTranscript({
         onRefreshTask={onRefreshTask}
         onRetryGeneration={onRetryGeneration}
       />
+
+      <TaskDockSection activeTaskId={currentTask?.id} activeTaskStatus={currentTask?.status} />
 
       <PartialPreviewStrip partialImages={partialImages} />
     </div>

@@ -16,19 +16,72 @@
 
 import SectionHeading from "@/components/creator/studio/SectionHeading";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
-import { Sparkles } from "lucide-react";
+import { Sparkles, KeyRound, AlertTriangle, WifiOff } from "lucide-react";
+import { useSession } from "@/components/auth/SessionProvider";
+import { useState } from "react";
+import { AuthDialog } from "@/components/auth/AuthDialog";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
 type ChatEmptyStateProps = {
   emptyTitle: string;
   emptyDescription: string;
+  workbenchMode?: "loading" | "server" | "fallback" | "auth_error";
+  workbenchRetryAfter?: string | null;
 };
 
 export default function ChatEmptyState({
   emptyTitle,
-  emptyDescription
+  emptyDescription,
+  workbenchMode,
+  workbenchRetryAfter
 }: ChatEmptyStateProps) {
   const { mvpTemplates, selectCommercialTemplate } = useCreatorStudio();
+  const { state: sessionState } = useSession();
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
+
   const quickTemplates = mvpTemplates.slice(0, 4);
+
+  if (sessionState.status === "loaded" && !sessionState.data.authenticated) {
+    return (
+      <section className="chat-empty-state" data-testid="active-gallery">
+        <div className="studio-empty-state-panel">
+          <div className="studio-empty-state-copy">
+            <span className="template-pill !bg-blue-500/10 !text-blue-600 dark:!text-blue-400">
+              <KeyRound className="inline mr-1 size-3" /> 未登录
+            </span>
+            <h2>欢迎使用 PsyPic 工作台</h2>
+            <p>登录以使用云端项目同步与 API 商业生图额度。</p>
+            <div className="mt-4">
+              <Button onClick={() => setAuthDialogOpen(true)}>登录 / 注册</Button>
+              <AuthDialog onOpenChange={setAuthDialogOpen} open={authDialogOpen} />
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (sessionState.status === "loaded" && sessionState.data.authenticated && !sessionState.data.binding) {
+    return (
+      <section className="chat-empty-state" data-testid="active-gallery">
+        <div className="studio-empty-state-panel">
+          <div className="studio-empty-state-copy">
+            <span className="template-pill !bg-orange-500/10 !text-orange-600 dark:!text-orange-400">
+              <AlertTriangle className="inline mr-1 size-3" /> 缺少 API Key
+            </span>
+            <h2>未绑定 API Key</h2>
+            <p>您已登录，但尚未绑定生图服务凭证。请前往设置页面配置 Manual Key 后继续。</p>
+            <div className="mt-4">
+              <Button asChild>
+                <Link href="/settings">前往设置</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="chat-empty-state" data-testid="active-gallery">
@@ -37,6 +90,12 @@ export default function ChatEmptyState({
           <span className="template-pill">新对话</span>
           <h2>{emptyTitle}</h2>
           <p>{emptyDescription}</p>
+          {workbenchMode === "fallback" && (
+            <div className="mt-2 text-sm text-yellow-600 dark:text-yellow-500 flex items-center justify-center gap-1">
+              <WifiOff className="size-4" /> 本地离线模式：云端同步不可用
+              {workbenchRetryAfter && ` (请稍后重试)`}
+            </div>
+          )}
         </div>
         {quickTemplates.length > 0 ? (
           <div className="studio-empty-templates" aria-label="常用模板快捷入口">

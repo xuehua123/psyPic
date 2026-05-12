@@ -3,6 +3,8 @@
 import { KeyRound, Save } from "lucide-react";
 import { type FormEvent, useState } from "react";
 
+import { useSession } from "@/components/auth/SessionProvider";
+import { bindManualKey } from "@/lib/client/manual-key-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,6 +30,22 @@ export default function ApiSettingsForm() {
   });
   const [message, setMessage] = useState("");
   const [variant, setVariant] = useState<"success" | "error" | null>(null);
+  const { state, refreshSession } = useSession();
+
+  if (state.status === "loading") {
+    return <div className="text-sm text-muted-foreground py-4">加载状态中...</div>;
+  }
+
+  if (state.status === "loaded" && !state.data.authenticated) {
+    return (
+      <div className="text-sm text-muted-foreground py-4 flex flex-col gap-2">
+        <div className="flex items-center gap-2 text-foreground font-medium">
+          <KeyRound className="size-4" /> 需登录后配置
+        </div>
+        请先在右上角或工作台完成登录，然后在此绑定 API Key。
+      </div>
+    );
+  }
 
   function updateDraft<Key extends keyof DraftSettings>(
     key: Key,
@@ -41,24 +59,21 @@ export default function ApiSettingsForm() {
     setMessage("");
     setVariant(null);
 
-    const response = await fetch("/api/settings/manual-key", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        base_url: draft.baseUrl,
-        api_key: draft.apiKey,
-        default_model: draft.defaultModel
-      })
-    });
+    const result = await bindManualKey(
+      draft.baseUrl,
+      draft.apiKey,
+      draft.defaultModel
+    );
 
-    if (response.ok) {
+    if (result.success) {
       setDraft((current) => ({ ...current, apiKey: "" }));
       setMessage("已通过 BFF 建立 key binding。");
       setVariant("success");
+      await refreshSession();
       return;
     }
 
-    setMessage("保存失败，请检查 Base URL 和 API Key。");
+    setMessage(result.error.message || "保存失败，请检查 Base URL 和 API Key。");
     setVariant("error");
   }
 

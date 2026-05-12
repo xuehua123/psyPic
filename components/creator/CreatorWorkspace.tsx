@@ -106,6 +106,13 @@ import {
   type ImageGenerationParams,
   type Style
 } from "@/lib/validation/image-params";
+import { useWorkbench } from "@/lib/creator/use-workbench";
+import {
+  injectWorkbenchContext,
+  appendWorkbenchContextToFormData
+} from "@/lib/creator/generation-context";
+import { useVersionNodes } from "@/lib/creator/use-version-nodes";
+import { ensureGenerationContext } from "@/lib/creator/ensure-generation-context";
 
 const maskCanvasSize = 512;
 const defaultTemplateId = "tpl_ecommerce_main";
@@ -222,6 +229,43 @@ export default function CreatorWorkspace({
     markRead: markBranchRead,
     markUnread: markBranchUnread
   } = useBranchMeta();
+  const workbench = useWorkbench();
+
+  // Fix #1：server projects 加载后自动对齐 activeProjectId
+  // 如果当前 activeProjectId 不在 creatorProjects 列表中，自动切到第一个
+  useEffect(() => {
+    if (creatorProjects.length === 0) return;
+    const exists = creatorProjects.some((p) => p.id === activeProjectId);
+    if (!exists) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setActiveProjectId(creatorProjects[0].id as CreatorProjectId);
+    }
+  }, [creatorProjects, activeProjectId]);
+
+  // server 模式下当前 project 对应的 active_session_id
+  const activeServerSessionId = useMemo(() => {
+    if (workbench.mode !== "server") return null;
+    const rawProject = workbench.rawServerProjects.find(
+      (p) => p.id === activeProjectId
+    );
+    return rawProject?.active_session_id ?? null;
+  }, [workbench.mode, workbench.rawServerProjects, activeProjectId]);
+
+  // server-first VersionNode 加载
+  const {
+    nodes: serverVersionNodes,
+    refreshForSession: refreshServerVersionNodesForSession
+  } = useVersionNodes(activeServerSessionId);
+
+  // server node id 集合，用于验证 parentVersionNodeId
+  const serverNodeIds = useMemo(
+    () => new Set(serverVersionNodes.map((n) => n.id)),
+    [serverVersionNodes]
+  );
+
+  // 是否处于 server 有效模式（server + 有 session 或至少有 server projects）
+  const isServerNodeMode = workbench.mode === "server";
+
   const maskCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const maskDrawingRef = useRef(false);
 
@@ -235,12 +279,16 @@ export default function CreatorWorkspace({
   );
   const selectedCommercialSizeId =
     commercialSizePresets.find((preset) => preset.size === size)?.id ?? "custom";
+
   const sidebarProjects = useMemo<SidebarProjectGroup[]>(
     () =>
       creatorProjects.map((project) => {
-        const nodes = versionNodes.filter(
-          (node) => (nodeProjectIds[node.id] ?? "commercial") === project.id
-        );
+        // Fix #2：server mode 下只有 active project 使用 server nodes
+        const nodes = isServerNodeMode
+          ? (project.id === activeProjectId ? serverVersionNodes : [])
+          : versionNodes.filter(
+              (node) => (nodeProjectIds[node.id] ?? "commercial") === project.id
+            );
 
         return {
           project,
@@ -281,7 +329,7 @@ export default function CreatorWorkspace({
           )
         };
       }),
-    [creatorProjects, nodeProjectIds, versionNodes, branchMetaById]
+    [creatorProjects, nodeProjectIds, serverVersionNodes, versionNodes, branchMetaById, isServerNodeMode, activeProjectId]
   );
   const activeProjectGroup = useMemo<SidebarProjectGroup>(
     () =>
@@ -566,17 +614,35 @@ export default function CreatorWorkspace({
         prompt: requestParams.prompt
       });
 
+      // 异步解析 workbench generation context（按需创建 session）
+      const candidateParentId = activeConversationId === "new"
+        ? null
+        : (forkParentId ?? activeNodeId);
+      const generationContext = await ensureGenerationContext({
+        mode: workbench.mode,
+        rawServerProjects: workbench.rawServerProjects,
+        activeProjectId,
+        candidateParentNodeId: candidateParentId,
+        serverNodeIds,
+        refreshWorkbench: workbench.refresh
+      });
+
       const response = await fetch(
         mode === "image" ? "/api/images/edits" : "/api/images/generations",
         mode === "image" && referenceImages.length > 0
           ? {
               method: "POST",
-              body: buildEditFormData(requestParams, referenceImages, maskFile)
+              body: appendWorkbenchContextToFormData(
+                buildEditFormData(requestParams, referenceImages, maskFile),
+                generationContext
+              )
             }
           : {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify(requestParams)
+              body: JSON.stringify(
+                injectWorkbenchContext(requestParams, generationContext)
+              )
             }
       );
       const body = (await response.json()) as ApiGenerationResponse;
@@ -597,7 +663,16 @@ export default function CreatorWorkspace({
         request_id: body.request_id ?? "",
         upstream_request_id: body.upstream_request_id
       };
-      commitGenerationResult(nextResult, requestParams);
+
+      if (generationContext) {
+        // server context：不追加本地 node，刷新 server version nodes
+        // 使用 generationContext.sessionId 绕过可能过期的闭包 sessionId
+        void refreshServerVersionNodesForSession(generationContext.sessionId);
+      } else {
+        // fallback/no-context：保持旧行为，追加本地 node
+        commitGenerationResult(nextResult, requestParams);
+      }
+
       setCurrentTask({
         id: nextResult.task_id,
         type: taskType,
@@ -633,15 +708,33 @@ export default function CreatorWorkspace({
       prompt: requestParams.prompt
     });
 
+    // 异步解析 workbench generation context
+    const candidateParentId = activeConversationId === "new"
+      ? null
+      : (forkParentId ?? activeNodeId);
+    const generationContext = await ensureGenerationContext({
+      mode: workbench.mode,
+      rawServerProjects: workbench.rawServerProjects,
+      activeProjectId,
+      candidateParentNodeId: candidateParentId,
+      serverNodeIds,
+      refreshWorkbench: workbench.refresh
+    });
+
     try {
       const response = await fetch("/api/images/generations/stream", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          ...requestParams,
-          stream: true,
-          partial_images: partialImageCount
-        })
+        body: JSON.stringify(
+          injectWorkbenchContext(
+            {
+              ...requestParams,
+              stream: true,
+              partial_images: partialImageCount
+            },
+            generationContext
+          )
+        )
       });
 
       if (!response.ok || !response.body) {
@@ -656,7 +749,7 @@ export default function CreatorWorkspace({
         return;
       }
 
-      await readGenerationStream(response.body, requestParams);
+      await readGenerationStream(response.body, requestParams, generationContext?.sessionId ?? null);
     } catch {
       setErrorMessage("网络错误，请检查流式生成服务。");
       setCurrentTask({
@@ -675,7 +768,8 @@ export default function CreatorWorkspace({
 
   async function readGenerationStream(
     body: ReadableStream<Uint8Array>,
-    requestParams: ImageGenerationParams
+    requestParams: ImageGenerationParams,
+    serverSessionId: string | null = null
   ) {
     const reader = body.getReader();
     const decoder = new TextDecoder();
@@ -732,7 +826,12 @@ export default function CreatorWorkspace({
             upstream_request_id: upstreamRequestId
           };
 
-          commitGenerationResult(nextResult, requestParams);
+          if (serverSessionId) {
+            // server context：不追加本地 node，刷新 server version nodes
+            void refreshServerVersionNodesForSession(serverSessionId);
+          } else {
+            commitGenerationResult(nextResult, requestParams);
+          }
           setCurrentTask({
             id: taskId,
             type: "generation",
@@ -747,7 +846,8 @@ export default function CreatorWorkspace({
 
         if (event.event === "error") {
           const message = readString(data, "message") ?? "流式生成失败。";
-          setErrorMessage(message);
+          const requestIdStr = requestId ? `（request_id: ${requestId}）` : "";
+          setErrorMessage(`${message}${requestIdStr}`);
           setCurrentTask({
             id: readString(data, "task_id"),
             type: "generation",
@@ -755,7 +855,7 @@ export default function CreatorWorkspace({
             prompt: requestParams.prompt,
             error: {
               code: readString(data, "code") ?? "upstream_error",
-              message
+              message: `${message}${requestIdStr}`
             }
           });
         }
@@ -1703,6 +1803,10 @@ export default function CreatorWorkspace({
         onToggleArchiveSession={handleToggleArchiveSession}
         onTogglePinSession={handleTogglePinSession}
         sidebarProjects={sidebarProjects}
+        syncStatus={workbench.mode === "server" ? workbench.syncState.status : undefined}
+        syncPendingCount={workbench.syncState.pendingCount}
+        syncConflictCount={workbench.syncState.conflicts.length}
+        onSyncRetry={workbench.flushSync}
       />
 
       <section className="chat-workspace" data-testid="center-workspace">
@@ -1722,6 +1826,8 @@ export default function CreatorWorkspace({
           onRefreshTask={(taskId) => void refreshTaskStatus(taskId)}
           onRetryGeneration={submitGeneration}
           partialImages={partialImages}
+          workbenchMode={workbench.mode}
+          workbenchRetryAfter={workbench.retryAfter}
         />
 
         <Composer />
@@ -1811,6 +1917,10 @@ export default function CreatorWorkspace({
               onToggleArchiveSession={handleToggleArchiveSession}
               onTogglePinSession={handleTogglePinSession}
               sidebarProjects={sidebarProjects}
+              syncStatus={workbench.mode === "server" ? workbench.syncState.status : undefined}
+              syncPendingCount={workbench.syncState.pendingCount}
+              syncConflictCount={workbench.syncState.conflicts.length}
+              onSyncRetry={workbench.flushSync}
             />
           </div>
         </SheetContent>

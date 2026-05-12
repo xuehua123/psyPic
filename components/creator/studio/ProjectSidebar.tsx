@@ -3,6 +3,8 @@
 import * as React from "react";
 import { MessageSquarePlus, Plus } from "lucide-react";
 
+import type { SyncStatus } from "@/lib/creator/sync/sync-types";
+
 import type {
   CreatorConversationId,
   CreatorProjectId
@@ -24,6 +26,7 @@ import {
   SidebarToastProvider,
   useSidebarToast
 } from "./SidebarToast";
+import SyncStatusIndicator from "./SyncStatusIndicator";
 
 /**
  * 工作台左侧栏 · 平铺折叠卡版（plan slug clever-swimming-pumpkin）。
@@ -90,6 +93,11 @@ export type ProjectSidebarProps = {
     projectId: CreatorProjectId,
     branch: SidebarProjectBranchSummary
   ) => Promise<unknown> | unknown;
+  /** Sync 状态指示器 props（可选） */
+  syncStatus?: SyncStatus;
+  syncPendingCount?: number;
+  syncConflictCount?: number;
+  onSyncRetry?: () => void;
 };
 
 export default function ProjectSidebar(props: ProjectSidebarProps) {
@@ -114,7 +122,11 @@ function ProjectSidebarContent({
   onTogglePinSession,
   onRenameSession,
   onToggleArchiveSession,
-  onMarkSessionUnread
+  onMarkSessionUnread,
+  syncStatus,
+  syncPendingCount,
+  syncConflictCount,
+  onSyncRetry
 }: ProjectSidebarProps) {
   const toast = useSidebarToast();
 
@@ -313,6 +325,15 @@ function ProjectSidebarContent({
           <span>新建项目</span>
         </button>
       </div>
+
+      {syncStatus && (
+        <SyncStatusIndicator
+          status={syncStatus}
+          pendingCount={syncPendingCount ?? 0}
+          conflictCount={syncConflictCount ?? 0}
+          onRetry={onSyncRetry}
+        />
+      )}
 
       <NewProjectDialog
         onOpenChange={setNewProjectOpen}

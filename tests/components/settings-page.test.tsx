@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SettingsPage from "@/app/settings/page";
 import { isCurrentRequestAdmin } from "@/server/services/request-user-service";
 
@@ -10,6 +10,16 @@ vi.mock("@/server/services/request-user-service", () => ({
 describe("SettingsPage", () => {
   beforeEach(() => {
     vi.mocked(isCurrentRequestAdmin).mockResolvedValue(false);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { authenticated: true, binding: true } }), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      })
+    ));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("renders the settings page inside the global product shell", async () => {
@@ -27,7 +37,9 @@ describe("SettingsPage", () => {
     expect(
       screen.queryByRole("link", { name: "返回创作台" })
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /保存到 BFF/ })).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /保存到 BFF/ })).toBeInTheDocument();
+    });
     expect(screen.getByText("本地开发设置")).toBeInTheDocument();
   });
 

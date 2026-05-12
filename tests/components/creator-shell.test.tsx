@@ -3,6 +3,72 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { vi } from "vitest";
 import CreatorWorkspace from "@/components/creator/CreatorWorkspace";
+import { useSession } from "@/components/auth/SessionProvider";
+import { useWorkbench } from "@/lib/creator/use-workbench";
+
+// useWorkbench 默认返回 fallback 模式，避免内部 fetch 干扰测试中的 fetchSpy mock chain
+vi.mock("@/lib/creator/use-workbench", () => ({
+  useWorkbench: vi.fn().mockReturnValue({
+    mode: "fallback",
+    serverProjects: [],
+    rawServerProjects: [],
+    retryAfter: undefined,
+    createProject: vi.fn().mockResolvedValue(null),
+    renameProject: vi.fn().mockResolvedValue(false),
+    deleteProject: vi.fn().mockResolvedValue(false),
+    refresh: vi.fn().mockResolvedValue(undefined),
+    syncState: { status: "synced", pendingCount: 0, conflicts: [], lastSyncTime: null, retryAfter: null },
+    flushSync: vi.fn().mockResolvedValue(undefined),
+    dismissSyncConflict: vi.fn()
+  })
+}));
+
+// mock useJobRuntimeEvents to avoid consuming fetchSpy mock chain
+vi.mock("@/lib/creator/use-job-runtime-events", () => ({
+  useJobRuntimeEvents: () => ({
+    events: [],
+    isLoading: false,
+    error: null,
+    mode: "ready",
+    refresh: vi.fn()
+  })
+}));
+
+// getSession mock：阻止 SessionProvider 在 mount 时发起真实 fetch，避免消耗测试 fetchSpy chain
+vi.mock("@/lib/client/session-api", () => ({
+  getSession: vi.fn().mockResolvedValue({
+    success: true,
+    data: {
+      authenticated: false,
+      user: null,
+      binding: null,
+      limits: null,
+      features: null
+    },
+    requestId: "mock_session"
+  })
+}));
+
+// mock useSession to avoid requiring SessionProvider wrapper inside AppShell
+vi.mock("@/components/auth/SessionProvider", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/auth/SessionProvider")>();
+  return {
+    ...actual,
+    useSession: vi.fn().mockReturnValue({
+      state: {
+        status: "loaded",
+        data: {
+          authenticated: true,
+          user: { id: "user-1", email: "test@example.com", display_name: "Test User", role: "user", last_login_at: "2026-05-11T00:00:00Z" },
+          binding: { id: "binding-1", base_url: "https://api.openai.com", default_model: "gpt-4", enabled_models: ["gpt-4"] },
+          limits: null,
+          features: null
+        }
+      },
+      refreshSession: vi.fn()
+    })
+  };
+});
 
 describe("CreatorWorkspace", () => {
   it("renders the v0.1 creator shell as the first screen", () => {
@@ -1557,6 +1623,67 @@ describe("CreatorWorkspace", () => {
     expect(screen.getAllByText("Mainline refinement.").length).toBeGreaterThan(0);
     expect(screen.getAllByText("分支 2").length).toBeGreaterThan(0);
     expect(screen.getByTestId("branch-map")).toBeInTheDocument();
+  });
+
+  it("shows login path when not authenticated", async () => {
+    // mock useSession locally
+    vi.mocked(useSession).mockReturnValue({
+      state: { status: "loaded", data: { authenticated: false, binding: null, user: null, limits: null, features: null } },
+      refreshSession: vi.fn()
+    });
+
+    render(<CreatorWorkspace />);
+    // The chat empty state should show login prompt
+    expect(screen.getAllByText(/未登录/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /登录/ }).length).toBeGreaterThan(0);
+  });
+
+  it("shows manual key path when authenticated but unbound", async () => {
+    vi.mocked(useSession).mockReturnValue({
+      state: { status: "loaded", data: { authenticated: true, binding: null, user: null, limits: null, features: null } },
+      refreshSession: vi.fn()
+    });
+
+    render(<CreatorWorkspace />);
+    expect(screen.getByText(/缺少 API Key/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "前往设置" })).toBeInTheDocument();
+  });
+
+  it("shows offline fallback notice when in fallback mode", async () => {
+    // reset session mock to authenticated and bound
+    vi.mocked(useSession).mockReturnValue({
+      state: {
+        status: "loaded",
+        data: {
+          authenticated: true,
+          user: { id: "user-1", email: "test@example.com", display_name: "Test User", role: "user", last_login_at: "2026-05-11T00:00:00Z" },
+          binding: { id: "binding-1", base_url: "https://api.openai.com", default_model: "gpt-4", enabled_models: ["gpt-4"] },
+          limits: null,
+          features: null
+        }
+      },
+      refreshSession: vi.fn()
+    });
+    
+    // mock useWorkbench to return fallback
+    vi.mocked(useWorkbench).mockReturnValue({
+      mode: "fallback",
+      serverProjects: [],
+      rawServerProjects: [],
+      retryAfter: new Date().toISOString(),
+      createProject: vi.fn(),
+      renameProject: vi.fn(),
+      deleteProject: vi.fn(),
+      refresh: vi.fn(),
+      syncState: { status: "offline", pendingCount: 0, conflicts: [], lastSyncTime: null, retryAfter: null },
+      flushSync: vi.fn(),
+      dismissSyncConflict: vi.fn()
+    });
+
+    // default session mock is authenticated
+    render(<CreatorWorkspace />);
+    expect(screen.getByText(/本地离线模式：云端同步不可用/i)).toBeInTheDocument();
+    expect(screen.getByText(/\(请稍后重试\)/i)).toBeInTheDocument();
   });
 });
 
