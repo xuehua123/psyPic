@@ -11,6 +11,7 @@ import type {
 } from "react";
 
 import BatchWorkflowPanel from "@/components/creator/BatchWorkflowPanel";
+import { BoardMode } from "@/components/creator/board";
 import { BatchProvider } from "@/components/creator/studio/BatchContext";
 import BranchMapSection from "@/components/creator/studio/BranchMapSection";
 import ChatHeader from "@/components/creator/studio/ChatHeader";
@@ -32,6 +33,7 @@ import {
   SheetHeader,
   SheetTitle
 } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { formatApiError, formatTaskError } from "@/lib/creator/api-error";
 import {
@@ -133,6 +135,10 @@ export default function CreatorWorkspace({
   // Plan Task 6 移动端抽屉：左 ProjectSidebar / 底 Inspector 弹 Sheet
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobileInspectorOpen, setMobileInspectorOpen] = useState(false);
+
+  // Board Mode · Cut 2 (plan slug board-mode-final)
+  // Transcript / Board tab 切换；本刀只挂 shell，不联动生成。
+  const [view, setView] = useState<"transcript" | "board">("transcript");
 
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [mode, setMode] = useState<CreatorMode>("text");
@@ -1816,19 +1822,49 @@ export default function CreatorWorkspace({
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
         />
 
-        <ChatTranscript
-          currentTask={currentTask}
-          displayedVersionNodes={displayedVersionNodes}
-          emptyDescription={activeProject.emptyDescription}
-          emptyTitle={activeProject.emptyTitle}
-          isGenerating={isGenerating}
-          onCancelTask={() => void cancelCurrentTask()}
-          onRefreshTask={(taskId) => void refreshTaskStatus(taskId)}
-          onRetryGeneration={submitGeneration}
-          partialImages={partialImages}
-          workbenchMode={workbench.mode}
-          workbenchRetryAfter={workbench.retryAfter}
-        />
+        <Tabs
+          value={view}
+          onValueChange={(next) => setView(next === "board" ? "board" : "transcript")}
+          className="flex min-h-0 min-w-0 flex-col gap-2 px-4 pt-3 pb-0"
+          data-testid="creator-view-tabs"
+        >
+          <TabsList className="self-start">
+            <TabsTrigger value="transcript" data-testid="creator-view-tab-transcript">
+              对话流
+            </TabsTrigger>
+            <TabsTrigger value="board" data-testid="creator-view-tab-board">
+              画板
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent
+            value="transcript"
+            className="flex min-h-0 min-w-0 flex-1 flex-col data-[state=inactive]:hidden"
+            forceMount
+          >
+            <ChatTranscript
+              currentTask={currentTask}
+              displayedVersionNodes={displayedVersionNodes}
+              emptyDescription={activeProject.emptyDescription}
+              emptyTitle={activeProject.emptyTitle}
+              isGenerating={isGenerating}
+              onCancelTask={() => void cancelCurrentTask()}
+              onRefreshTask={(taskId) => void refreshTaskStatus(taskId)}
+              onRetryGeneration={submitGeneration}
+              partialImages={partialImages}
+              workbenchMode={workbench.mode}
+              workbenchRetryAfter={workbench.retryAfter}
+            />
+          </TabsContent>
+
+          <TabsContent
+            value="board"
+            className="flex min-h-0 min-w-0 flex-1 flex-col"
+            data-testid="creator-view-board"
+          >
+            <BoardMode />
+          </TabsContent>
+        </Tabs>
 
         <Composer />
       </section>
