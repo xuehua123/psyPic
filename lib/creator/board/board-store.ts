@@ -1,11 +1,8 @@
-import type { BoardDocument, BoardExport } from "./types";
+import { canUseIndexedDB } from "../workbench-cache-store";
+import type { BoardDocument } from "./types";
 
-const DB_NAME = "psypic_board_store";
+const DB_NAME = "psypic_workbench_board";
 const DB_VERSION = 1;
-
-export function canUseIndexedDB() {
-  return typeof window !== "undefined" && typeof window.indexedDB !== "undefined";
-}
 
 function openDb() {
   return new Promise<IDBDatabase>((resolve, reject) => {
@@ -17,10 +14,6 @@ function openDb() {
         const store = db.createObjectStore("board_documents", { keyPath: "id" });
         store.createIndex("project_id", "projectId", { unique: false });
         store.createIndex("session_id", "sessionId", { unique: false });
-      }
-      if (!db.objectStoreNames.contains("board_exports")) {
-        const store = db.createObjectStore("board_exports", { keyPath: "id" });
-        store.createIndex("board_document_id", "boardDocumentId", { unique: false });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -35,8 +28,6 @@ function requestToPromise<T>(request: IDBRequest<T>) {
   });
 }
 
-// --- Board Documents ---
-
 export async function listBoardDocuments(sessionId: string): Promise<BoardDocument[]> {
   if (!canUseIndexedDB()) return [];
   const db = await openDb();
@@ -44,86 +35,56 @@ export async function listBoardDocuments(sessionId: string): Promise<BoardDocume
   const index = tx.objectStore("board_documents").index("session_id");
   const items = await requestToPromise<BoardDocument[]>(index.getAll(sessionId));
   db.close();
-  // Sort by updatedAt descending
-  return items.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return items.filter(item => !item.deletedAt).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 export async function getBoardDocument(id: string): Promise<BoardDocument | null> {
   if (!canUseIndexedDB()) return null;
   const db = await openDb();
   const tx = db.transaction("board_documents", "readonly");
-  const item = await requestToPromise<BoardDocument | undefined>(
-    tx.objectStore("board_documents").get(id)
-  );
+  const item = await requestToPromise<BoardDocument | undefined>(tx.objectStore("board_documents").get(id));
   db.close();
-  return item ?? null;
-}
-
-export async function saveBoardDocument(document: BoardDocument): Promise<void> {
-  if (!canUseIndexedDB()) return;
-  const db = await openDb();
-  await requestToPromise(
-    db.transaction("board_documents", "readwrite").objectStore("board_documents").put(document)
-  );
-  db.close();
-}
-
-/**
- * Perform a soft delete by setting deletedAt.
- */
-export async function softDeleteBoardDocument(id: string): Promise<void> {
-  if (!canUseIndexedDB()) return;
-  const db = await openDb();
-  const tx = db.transaction("board_documents", "readwrite");
-  const store = tx.objectStore("board_documents");
-  
-  const doc = await requestToPromise<BoardDocument | undefined>(store.get(id));
-  if (doc) {
-    doc.deletedAt = new Date().toISOString();
-    doc.updatedAt = doc.deletedAt;
-    await requestToPromise(store.put(doc));
+  if (item && !item.deletedAt) {
+    return item;
   }
-  
-  db.close();
+  return null;
 }
 
-export async function hardDeleteBoardDocument(id: string): Promise<void> {
+export async function saveBoardDocument(doc: BoardDocument): Promise<void> {
   if (!canUseIndexedDB()) return;
   const db = await openDb();
   await requestToPromise(
-    db.transaction("board_documents", "readwrite").objectStore("board_documents").delete(id)
+    db.transaction("board_documents", "readwrite").objectStore("board_documents").put(doc)
   );
   db.close();
 }
 
-// --- Board Exports ---
-
-export async function listBoardExports(boardDocumentId: string): Promise<BoardExport[]> {
-  if (!canUseIndexedDB()) return [];
-  const db = await openDb();
-  const tx = db.transaction("board_exports", "readonly");
-  const index = tx.objectStore("board_exports").index("board_document_id");
-  const items = await requestToPromise<BoardExport[]>(index.getAll(boardDocumentId));
-  db.close();
-  return items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-}
-
-export async function saveBoardExport(boardExport: BoardExport): Promise<void> {
+export async function deleteBoardDocument(id: string, soft: boolean = true): Promise<void> {
   if (!canUseIndexedDB()) return;
   const db = await openDb();
-  await requestToPromise(
-    db.transaction("board_exports", "readwrite").objectStore("board_exports").put(boardExport)
-  );
+  if (soft) {
+    const tx = db.transaction("board_documents", "readwrite");
+    const store = tx.objectStore("board_documents");
+    const item = await requestToPromise<BoardDocument | undefined>(store.get(id));
+    if (item) {
+      const deletedAt = new Date().toISOString();
+      item.deletedAt = deletedAt;
+      item.updatedAt = deletedAt;
+      await requestToPromise(store.put(item));
+    }
+  } else {
+    await requestToPromise(
+      db.transaction("board_documents", "readwrite").objectStore("board_documents").delete(id)
+    );
+  }
   db.close();
 }
 
 export async function clearBoardStore(): Promise<void> {
   if (!canUseIndexedDB()) return;
   const db = await openDb();
-  const tx = db.transaction(["board_documents", "board_exports"], "readwrite");
-  await Promise.all([
-    requestToPromise(tx.objectStore("board_documents").clear()),
-    requestToPromise(tx.objectStore("board_exports").clear())
-  ]);
+  await requestToPromise(
+    db.transaction("board_documents", "readwrite").objectStore("board_documents").clear()
+  );
   db.close();
 }

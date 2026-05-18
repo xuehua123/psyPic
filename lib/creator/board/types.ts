@@ -1,28 +1,3 @@
-export type BoardDocument = {
-  id: string;
-  projectId: string;
-  sessionId: string;
-  title: string;
-  width: number;
-  height: number;
-  background: {
-    type: "transparent" | "solid" | "checkerboard";
-    color?: string;
-  };
-  layers: BoardLayer[];
-  activeLayerId: string | null;
-  schemaVersion: number;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt: string | null;
-};
-
-export type BoardLayer =
-  | BoardImageLayer
-  | BoardStrokeLayer
-  | BoardTextLayer
-  | BoardMaskLayer;
-
 export type BoardBaseLayer = {
   id: string;
   name: string;
@@ -55,6 +30,12 @@ export type BoardStrokeLayer = BoardBaseLayer & {
   brush: { color: string; size: number; mode: "draw" | "erase" };
 };
 
+export type BoardMaskLayer = BoardBaseLayer & {
+  kind: "mask";
+  points: number[];
+  brush: { size: number; mode: "paint" | "erase" };
+};
+
 export type BoardTextLayer = BoardBaseLayer & {
   kind: "text";
   text: string;
@@ -63,22 +44,29 @@ export type BoardTextLayer = BoardBaseLayer & {
   fill: string;
 };
 
-export type BoardMaskLayer = BoardBaseLayer & {
-  kind: "mask";
-  points: number[];
-  brush: { size: number; mode: "paint" | "erase" };
-};
+export type BoardLayer =
+  | BoardImageLayer
+  | BoardStrokeLayer
+  | BoardTextLayer
+  | BoardMaskLayer;
 
-export type BoardExport = {
+export type BoardDocument = {
   id: string;
-  boardDocumentId: string;
+  version: number;
   projectId: string;
   sessionId: string;
-  versionNodeId?: string;
-  kind: "reference_png" | "mask_png" | "preview_png";
-  assetId: string;
+  title: string;
   width: number;
   height: number;
-  pixelRatio: number;
+  background: {
+    type: "transparent" | "solid" | "checkerboard";
+    color?: string;
+  };
+  layers: BoardLayer[];
+  activeLayerId: string | null;
+  sourceVersionNodeIds: string[];
+  sourceAssetIds: string[];
   createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
 };

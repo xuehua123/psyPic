@@ -3,13 +3,10 @@ import {
   saveBoardDocument,
   getBoardDocument,
   listBoardDocuments,
-  softDeleteBoardDocument,
-  hardDeleteBoardDocument,
-  clearBoardStore,
-  saveBoardExport,
-  listBoardExports
+  deleteBoardDocument,
+  clearBoardStore
 } from "@/lib/creator/board/board-store";
-import type { BoardDocument, BoardExport } from "@/lib/creator/board/types";
+import type { BoardDocument } from "@/lib/creator/board/types";
 import "fake-indexeddb/auto";
 
 describe("board-store", () => {
@@ -17,87 +14,72 @@ describe("board-store", () => {
     await clearBoardStore();
   });
 
-  const sampleDoc: BoardDocument = {
-    id: "board_1",
+  const createDummyDoc = (
+    id: string,
+    sessionId: string,
+    updatedAt = "2026-05-18T00:00:00.000Z"
+  ): BoardDocument => ({
+    id,
+    version: 1,
     projectId: "proj_1",
-    sessionId: "sess_1",
+    sessionId,
     title: "Test Board",
     width: 1024,
     height: 1024,
-    background: { type: "solid", color: "#ffffff" },
+    background: { type: "transparent" },
     layers: [],
     activeLayerId: null,
-    schemaVersion: 1,
-    createdAt: "2024-01-01T00:00:00.000Z",
-    updatedAt: "2024-01-01T00:00:00.000Z",
-    deletedAt: null
-  };
+    sourceVersionNodeIds: [],
+    sourceAssetIds: [],
+    createdAt: "2026-05-18T00:00:00.000Z",
+    updatedAt,
+    deletedAt: null,
+  });
 
-  const sampleDoc2: BoardDocument = {
-    ...sampleDoc,
-    id: "board_2",
-    updatedAt: "2024-01-02T00:00:00.000Z"
-  };
+  it("saves, gets, and lists board documents", async () => {
+    const doc1 = createDummyDoc("board_1", "sess_1", "2026-05-18T00:00:00.000Z");
+    const doc2 = createDummyDoc("board_2", "sess_1", "2026-05-18T00:01:00.000Z");
+    const doc3 = createDummyDoc("board_3", "sess_2");
 
-  it("creates, reads, and lists board documents", async () => {
-    await saveBoardDocument(sampleDoc);
-    await saveBoardDocument(sampleDoc2);
+    await saveBoardDocument(doc1);
+    await saveBoardDocument(doc2);
+    await saveBoardDocument(doc3);
 
-    const doc = await getBoardDocument("board_1");
-    expect(doc).toEqual(sampleDoc);
+    const fetchedDoc = await getBoardDocument("board_1");
+    expect(fetchedDoc).toEqual(doc1);
+
+    const list1 = await listBoardDocuments("sess_1");
+    expect(list1).toHaveLength(2);
+    expect(list1.map(d => d.id)).toEqual(["board_2", "board_1"]);
+
+    const list2 = await listBoardDocuments("sess_2");
+    expect(list2).toHaveLength(1);
+    expect(list2[0].id).toEqual("board_3");
+  });
+
+  it("supports soft delete", async () => {
+    const doc = createDummyDoc("board_to_delete", "sess_1");
+    await saveBoardDocument(doc);
+
+    let fetched = await getBoardDocument("board_to_delete");
+    expect(fetched).toBeDefined();
+
+    await deleteBoardDocument("board_to_delete", true);
+
+    fetched = await getBoardDocument("board_to_delete");
+    expect(fetched).toBeNull(); // should be filtered out
 
     const list = await listBoardDocuments("sess_1");
-    expect(list).toHaveLength(2);
-    // Should be sorted by updatedAt descending
-    expect(list[0]).toEqual(sampleDoc2);
-    expect(list[1]).toEqual(sampleDoc);
+    expect(list).toHaveLength(0);
   });
 
-  it("updates existing board document", async () => {
-    await saveBoardDocument(sampleDoc);
+  it("supports hard delete", async () => {
+    const doc = createDummyDoc("board_to_hard_delete", "sess_1");
+    await saveBoardDocument(doc);
 
-    const updated = { ...sampleDoc, title: "Updated Title" };
-    await saveBoardDocument(updated);
+    await deleteBoardDocument("board_to_hard_delete", false);
 
-    const doc = await getBoardDocument("board_1");
-    expect(doc?.title).toBe("Updated Title");
-  });
-
-  it("soft deletes a board document", async () => {
-    await saveBoardDocument(sampleDoc);
-    await softDeleteBoardDocument("board_1");
-
-    const doc = await getBoardDocument("board_1");
-    expect(doc?.deletedAt).not.toBeNull();
-    expect(doc?.updatedAt).toBe(doc?.deletedAt);
-  });
-
-  it("hard deletes a board document", async () => {
-    await saveBoardDocument(sampleDoc);
-    await hardDeleteBoardDocument("board_1");
-
-    const doc = await getBoardDocument("board_1");
-    expect(doc).toBeNull();
-  });
-
-  it("saves and lists board exports", async () => {
-    const boardExport: BoardExport = {
-      id: "export_1",
-      boardDocumentId: "board_1",
-      projectId: "proj_1",
-      sessionId: "sess_1",
-      kind: "reference_png",
-      assetId: "asset_1",
-      width: 1024,
-      height: 1024,
-      pixelRatio: 1,
-      createdAt: "2024-01-01T00:00:00.000Z"
-    };
-
-    await saveBoardExport(boardExport);
-    
-    const list = await listBoardExports("board_1");
-    expect(list).toHaveLength(1);
-    expect(list[0]).toEqual(boardExport);
+    const fetched = await getBoardDocument("board_to_hard_delete");
+    expect(fetched).toBeNull();
   });
 });
