@@ -516,8 +516,16 @@ describe("BoardStage stroke tool (Cut 3 commit 5)", () => {
   });
 });
 
-describe("BoardStage text tool (Cut 3 commit 6)", () => {
-  it("creates a text layer with default content on canvas click in text mode", async () => {
+describe("BoardStage text tool (Cut 3 commit 6 + Cut 3.1.2 hit-testing)", () => {
+  function getStageNode(): HTMLElement {
+    const stage = document.querySelector<HTMLElement>(
+      "[data-konva-kind=\"Stage\"]"
+    );
+    if (!stage) throw new Error("stage konva mock node not mounted");
+    return stage;
+  }
+
+  it("creates a text layer when clicking empty space in text mode", async () => {
     const user = userEvent.setup();
     render(<BoardMode />);
     await waitFor(() => {
@@ -530,10 +538,10 @@ describe("BoardStage text tool (Cut 3 commit 6)", () => {
       "text"
     );
 
-    fireEvent.mouseDown(screen.getByTestId("board-stage"), {
-      clientX: 100,
-      clientY: 80
-    });
+    // 点击 Stage 自身（空白）→ 落 text layer。命中检测走
+    // target.dataset.testid 是否以 "board-layer-" 开头；Stage 节点没这个，
+    // 视为空白。
+    fireEvent.click(getStageNode(), { clientX: 100, clientY: 80 });
 
     const items = await screen.findByTestId("board-layer-list-items");
     const rows = items.querySelectorAll<HTMLElement>(
@@ -542,14 +550,13 @@ describe("BoardStage text tool (Cut 3 commit 6)", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toHaveTextContent("文字图层");
 
-    // Konva.Text mock 节点带默认文案
     const textNode = document.querySelector<HTMLElement>(
       "[data-konva-kind=\"Text\"]"
     );
     expect(textNode).not.toBeNull();
   });
 
-  it("does not stack text layers when clicking on an existing layer", async () => {
+  it("does not stack text layers when clicking on an existing layer node", async () => {
     const user = userEvent.setup();
     render(<BoardMode />);
     await waitFor(() => {
@@ -557,10 +564,9 @@ describe("BoardStage text tool (Cut 3 commit 6)", () => {
     });
 
     await user.click(screen.getByTestId("board-tool-text"));
-    fireEvent.mouseDown(screen.getByTestId("board-stage"), {
-      clientX: 100,
-      clientY: 80
-    });
+
+    // 第一次：点 stage 空白处 → 创建第一个 text layer
+    fireEvent.click(getStageNode(), { clientX: 100, clientY: 80 });
 
     const firstNode = await waitFor(() => {
       const node = document.querySelector<HTMLElement>(
@@ -570,8 +576,9 @@ describe("BoardStage text tool (Cut 3 commit 6)", () => {
       return node!;
     });
 
-    // 在第一个 text layer 的 Konva mock 节点上再点一次：不应该再创建
-    fireEvent.mouseDown(firstNode, { clientX: 105, clientY: 85, bubbles: true });
+    // 第二次：点已有 text layer 节点本体 → 命中 board-layer- 前缀，
+    // onUserLayer=true → 不创建新层（事件冒泡到 Stage 也被命中检测拦下）。
+    fireEvent.click(firstNode, { clientX: 105, clientY: 85 });
 
     const items = screen.getByTestId("board-layer-list-items");
     const rows = items.querySelectorAll<HTMLElement>(
@@ -580,18 +587,39 @@ describe("BoardStage text tool (Cut 3 commit 6)", () => {
     expect(rows).toHaveLength(1);
   });
 
-  it("does not create text layers in select mode", async () => {
+  it("does not create text layers in select mode (background click only deselects)", async () => {
     render(<BoardMode />);
     await waitFor(() => {
       expect(screen.getByTestId("board-stage")).toBeInTheDocument();
     });
 
-    fireEvent.mouseDown(screen.getByTestId("board-stage"), {
-      clientX: 100,
-      clientY: 80
-    });
+    // select 模式下点 stage 空白 → 不应创建任何 text layer
+    fireEvent.click(getStageNode(), { clientX: 100, clientY: 80 });
 
     expect(screen.getByTestId("board-layer-list-empty")).toBeInTheDocument();
+  });
+
+  it("does not create text layers when clicking the Konva background fill in text mode", async () => {
+    // 命中检测必须把 background-fill 视作空白：旧版 `target.getStage() === target`
+    // 会把 Rect 误判成「非空」，新版用 name 前缀，背景 name="board-background-fill"
+    // 不以 "board-layer-" 开头 → onEmpty=true → 创建 text。
+    const user = userEvent.setup();
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("board-tool-text"));
+
+    const bg = screen.getByTestId("board-background-fill");
+    fireEvent.click(bg, { clientX: 60, clientY: 60 });
+
+    const items = await screen.findByTestId("board-layer-list-items");
+    const rows = items.querySelectorAll<HTMLElement>(
+      "[data-testid^='board-layer-row-']"
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("文字图层");
   });
 });
 

@@ -34,7 +34,7 @@ import type {
 } from "@/lib/creator/board/types";
 
 /**
- * Board Mode · Cut 2 + Cut 3 commit 3-5 (plan slug board-mode-final)
+ * Board Mode · Cut 2 + Cut 3 commit 3-5 + Cut 3.1.2 (plan slug board-mode-final)
  *
  * 画布壳层。本刀（commit 5）：stroke 工具 — 在 stroke 模式下按下、拖动、
  * 抬起 mouse，逐步在 reducer 里写一个新的 BoardStrokeLayer，points 实时
@@ -45,6 +45,16 @@ import type {
  *   commit 7 的 BoardInspector）。
  * - 不对接 /api/images/edits（Cut 4）。
  * - 不持久化 BoardDocument（Cut 5）。
+ *
+ * Cut 3.1.2 (text hit-testing)：
+ *   text 工具不再在 container mouseDown 里靠 `target.closest()` 判定 —
+ *   生产 Konva 渲染到 canvas，DOM 树里没有 layer 节点，closest 永远
+ *   false → 在已有 text 上叠加新 text。改走 Konva Stage onClick：
+ *   - 真实 Konva：`e.target.getStage() === e.target` 表示空白点击。
+ *   - jsdom mock：fallback 到 `e.target === e.currentTarget` (Stage div
+ *     的 onClick listener 上 currentTarget 就是 Stage 本体)。
+ *   位置：真实 Konva 拿 `Stage.getPointerPosition()`；mock 退到
+ *   `pointerPos(e.clientX, e.clientY)`。
  */
 
 const GRID_SIZE = 40;
@@ -342,14 +352,87 @@ export function BoardStage() {
     dispatch({ type: "addLayer", layer });
   };
 
-  const handleStageClick = (event: { target?: { getStage?: () => unknown } }) => {
-    if (state.activeTool !== "select") return;
-    // 点击空白处 → 取消选中。Konva: e.target === stage 时表示空击。
-    const target = event.target;
-    if (target && typeof target.getStage === "function") {
-      if (target.getStage() === target) {
+  const handleStageClick = (event: {
+    target?: unknown;
+    clientX?: number;
+    clientY?: number;
+  }) => {
+    const t = event.target;
+
+    // 命中检测：判断点击是否落在「用户添加的图层」上。
+    // - 真实 Konva：每个 layer 节点带 name="board-layer-${id}"，
+    //   target.name() 返回这个字符串。
+    // - jsdom mock：每个 layer 节点渲染成 <div data-testid="board-layer-${id}">。
+    // 背景 / 网格 / Stage 自身不以 "board-layer-" 开头 → 视为空白。
+    // 不能再用旧的 `target.getStage() === target`：背景是 Rect，不是 Stage，
+    // 旧判断会把背景误判成「非空」。
+    // 参数用 `target?: unknown` 是为了同时兼容 onClick(KonvaEventObject<MouseEvent>)
+    // 和 onTap(KonvaEventObject<TouchEvent>)，内部再 type-guard 收窄。
+    let onUserLayer = false;
+    if (t && typeof t === "object") {
+      const konvaTarget = t as { name?: () => string };
+      if (typeof konvaTarget.name === "function") {
+        onUserLayer = konvaTarget.name().startsWith("board-layer-");
+      } else {
+        const dom = t as HTMLElement;
+        const testid = dom.dataset?.testid ?? "";
+        onUserLayer = testid.startsWith("board-layer-");
+      }
+    }
+    const onEmpty = !onUserLayer;
+
+    if (state.activeTool === "select") {
+      if (onEmpty) {
         dispatch({ type: "selectLayer", id: null });
       }
+      return;
+    }
+
+    if (state.activeTool === "text" && onEmpty) {
+      // 落点：优先 Konva Stage.getPointerPosition()（真实运行时），退到
+      // React synthetic event 的 clientX/Y（jsdom fireEvent.click 路径）。
+      let x = size.width / 2;
+      let y = size.height / 2;
+      const stage =
+        t &&
+        typeof t === "object" &&
+        typeof (t as { getStage?: () => unknown }).getStage === "function"
+          ? ((t as { getStage: () => unknown }).getStage() as {
+              getPointerPosition?: () => { x: number; y: number } | null;
+            } | null)
+          : null;
+      const stagePointer = stage?.getPointerPosition?.() ?? null;
+      if (stagePointer) {
+        x = stagePointer.x;
+        y = stagePointer.y;
+      } else if (
+        typeof event.clientX === "number" &&
+        typeof event.clientY === "number"
+      ) {
+        const p = pointerPos({
+          clientX: event.clientX,
+          clientY: event.clientY
+        });
+        x = p.x;
+        y = p.y;
+      }
+
+      const id = generateLayerId();
+      const newLayer: BoardTextLayer = {
+        id,
+        name: "文字图层",
+        kind: "text",
+        visible: true,
+        locked: false,
+        opacity: 1,
+        zIndex: state.document.layers.length,
+        transform: { x, y, scaleX: 1, scaleY: 1, rotation: 0 },
+        text: DEFAULT_TEXT_VALUE,
+        fontSize: DEFAULT_TEXT_FONT_SIZE,
+        fontFamily: DEFAULT_TEXT_FONT_FAMILY,
+        fill: DEFAULT_TEXT_FILL
+      };
+      dispatch({ type: "addLayer", layer: newLayer });
     }
   };
 
@@ -395,33 +478,8 @@ export function BoardStage() {
       setDrawing({ id, points: [x, y] });
       return;
     }
-    if (state.activeTool === "text") {
-      // Text 工具：单击空白处创建一个默认 text layer。编辑放 commit 7
-      // 的 BoardInspector，本刀不实现 inline contentEditable。
-      const target = event.target as HTMLElement | null;
-      // 只在落在 stage 容器自身或 background fill 上时创建，点到现有
-      // layer 的 Konva mock 节点上不创建（避免和点选冲突）。
-      const onExistingLayer = !!target?.closest("[data-testid^='board-layer-']");
-      if (onExistingLayer) return;
-      const { x, y } = pointerPos(event);
-      const id = generateLayerId();
-      const newLayer: BoardTextLayer = {
-        id,
-        name: "文字图层",
-        kind: "text",
-        visible: true,
-        locked: false,
-        opacity: 1,
-        zIndex: state.document.layers.length,
-        transform: { x, y, scaleX: 1, scaleY: 1, rotation: 0 },
-        text: DEFAULT_TEXT_VALUE,
-        fontSize: DEFAULT_TEXT_FONT_SIZE,
-        fontFamily: DEFAULT_TEXT_FONT_FAMILY,
-        fill: DEFAULT_TEXT_FILL
-      };
-      dispatch({ type: "addLayer", layer: newLayer });
-      return;
-    }
+    // text 工具的落点改走 Konva Stage onClick + 命中检测，见 handleStageClick。
+    // 这里保留 stroke 的 mouseDown 起绘逻辑。
   };
 
   const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
