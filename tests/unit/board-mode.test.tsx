@@ -831,3 +831,95 @@ describe("BoardInspector (Cut 3 commit 7)", () => {
     expect(screen.getByTestId("spy-txt_1-text")).toHaveTextContent("你好");
   });
 });
+
+describe("BoardInspector (Cut 3.1.4 view sync after external dispatch)", () => {
+  // 模拟 canvas drag / transformerEnd 路径：BoardStage 的 onDragEnd /
+  // onTransformEnd 会 dispatch transformLayer，把 reducer 里的 transform
+  // 更新。Inspector 的 transform input 是 uncontrolled defaultValue —
+  // 必须能跟着外部 dispatch 同步刷新，否则用户拖完图回头看 Inspector，
+  // x / y 仍是老值（第二轮真机走查里报的现象）。
+  function DispatchTransform({
+    id,
+    transform
+  }: {
+    id: string;
+    transform: { x: number; y: number; scaleX: number; scaleY: number; rotation: number };
+  }) {
+    const { dispatch } = useBoard();
+    return (
+      <button
+        data-testid="external-transform-dispatch"
+        type="button"
+        onClick={() => dispatch({ type: "transformLayer", id, transform })}
+      >
+        external transform
+      </button>
+    );
+  }
+
+  function DispatchImagePatch({
+    id,
+    patch
+  }: {
+    id: string;
+    patch: { width?: number; height?: number };
+  }) {
+    const { dispatch } = useBoard();
+    return (
+      <button
+        data-testid="external-image-dispatch"
+        type="button"
+        onClick={() => dispatch({ type: "updateImageLayer", id, patch })}
+      >
+        external resize
+      </button>
+    );
+  }
+
+  it("refreshes transform x/y inputs after external transformLayer dispatch", async () => {
+    const user = userEvent.setup();
+    render(
+      <BoardProvider
+        initialDocument={{ layers: [imageLayer], activeLayerId: "img_1" }}
+      >
+        <BoardInspector />
+        <DispatchTransform
+          id="img_1"
+          transform={{ x: 999, y: 888, scaleX: 1, scaleY: 1, rotation: 0 }}
+        />
+      </BoardProvider>
+    );
+
+    // 起步：imageLayer.transform = baseTransform → x=0, y=0
+    expect(screen.getByTestId("board-inspector-x")).toHaveValue(0);
+    expect(screen.getByTestId("board-inspector-y")).toHaveValue(0);
+
+    // 模拟 canvas drag → reducer 写 x=999, y=888
+    await user.click(screen.getByTestId("external-transform-dispatch"));
+
+    // Inspector 必须跟随 reducer 同步显示新值。
+    expect(screen.getByTestId("board-inspector-x")).toHaveValue(999);
+    expect(screen.getByTestId("board-inspector-y")).toHaveValue(888);
+  });
+
+  it("refreshes image width/height inputs after external updateImageLayer dispatch", async () => {
+    const user = userEvent.setup();
+    render(
+      <BoardProvider
+        initialDocument={{ layers: [imageLayer], activeLayerId: "img_1" }}
+      >
+        <BoardInspector />
+        <DispatchImagePatch id="img_1" patch={{ width: 555, height: 444 }} />
+      </BoardProvider>
+    );
+
+    expect(screen.getByTestId("board-inspector-image-width")).toHaveValue(200);
+    expect(screen.getByTestId("board-inspector-image-height")).toHaveValue(200);
+
+    // 模拟 transformerEnd 把 scale 烘进 width/height
+    await user.click(screen.getByTestId("external-image-dispatch"));
+
+    expect(screen.getByTestId("board-inspector-image-width")).toHaveValue(555);
+    expect(screen.getByTestId("board-inspector-image-height")).toHaveValue(444);
+  });
+});

@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 /**
- * Board Mode · Cut 3 commit 7 (plan slug board-mode-final).
+ * Board Mode · Cut 3 commit 7 + Cut 3.1.4 (plan slug board-mode-final).
  *
  * 选中 layer 的属性面板。约束：
  * - 输入用 onBlur dispatch，不在 onChange 打 reducer（避免每次按键触发
@@ -22,6 +22,15 @@ import { Textarea } from "@/components/ui/textarea";
  *   uncontrolled 输入回到新 layer 的默认值。
  * - 不出现 erase / mask / draw mode 切换 —— 这些留到 Cut 5 mask 那刀。
  * - 不接生成 / 持久化 / 后端。
+ *
+ * Cut 3.1.4 (refresh inspector fields after canvas transforms)：
+ *   uncontrolled defaultValue 的代价：外部 dispatch（canvas drag /
+ *   transformerEnd）改 reducer 后 input 不刷。修法是给会被外部 dispatch
+ *   覆盖的字段加 value-based `key`，让 React 在外部值变化时强制 remount
+ *   input、重新读 defaultValue。变 controlled 会让按键触发 reducer，是
+ *   commit 7 当初规避的方向。受影响：transform x/y/scaleX/scaleY/rotation +
+ *   image width/height。name / opacity / 其它不动 —— 它们不会被 canvas
+ *   交互覆盖，只受用户 blur dispatch 触发。
  */
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -127,6 +136,10 @@ export function BoardInspector() {
             label={field}
           >
             <Input
+              // value-based key：canvas drag / transformerEnd 走外部
+              // dispatch 改 reducer 后，input 强制 remount 重新读
+              // defaultValue。否则 uncontrolled 模式下 input 不刷。
+              key={`${active.id}-${field}-${active.transform[field]}`}
               id={`board-inspector-${field}`}
               data-testid={`board-inspector-${field}`}
               type="number"
@@ -159,6 +172,9 @@ function ImageInspectorSection({ layer }: { layer: BoardImageLayer }) {
     <Section title="图片">
       <Field htmlFor="board-inspector-image-width" label="宽">
         <Input
+          // value-based key：transformerEnd 把 scale 烘进 width/height 时
+          // 走外部 dispatch，input 必须跟随 remount 重新读 defaultValue。
+          key={`${layer.id}-width-${layer.width}`}
           id="board-inspector-image-width"
           data-testid="board-inspector-image-width"
           type="number"
@@ -180,6 +196,7 @@ function ImageInspectorSection({ layer }: { layer: BoardImageLayer }) {
       </Field>
       <Field htmlFor="board-inspector-image-height" label="高">
         <Input
+          key={`${layer.id}-height-${layer.height}`}
           id="board-inspector-image-height"
           data-testid="board-inspector-image-height"
           type="number"
