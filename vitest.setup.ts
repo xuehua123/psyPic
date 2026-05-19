@@ -45,6 +45,8 @@ vi.mock("react-konva", () => {
           attrs[key] = value;
         } else if (key.startsWith("data-") || key === "role") {
           attrs[key] = value;
+        } else if (key === "points" && Array.isArray(value)) {
+          attrs["data-konva-points"] = (value as number[]).join(",");
         }
       }
       return React.createElement("div", attrs, children);

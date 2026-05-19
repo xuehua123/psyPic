@@ -337,3 +337,118 @@ describe("BoardStage selection + transform (Cut 3 commit 4)", () => {
     );
   });
 });
+
+describe("BoardToolbar (Cut 3 commit 5)", () => {
+  it("renders 4 tool chips with select active by default", async () => {
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-toolbar")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("board-tool-select")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    for (const id of ["image", "stroke", "text"]) {
+      expect(screen.getByTestId(`board-tool-${id}`)).toHaveAttribute(
+        "aria-pressed",
+        "false"
+      );
+    }
+  });
+
+  it("dispatches setActiveTool when a chip is clicked", async () => {
+    const user = userEvent.setup();
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-toolbar")).toBeInTheDocument();
+    });
+    const stage = screen.getByTestId("board-stage");
+    expect(stage).toHaveAttribute("data-active-tool", "select");
+
+    await user.click(screen.getByTestId("board-tool-stroke"));
+    expect(screen.getByTestId("board-tool-stroke")).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.getByTestId("board-stage")).toHaveAttribute(
+      "data-active-tool",
+      "stroke"
+    );
+  });
+});
+
+describe("BoardStage stroke tool (Cut 3 commit 5)", () => {
+  it("creates a stroke layer on mousedown and appends points on move", async () => {
+    const user = userEvent.setup();
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+    });
+
+    // 先切到 stroke 工具
+    await user.click(screen.getByTestId("board-tool-stroke"));
+    expect(screen.getByTestId("board-stage")).toHaveAttribute(
+      "data-active-tool",
+      "stroke"
+    );
+
+    const stage = screen.getByTestId("board-stage");
+
+    // jsdom 中 getBoundingClientRect 默认返回零矩形 → 落在 (0,0)
+    fireEvent.mouseDown(stage, { clientX: 50, clientY: 60 });
+
+    // mousedown 后 layers length=1，且当前 active = stroke layer
+    const items = await screen.findByTestId("board-layer-list-items");
+    let rows = items.querySelectorAll<HTMLElement>(
+      "[data-testid^='board-layer-row-']"
+    );
+    expect(rows).toHaveLength(1);
+    const strokeId = rows[0]
+      .getAttribute("data-testid")!
+      .replace("board-layer-row-", "");
+
+    const lineNode = () =>
+      document.querySelector<HTMLElement>(
+        `[data-testid="board-layer-${strokeId}"]`
+      );
+    expect(lineNode()).not.toBeNull();
+
+    // 拿到起步 points string
+    const initialPoints = lineNode()!.getAttribute("data-konva-points");
+    expect(initialPoints).toBe("50,60");
+
+    // 拖动 mouse 几次 → updateStrokeLayer 不停 patch points
+    fireEvent.mouseMove(stage, { clientX: 70, clientY: 80 });
+    fireEvent.mouseMove(stage, { clientX: 90, clientY: 100 });
+
+    const afterMovePoints = lineNode()!.getAttribute("data-konva-points");
+    expect(afterMovePoints).toBe("50,60,70,80,90,100");
+
+    // mouseup 之后 layer count 不再增长
+    fireEvent.mouseUp(stage);
+    rows = items.querySelectorAll<HTMLElement>(
+      "[data-testid^='board-layer-row-']"
+    );
+    expect(rows).toHaveLength(1);
+
+    // 抬起后再 move 不应该再 append（drawing=null）
+    fireEvent.mouseMove(stage, { clientX: 999, clientY: 999 });
+    expect(lineNode()!.getAttribute("data-konva-points")).toBe(
+      "50,60,70,80,90,100"
+    );
+  });
+
+  it("does not draw when active tool is select", async () => {
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+    });
+
+    const stage = screen.getByTestId("board-stage");
+    fireEvent.mouseDown(stage, { clientX: 50, clientY: 60 });
+    fireEvent.mouseMove(stage, { clientX: 70, clientY: 80 });
+    fireEvent.mouseUp(stage);
+
+    expect(screen.getByTestId("board-layer-list-empty")).toBeInTheDocument();
+  });
+});

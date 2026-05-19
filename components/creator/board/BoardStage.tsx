@@ -25,22 +25,24 @@ import {
   LIBRARY_ASSET_DRAG_MIME,
   readLibraryAssetDragData
 } from "@/lib/creator/board/library-drag";
-import type { BoardImageLayer, BoardLayer } from "@/lib/creator/board/types";
+import type {
+  BoardImageLayer,
+  BoardLayer,
+  BoardStrokeLayer
+} from "@/lib/creator/board/types";
 
 /**
- * Board Mode · Cut 2 + Cut 3 commit 3-4 (plan slug board-mode-final)
+ * Board Mode · Cut 2 + Cut 3 commit 3-5 (plan slug board-mode-final)
  *
- * 画布壳层。本刀（commit 4）：选中 + Konva Transformer + 拖动 / 缩放 /
- * 旋转结束写回 reducer。
+ * 画布壳层。本刀（commit 5）：stroke 工具 — 在 stroke 模式下按下、拖动、
+ * 抬起 mouse，逐步在 reducer 里写一个新的 BoardStrokeLayer，points 实时
+ * 追加。
  *
- * - 不实现笔画 / 文字（Cut 3 commit 5/6）。
+ * - 不实现 eraser / mask（Cut 5）。
+ * - 不实现 text / inline edit（commit 6 只创建 text layer，编辑放
+ *   commit 7 的 BoardInspector）。
  * - 不对接 /api/images/edits（Cut 4）。
  * - 不持久化 BoardDocument（Cut 5）。
- *
- * 在测试环境下，react-konva 被 vitest.setup.ts 全量 mock 成 <div>，
- * Konva 节点的 `name` prop 转成 `data-testid`，事件 prop（onClick /
- * onDragEnd / onTransformEnd 等）直接保留为 React handler。Transform
- * 助手都做了 KonvaShapeLike type-guard，能在 div mock 下安全降级。
  */
 
 const GRID_SIZE = 40;
@@ -49,6 +51,9 @@ const GRID_STROKE = "#e2e8f0";
 
 const DEFAULT_DROP_WIDTH = 320;
 const DEFAULT_DROP_HEIGHT = 320;
+
+const DEFAULT_STROKE_COLOR = "#0c7a6f";
+const DEFAULT_STROKE_SIZE = 4;
 
 function generateLayerId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -70,7 +75,6 @@ type LayerNodeProps<L extends BoardLayer> = {
 
 function BoardImageLayerNode({
   layer,
-  isActive,
   registerNode,
   onSelect,
   onDragEnd,
@@ -96,7 +100,39 @@ function BoardImageLayerNode({
       onTap={() => onSelect(layer.id)}
       onDragEnd={(e: { target?: unknown }) => onDragEnd(layer, e.target)}
       onTransformEnd={(e: { target?: unknown }) => onTransformEnd(layer, e.target)}
-      data-active={isActive ? "true" : "false"}
+    />
+  );
+}
+
+function BoardStrokeLayerNode({
+  layer,
+  registerNode,
+  onSelect,
+  onDragEnd,
+  onTransformEnd
+}: LayerNodeProps<BoardStrokeLayer>) {
+  return (
+    <Line
+      ref={(node: Konva.Node | null) => registerNode(layer.id, node)}
+      name={`board-layer-${layer.id}`}
+      points={layer.points}
+      stroke={layer.brush.color}
+      strokeWidth={layer.brush.size}
+      lineCap="round"
+      lineJoin="round"
+      tension={0.3}
+      x={layer.transform.x}
+      y={layer.transform.y}
+      scaleX={layer.transform.scaleX}
+      scaleY={layer.transform.scaleY}
+      rotation={layer.transform.rotation}
+      opacity={layer.opacity}
+      visible={layer.visible}
+      draggable={!layer.locked}
+      onClick={() => onSelect(layer.id)}
+      onTap={() => onSelect(layer.id)}
+      onDragEnd={(e: { target?: unknown }) => onDragEnd(layer, e.target)}
+      onTransformEnd={(e: { target?: unknown }) => onTransformEnd(layer, e.target)}
     />
   );
 }
@@ -125,7 +161,20 @@ function renderLayerNode(props: LayerRendererProps) {
       />
     );
   }
-  // stroke / text / mask 在后续 commits 接入
+  if (layer.kind === "stroke") {
+    return (
+      <BoardStrokeLayerNode
+        key={layer.id}
+        layer={layer}
+        isActive={props.isActive}
+        registerNode={props.registerNode}
+        onSelect={props.onSelect}
+        onDragEnd={(l, t) => props.onDragEnd(l, t)}
+        onTransformEnd={(l, t) => props.onTransformEnd(l, t)}
+      />
+    );
+  }
+  // text / mask 在后续 commits 接入
   return null;
 }
 
@@ -135,6 +184,11 @@ export function BoardStage() {
   const transformerRef = useRef<Konva.Transformer | null>(null);
   const { state, dispatch } = useBoard();
   const { register, get } = useLayerNodeRegistry();
+  // 正在绘制的 stroke：layer id + 已采集的 points。drawing!=null 时
+  // mouse move 把新点 append 进去并 dispatch updateStrokeLayer。
+  const [drawing, setDrawing] = useState<
+    { id: string; points: number[] } | null
+  >(null);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -180,6 +234,12 @@ export function BoardStage() {
     horizontalLines.push([0, y, size.width, y]);
   }
 
+  const pointerPos = (event: { clientX: number; clientY: number }) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (!rect) return { x: size.width / 2, y: size.height / 2 };
+    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  };
+
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {
     if (event.dataTransfer.types.includes(LIBRARY_ASSET_DRAG_MIME)) {
       event.preventDefault();
@@ -192,10 +252,7 @@ export function BoardStage() {
     if (!payload) return;
     event.preventDefault();
 
-    const rect = containerRef.current?.getBoundingClientRect();
-    const dropX = rect ? event.clientX - rect.left : size.width / 2;
-    const dropY = rect ? event.clientY - rect.top : size.height / 2;
-
+    const { x, y } = pointerPos(event);
     const layer: BoardImageLayer = {
       id: generateLayerId(),
       name: payload.name ?? "图片图层",
@@ -205,8 +262,8 @@ export function BoardStage() {
       opacity: 1,
       zIndex: state.document.layers.length,
       transform: {
-        x: dropX - DEFAULT_DROP_WIDTH / 2,
-        y: dropY - DEFAULT_DROP_HEIGHT / 2,
+        x: x - DEFAULT_DROP_WIDTH / 2,
+        y: y - DEFAULT_DROP_HEIGHT / 2,
         scaleX: 1,
         scaleY: 1,
         rotation: 0
@@ -220,6 +277,7 @@ export function BoardStage() {
   };
 
   const handleStageClick = (event: { target?: { getStage?: () => unknown } }) => {
+    if (state.activeTool !== "select") return;
     // 点击空白处 → 取消选中。Konva: e.target === stage 时表示空击。
     const target = event.target;
     if (target && typeof target.getStage === "function") {
@@ -230,6 +288,7 @@ export function BoardStage() {
   };
 
   const handleSelect = (id: string) => {
+    if (state.activeTool !== "select") return;
     dispatch({ type: "selectLayer", id });
   };
 
@@ -246,13 +305,58 @@ export function BoardStage() {
     dispatch(buildTransformEndAction(layer, snapshot));
   };
 
+  const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (state.activeTool !== "stroke") return;
+    const { x, y } = pointerPos(event);
+    const id = generateLayerId();
+    const newLayer: BoardStrokeLayer = {
+      id,
+      name: "笔画图层",
+      kind: "stroke",
+      visible: true,
+      locked: false,
+      opacity: 1,
+      zIndex: state.document.layers.length,
+      transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
+      points: [x, y],
+      brush: {
+        color: DEFAULT_STROKE_COLOR,
+        size: DEFAULT_STROKE_SIZE,
+        mode: "draw"
+      }
+    };
+    dispatch({ type: "addLayer", layer: newLayer });
+    setDrawing({ id, points: [x, y] });
+  };
+
+  const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!drawing) return;
+    const { x, y } = pointerPos(event);
+    const nextPoints = [...drawing.points, x, y];
+    setDrawing({ ...drawing, points: nextPoints });
+    dispatch({
+      type: "updateStrokeLayer",
+      id: drawing.id,
+      patch: { points: nextPoints }
+    });
+  };
+
+  const handleMouseUp = () => {
+    if (drawing) setDrawing(null);
+  };
+
   return (
     <div
       ref={containerRef}
       data-testid="board-stage"
+      data-active-tool={state.activeTool}
       className="relative h-full min-h-[480px] w-full overflow-hidden rounded-md border border-border bg-card"
       onDragOver={handleDragOver}
       onDrop={handleDrop}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
     >
       <Stage
         width={size.width}
@@ -296,7 +400,10 @@ export function BoardStage() {
             name="board-transformer"
             rotateEnabled
             keepRatio={false}
-            visible={state.document.activeLayerId !== null}
+            visible={
+              state.activeTool === "select" &&
+              state.document.activeLayerId !== null
+            }
           />
         </Layer>
       </Stage>
