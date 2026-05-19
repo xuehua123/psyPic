@@ -94,6 +94,17 @@ describe("BoardMode (Cut 2 shell)", () => {
     expect(inner).not.toBeNull();
     expect(inner!.className).toMatch(/@\[720px\]\/board:grid-cols-/);
   });
+
+  it("makes outer scrollable on mobile and resets to overflow-visible on desktop (Cut 3.1.6)", () => {
+    // 移动端 BoardMode 父容器不够装 stage + layer-list + inspector，
+    // 内容会溢出 section 跑到 composer 后面（第五轮真机走查的根因）。
+    // outer 必须带 overflow-y-auto 让内部独立滚动；桌面用
+    // @[720px]/board:overflow-visible 重置回非滚动 3 列布局。
+    render(<BoardMode />);
+    const outer = screen.getByTestId("board-mode");
+    expect(outer.className).toMatch(/\boverflow-y-auto\b/);
+    expect(outer.className).toMatch(/@\[720px\]\/board:overflow-visible/);
+  });
 });
 
 describe("BoardLayerList (Cut 3 commit 2)", () => {

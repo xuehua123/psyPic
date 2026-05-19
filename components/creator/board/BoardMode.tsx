@@ -17,7 +17,7 @@ import { BoardProvider } from "@/lib/creator/board/board-context";
  *   全站 context 污染；CreatorWorkspace 的 board TabsContent 用
  *   forceMount，让 state 在 tab 切换时不丢。
  *
- * Cut 3.1.1 → Cut 3.1.5 (responsive layout)：
+ * Cut 3.1.1 → Cut 3.1.6 (responsive layout)：
  *   原版死写 `grid-cols-[220px_minmax(0,1fr)_280px]`，1440 viewport 下
  *   中列只剩 ~220px、390 移动端两侧栏直接撑爆。BoardMode 实际可用宽度
  *   取决于 CreatorWorkspace 左右 sidebar 折叠状态，不能直接绑 viewport
@@ -36,6 +36,13 @@ import { BoardProvider } from "@/lib/creator/board/board-context";
  *      到父容器的可用高度，绕开了 `min-h-[320px]` 下限。修法是去掉
  *      h-full，让 stage 用容器查询直接 sizing：移动 `h-[60vh]`、桌面
  *      `@[720px]/board:h-full` + 480 floor。
+ *
+ *   Cut 3.1.6 修了第五轮真机走查的剩余问题：
+ *     mobile parent 305px，但内容总高 stage 320 + layer-list ~80 +
+ *     inspector ~120 + gap ≈ 530，溢出 section 范围 → layer-list /
+ *     inspector 跑到 composer 后面（y=558 / y=644，composer 从 y=484
+ *     起）。outer 加 `overflow-y-auto` 让移动端在分配空间内独立滚动；
+ *     桌面 `@[720px]/board:overflow-visible` 重置回非滚动 3 列布局。
  */
 
 const BoardStageDynamic = dynamic(
@@ -57,10 +64,19 @@ export function BoardMode() {
   return (
     <BoardProvider>
       {/* Outer：仅声明 container，不参与 grid 解析。
+          移动端 (<720px) 加 overflow-y-auto：CreatorWorkspace 给 board tab
+          分配的高度不够装 stage(320) + layer-list + inspector，内容会溢
+          出 section 范围跑到 composer 后面。让 outer 自己内部滚动，避免
+          和兄弟元素 composer 抢空间。
+          桌面 (>=720px) 重置回 overflow-visible：3 列网格不需要滚动，
+          也避免桌面上意外出现纵向滚动条。
           Inner：消费 @[720px]/board: 查询。CSS container query 总是查祖先，
           不查自身 —— 同一元素同时声明 + 消费会永远不命中（3.1.1 → 3.1.4
           的 1920 仍单列就是这个根因）。 */}
-      <div data-testid="board-mode" className="@container/board h-full w-full">
+      <div
+        data-testid="board-mode"
+        className="@container/board h-full w-full overflow-y-auto @[720px]/board:overflow-visible"
+      >
         <div className="grid h-full w-full grid-cols-1 gap-3 @[720px]/board:grid-cols-[clamp(180px,18cqw,240px)_minmax(0,1fr)_clamp(200px,20cqw,280px)]">
           {/* 容器 < 720px：order-2 把 layer-list 排到 canvas 下方（canvas order-1）。
               容器 >= 720px：grid-cols 三列把 layer-list / canvas / inspector 顺位放好。 */}
