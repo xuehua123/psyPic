@@ -123,6 +123,31 @@ describe("CreatorWorkspace", () => {
     expect(screen.queryByRole("link", { name: "社区" })).not.toBeInTheDocument();
   });
 
+  it("toggles between transcript and board view via the creator view tabs (plan slug board-mode-final · Cut 2)", async () => {
+    const user = userEvent.setup();
+    render(<CreatorWorkspace />);
+
+    // 默认在 transcript tab，board view 不显示
+    const transcriptTab = screen.getByTestId("creator-view-tab-transcript");
+    const boardTab = screen.getByTestId("creator-view-tab-board");
+    expect(transcriptTab).toHaveAttribute("data-state", "active");
+    expect(boardTab).toHaveAttribute("data-state", "inactive");
+    expect(screen.queryByTestId("board-mode")).not.toBeInTheDocument();
+    // transcript 永远 forceMount，仍然在 DOM 里
+    expect(screen.getByTestId("chat-transcript")).toBeInTheDocument();
+
+    // 点 board tab → BoardMode 渲染出来；transcript tab 切到 inactive
+    await user.click(boardTab);
+    expect(boardTab).toHaveAttribute("data-state", "active");
+    expect(transcriptTab).toHaveAttribute("data-state", "inactive");
+    expect(screen.getByTestId("board-mode")).toBeInTheDocument();
+
+    // 点回 transcript → board view 卸载
+    await user.click(transcriptTab);
+    expect(transcriptTab).toHaveAttribute("data-state", "active");
+    expect(screen.queryByTestId("board-mode")).not.toBeInTheDocument();
+  });
+
   it("keeps the AdvancedParamsDrawer closed by default (plan slug quiet-glittering-prism · Cut 11)", () => {
     render(<CreatorWorkspace />);
 
