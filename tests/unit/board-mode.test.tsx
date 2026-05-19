@@ -1,10 +1,14 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { BoardLayerList } from "@/components/creator/board/BoardLayerList";
 import { BoardMode } from "@/components/creator/board";
 import { BoardProvider } from "@/lib/creator/board/board-context";
+import {
+  libraryAssetDragPayload,
+  setLibraryAssetDragData
+} from "@/lib/creator/board/library-drag";
 import type { BoardImageLayer, BoardStrokeLayer } from "@/lib/creator/board/types";
 
 const baseTransform = { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 };
@@ -161,5 +165,89 @@ describe("BoardLayerList (Cut 3 commit 2)", () => {
       "aria-checked",
       "true"
     );
+  });
+});
+
+function createDataTransferStub(): DataTransfer {
+  const store = new Map<string, string>();
+  return {
+    get types() {
+      return Array.from(store.keys());
+    },
+    setData(type: string, value: string) {
+      store.set(type, value);
+    },
+    getData(type: string) {
+      return store.get(type) ?? "";
+    },
+    clearData() {
+      store.clear();
+    },
+    effectAllowed: "uninitialized",
+    dropEffect: "none"
+  } as unknown as DataTransfer;
+}
+
+describe("BoardStage drop from library (Cut 3 commit 3)", () => {
+  it("creates an image layer when a library asset is dropped on the canvas", async () => {
+    render(<BoardMode />);
+
+    await waitFor(
+      () => {
+        expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+      },
+      { timeout: 5000 }
+    );
+
+    // 起步 layer list 为空
+    expect(screen.getByTestId("board-layer-list-empty")).toBeInTheDocument();
+    expect(document.querySelector("[data-konva-kind=\"Image\"]")).toBeNull();
+
+    const stage = screen.getByTestId("board-stage");
+    const dataTransfer = createDataTransferStub();
+    setLibraryAssetDragData(
+      dataTransfer,
+      libraryAssetDragPayload({
+        asset_id: "asset_drop_1",
+        url: "https://example.com/drop.png",
+        prompt: "drop test"
+      })
+    );
+
+    fireEvent.dragOver(stage, { dataTransfer });
+    fireEvent.drop(stage, { dataTransfer, clientX: 100, clientY: 80 });
+
+    // 落库后 layer list empty 占位消失，多一行
+    await waitFor(() => {
+      expect(screen.queryByTestId("board-layer-list-empty")).not.toBeInTheDocument();
+    });
+    const items = screen.getByTestId("board-layer-list-items");
+    const rows = items.querySelectorAll<HTMLElement>(
+      "[data-testid^='board-layer-row-']"
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("drop test");
+
+    // Konva Image 节点也通过 mock 渲染出来（使用 name -> data-testid）
+    const konvaImages = document.querySelectorAll(
+      "[data-konva-kind=\"Image\"]"
+    );
+    expect(konvaImages).toHaveLength(1);
+  });
+
+  it("ignores drops that do not carry a library asset payload", async () => {
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+    });
+
+    const stage = screen.getByTestId("board-stage");
+    const dataTransfer = createDataTransferStub();
+    dataTransfer.setData("text/plain", "not an asset");
+
+    fireEvent.drop(stage, { dataTransfer });
+
+    expect(screen.getByTestId("board-layer-list-empty")).toBeInTheDocument();
+    expect(document.querySelector("[data-konva-kind=\"Image\"]")).toBeNull();
   });
 });

@@ -33,6 +33,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import SectionHeading from "@/components/creator/studio/SectionHeading";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
+import {
+  libraryAssetDragPayload,
+  setLibraryAssetDragData
+} from "@/lib/creator/board/library-drag";
 
 export default function LibrarySection() {
   const {
@@ -136,7 +140,22 @@ export default function LibrarySection() {
       {libraryItems.length > 0 ? (
         <div className="library-section">
           {libraryItems.map((item) => (
-            <div className="history-item library-item" key={item.asset_id}>
+            <div
+              className="history-item library-item"
+              key={item.asset_id}
+              data-testid={`library-asset-card-${item.asset_id}`}
+              draggable
+              onDragStart={(event) => {
+                setLibraryAssetDragData(
+                  event.dataTransfer,
+                  libraryAssetDragPayload({
+                    asset_id: item.asset_id,
+                    url: item.url,
+                    prompt: item.prompt
+                  })
+                );
+              }}
+            >
               <img
                 alt=""
                 className="library-thumb"
