@@ -452,3 +452,82 @@ describe("BoardStage stroke tool (Cut 3 commit 5)", () => {
     expect(screen.getByTestId("board-layer-list-empty")).toBeInTheDocument();
   });
 });
+
+describe("BoardStage text tool (Cut 3 commit 6)", () => {
+  it("creates a text layer with default content on canvas click in text mode", async () => {
+    const user = userEvent.setup();
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("board-tool-text"));
+    expect(screen.getByTestId("board-stage")).toHaveAttribute(
+      "data-active-tool",
+      "text"
+    );
+
+    fireEvent.mouseDown(screen.getByTestId("board-stage"), {
+      clientX: 100,
+      clientY: 80
+    });
+
+    const items = await screen.findByTestId("board-layer-list-items");
+    const rows = items.querySelectorAll<HTMLElement>(
+      "[data-testid^='board-layer-row-']"
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("文字图层");
+
+    // Konva.Text mock 节点带默认文案
+    const textNode = document.querySelector<HTMLElement>(
+      "[data-konva-kind=\"Text\"]"
+    );
+    expect(textNode).not.toBeNull();
+  });
+
+  it("does not stack text layers when clicking on an existing layer", async () => {
+    const user = userEvent.setup();
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId("board-tool-text"));
+    fireEvent.mouseDown(screen.getByTestId("board-stage"), {
+      clientX: 100,
+      clientY: 80
+    });
+
+    const firstNode = await waitFor(() => {
+      const node = document.querySelector<HTMLElement>(
+        "[data-konva-kind=\"Text\"]"
+      );
+      expect(node).not.toBeNull();
+      return node!;
+    });
+
+    // 在第一个 text layer 的 Konva mock 节点上再点一次：不应该再创建
+    fireEvent.mouseDown(firstNode, { clientX: 105, clientY: 85, bubbles: true });
+
+    const items = screen.getByTestId("board-layer-list-items");
+    const rows = items.querySelectorAll<HTMLElement>(
+      "[data-testid^='board-layer-row-']"
+    );
+    expect(rows).toHaveLength(1);
+  });
+
+  it("does not create text layers in select mode", async () => {
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+    });
+
+    fireEvent.mouseDown(screen.getByTestId("board-stage"), {
+      clientX: 100,
+      clientY: 80
+    });
+
+    expect(screen.getByTestId("board-layer-list-empty")).toBeInTheDocument();
+  });
+});

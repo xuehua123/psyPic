@@ -9,6 +9,7 @@ import {
   Line,
   Rect,
   Stage,
+  Text as KonvaText,
   Transformer
 } from "react-konva";
 
@@ -28,7 +29,8 @@ import {
 import type {
   BoardImageLayer,
   BoardLayer,
-  BoardStrokeLayer
+  BoardStrokeLayer,
+  BoardTextLayer
 } from "@/lib/creator/board/types";
 
 /**
@@ -54,6 +56,11 @@ const DEFAULT_DROP_HEIGHT = 320;
 
 const DEFAULT_STROKE_COLOR = "#0c7a6f";
 const DEFAULT_STROKE_SIZE = 4;
+
+const DEFAULT_TEXT_VALUE = "双击编辑文字";
+const DEFAULT_TEXT_FONT_SIZE = 24;
+const DEFAULT_TEXT_FONT_FAMILY = "system-ui";
+const DEFAULT_TEXT_FILL = "#101620";
 
 function generateLayerId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -137,6 +144,37 @@ function BoardStrokeLayerNode({
   );
 }
 
+function BoardTextLayerNode({
+  layer,
+  registerNode,
+  onSelect,
+  onDragEnd,
+  onTransformEnd
+}: LayerNodeProps<BoardTextLayer>) {
+  return (
+    <KonvaText
+      ref={(node: Konva.Node | null) => registerNode(layer.id, node)}
+      name={`board-layer-${layer.id}`}
+      text={layer.text}
+      fontSize={layer.fontSize}
+      fontFamily={layer.fontFamily}
+      fill={layer.fill}
+      x={layer.transform.x}
+      y={layer.transform.y}
+      scaleX={layer.transform.scaleX}
+      scaleY={layer.transform.scaleY}
+      rotation={layer.transform.rotation}
+      opacity={layer.opacity}
+      visible={layer.visible}
+      draggable={!layer.locked}
+      onClick={() => onSelect(layer.id)}
+      onTap={() => onSelect(layer.id)}
+      onDragEnd={(e: { target?: unknown }) => onDragEnd(layer, e.target)}
+      onTransformEnd={(e: { target?: unknown }) => onTransformEnd(layer, e.target)}
+    />
+  );
+}
+
 type LayerRendererProps = {
   layer: BoardLayer;
   isActive: boolean;
@@ -174,7 +212,20 @@ function renderLayerNode(props: LayerRendererProps) {
       />
     );
   }
-  // text / mask 在后续 commits 接入
+  if (layer.kind === "text") {
+    return (
+      <BoardTextLayerNode
+        key={layer.id}
+        layer={layer}
+        isActive={props.isActive}
+        registerNode={props.registerNode}
+        onSelect={props.onSelect}
+        onDragEnd={(l, t) => props.onDragEnd(l, t)}
+        onTransformEnd={(l, t) => props.onTransformEnd(l, t)}
+      />
+    );
+  }
+  // mask 在 Cut 5 接入
   return null;
 }
 
@@ -306,27 +357,56 @@ export function BoardStage() {
   };
 
   const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (state.activeTool !== "stroke") return;
-    const { x, y } = pointerPos(event);
-    const id = generateLayerId();
-    const newLayer: BoardStrokeLayer = {
-      id,
-      name: "笔画图层",
-      kind: "stroke",
-      visible: true,
-      locked: false,
-      opacity: 1,
-      zIndex: state.document.layers.length,
-      transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
-      points: [x, y],
-      brush: {
-        color: DEFAULT_STROKE_COLOR,
-        size: DEFAULT_STROKE_SIZE,
-        mode: "draw"
-      }
-    };
-    dispatch({ type: "addLayer", layer: newLayer });
-    setDrawing({ id, points: [x, y] });
+    if (state.activeTool === "stroke") {
+      const { x, y } = pointerPos(event);
+      const id = generateLayerId();
+      const newLayer: BoardStrokeLayer = {
+        id,
+        name: "笔画图层",
+        kind: "stroke",
+        visible: true,
+        locked: false,
+        opacity: 1,
+        zIndex: state.document.layers.length,
+        transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
+        points: [x, y],
+        brush: {
+          color: DEFAULT_STROKE_COLOR,
+          size: DEFAULT_STROKE_SIZE,
+          mode: "draw"
+        }
+      };
+      dispatch({ type: "addLayer", layer: newLayer });
+      setDrawing({ id, points: [x, y] });
+      return;
+    }
+    if (state.activeTool === "text") {
+      // Text 工具：单击空白处创建一个默认 text layer。编辑放 commit 7
+      // 的 BoardInspector，本刀不实现 inline contentEditable。
+      const target = event.target as HTMLElement | null;
+      // 只在落在 stage 容器自身或 background fill 上时创建，点到现有
+      // layer 的 Konva mock 节点上不创建（避免和点选冲突）。
+      const onExistingLayer = !!target?.closest("[data-testid^='board-layer-']");
+      if (onExistingLayer) return;
+      const { x, y } = pointerPos(event);
+      const id = generateLayerId();
+      const newLayer: BoardTextLayer = {
+        id,
+        name: "文字图层",
+        kind: "text",
+        visible: true,
+        locked: false,
+        opacity: 1,
+        zIndex: state.document.layers.length,
+        transform: { x, y, scaleX: 1, scaleY: 1, rotation: 0 },
+        text: DEFAULT_TEXT_VALUE,
+        fontSize: DEFAULT_TEXT_FONT_SIZE,
+        fontFamily: DEFAULT_TEXT_FONT_FAMILY,
+        fill: DEFAULT_TEXT_FILL
+      };
+      dispatch({ type: "addLayer", layer: newLayer });
+      return;
+    }
   };
 
   const handleMouseMove = (event: React.MouseEvent<HTMLDivElement>) => {
