@@ -509,7 +509,7 @@ export function BoardStage() {
       data-active-tool={state.activeTool}
       data-active-layer-locked={activeLayerLocked ? "true" : "false"}
       data-active-layer-visible={activeLayerVisible ? "true" : "false"}
-      className="relative h-full min-h-[320px] w-full overflow-hidden rounded-md border border-border bg-card"
+      className="relative h-[60vh] w-full overflow-hidden rounded-md border border-border bg-card @[720px]/board:h-full @[720px]/board:min-h-[480px]"
       onDragOver={handleDragOver}
       onDrop={handleDrop}
       onMouseDown={handleMouseDown}

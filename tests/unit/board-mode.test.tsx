@@ -75,6 +75,25 @@ describe("BoardMode (Cut 2 shell)", () => {
     expect(screen.getByTestId("board-grid-group")).toBeInTheDocument();
     expect(screen.getByTestId("board-empty")).toBeInTheDocument();
   });
+
+  it("declares container on outer wrapper and consumes the @[720px] query on a separate inner grid (Cut 3.1.5)", () => {
+    // CSS container query 总是查 **祖先** 容器，永远不查自身。把
+    // `@container/board` 和 `@[720px]/board:grid-cols-...` 放在同一元素
+    // 上 → 永远不命中（3.1.1 → 3.1.4 的 1920 viewport 仍单列就是这个根因）。
+    // 这里断言两层结构：
+    // 1. outer (data-testid="board-mode") 必须带 @container/board，但不应
+    //    把 @[720px]/board: grid 类带在自己身上。
+    // 2. outer 的直接子元素必须带 @[720px]/board:grid-cols-... 才可能在
+    //    桌面下命中 3 列。
+    render(<BoardMode />);
+    const outer = screen.getByTestId("board-mode");
+    expect(outer.className).toMatch(/@container\/board\b/);
+    expect(outer.className).not.toMatch(/@\[720px\]\/board:grid-cols-/);
+
+    const inner = outer.firstElementChild as HTMLElement | null;
+    expect(inner).not.toBeNull();
+    expect(inner!.className).toMatch(/@\[720px\]\/board:grid-cols-/);
+  });
 });
 
 describe("BoardLayerList (Cut 3 commit 2)", () => {
