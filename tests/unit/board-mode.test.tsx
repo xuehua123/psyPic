@@ -339,6 +339,68 @@ describe("BoardStage selection + transform (Cut 3 commit 4)", () => {
   });
 });
 
+describe("BoardStage locked layer (Cut 3 review fix)", () => {
+  it("does not expose Transformer affordance for a locked active layer", async () => {
+    const user = userEvent.setup();
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+    });
+
+    // 起步：drop 一张图 → reducer 自动选中
+    const stage = screen.getByTestId("board-stage");
+    const dataTransfer = createDataTransferStub();
+    setLibraryAssetDragData(
+      dataTransfer,
+      libraryAssetDragPayload({
+        asset_id: "asset_locked",
+        url: "https://example.com/locked.png",
+        prompt: "locked test"
+      })
+    );
+    fireEvent.dragOver(stage, { dataTransfer });
+    fireEvent.drop(stage, { dataTransfer, clientX: 100, clientY: 80 });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("board-layer-list-empty")).not.toBeInTheDocument();
+    });
+
+    // 默认未锁定 → stage 暴露 data-active-layer-locked="false"
+    expect(screen.getByTestId("board-stage")).toHaveAttribute(
+      "data-active-layer-locked",
+      "false"
+    );
+
+    // 拿到刚 drop 的 layer id
+    const items = screen.getByTestId("board-layer-list-items");
+    const rows = items.querySelectorAll<HTMLElement>(
+      "[data-testid^='board-layer-row-']"
+    );
+    expect(rows).toHaveLength(1);
+    const layerId = rows[0]
+      .getAttribute("data-testid")!
+      .replace("board-layer-row-", "");
+
+    // 点 lock 按钮 → reducer toggleLock → stage 暴露 locked=true
+    await user.click(screen.getByTestId(`board-layer-lock-${layerId}`));
+    expect(screen.getByTestId(`board-layer-lock-${layerId}`)).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    expect(screen.getByTestId("board-stage")).toHaveAttribute(
+      "data-active-layer-locked",
+      "true"
+    );
+
+    // 再 toggle 回去
+    await user.click(screen.getByTestId(`board-layer-lock-${layerId}`));
+    expect(screen.getByTestId("board-stage")).toHaveAttribute(
+      "data-active-layer-locked",
+      "false"
+    );
+  });
+});
+
 describe("BoardToolbar (Cut 3 commit 5)", () => {
   it("renders 4 tool chips with select active by default", async () => {
     render(<BoardMode />);

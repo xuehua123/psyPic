@@ -241,6 +241,15 @@ export function BoardStage() {
     { id: string; points: number[] } | null
   >(null);
 
+  // 当前 active layer 是否锁定。Konva Transformer 的 handle 是独立机制，
+  // 不看目标节点的 draggable —— 锁定的图层若仍被 transformer.nodes() 持有，
+  // 用户可以照常 resize/rotate。所以这里把 locked 显式纳入 transformer 的
+  // 附着判断和 visible 判断。
+  const activeLayer = state.document.layers.find(
+    (l) => l.id === state.document.activeLayerId
+  );
+  const activeLayerLocked = activeLayer?.locked ?? false;
+
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -259,6 +268,7 @@ export function BoardStage() {
   // activeLayerId 变化 → 把 Transformer 附着到目标 Konva 节点。
   // jsdom mock 下 transformerRef.current 不是真 Konva.Transformer，
   // 调用 .nodes() / .getLayer() 时会 throw —— 用 type-guard 兜底。
+  // 锁定时强制 nodes([])，让 transformer handle 不响应。
   useEffect(() => {
     const transformer = transformerRef.current as
       | (Konva.Transformer & { getLayer?: () => unknown })
@@ -266,7 +276,7 @@ export function BoardStage() {
     if (!transformer) return;
     const node = get(state.document.activeLayerId);
     if (typeof transformer.nodes !== "function") return;
-    transformer.nodes(node ? [node] : []);
+    transformer.nodes(activeLayerLocked || !node ? [] : [node]);
     if (typeof transformer.getLayer === "function") {
       const layer = transformer.getLayer() as
         | { batchDraw?: () => void }
@@ -274,7 +284,12 @@ export function BoardStage() {
         | undefined;
       layer?.batchDraw?.();
     }
-  }, [state.document.activeLayerId, state.document.layers, get]);
+  }, [
+    state.document.activeLayerId,
+    state.document.layers,
+    activeLayerLocked,
+    get
+  ]);
 
   const verticalLines: number[][] = [];
   for (let x = 0; x <= size.width; x += GRID_SIZE) {
@@ -430,6 +445,7 @@ export function BoardStage() {
       ref={containerRef}
       data-testid="board-stage"
       data-active-tool={state.activeTool}
+      data-active-layer-locked={activeLayerLocked ? "true" : "false"}
       className="relative h-full min-h-[480px] w-full overflow-hidden rounded-md border border-border bg-card"
       onDragOver={handleDragOver}
       onDrop={handleDrop}
@@ -482,7 +498,8 @@ export function BoardStage() {
             keepRatio={false}
             visible={
               state.activeTool === "select" &&
-              state.document.activeLayerId !== null
+              state.document.activeLayerId !== null &&
+              !activeLayerLocked
             }
           />
         </Layer>
