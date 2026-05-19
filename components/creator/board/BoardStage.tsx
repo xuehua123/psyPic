@@ -1,7 +1,7 @@
 "use client";
 
 import type Konva from "konva";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Group,
   Image as KonvaImage,
@@ -196,6 +196,9 @@ type LayerRendererProps = {
 
 function renderLayerNode(props: LayerRendererProps) {
   const { layer } = props;
+  // 直接转发 onDragEnd / onTransformEnd / onSelect / registerNode，避免
+  // inline arrow 每次 render 生成新闭包让 react-konva 走非快速路径。
+  // 上层 BoardStage 用 useCallback 稳定这三个 handler 的身份。
   if (layer.kind === "image") {
     return (
       <BoardImageLayerNode
@@ -204,8 +207,8 @@ function renderLayerNode(props: LayerRendererProps) {
         isActive={props.isActive}
         registerNode={props.registerNode}
         onSelect={props.onSelect}
-        onDragEnd={(l, t) => props.onDragEnd(l, t)}
-        onTransformEnd={(l, t) => props.onTransformEnd(l, t)}
+        onDragEnd={props.onDragEnd}
+        onTransformEnd={props.onTransformEnd}
       />
     );
   }
@@ -217,8 +220,8 @@ function renderLayerNode(props: LayerRendererProps) {
         isActive={props.isActive}
         registerNode={props.registerNode}
         onSelect={props.onSelect}
-        onDragEnd={(l, t) => props.onDragEnd(l, t)}
-        onTransformEnd={(l, t) => props.onTransformEnd(l, t)}
+        onDragEnd={props.onDragEnd}
+        onTransformEnd={props.onTransformEnd}
       />
     );
   }
@@ -230,8 +233,8 @@ function renderLayerNode(props: LayerRendererProps) {
         isActive={props.isActive}
         registerNode={props.registerNode}
         onSelect={props.onSelect}
-        onDragEnd={(l, t) => props.onDragEnd(l, t)}
-        onTransformEnd={(l, t) => props.onTransformEnd(l, t)}
+        onDragEnd={props.onDragEnd}
+        onTransformEnd={props.onTransformEnd}
       />
     );
   }
@@ -440,23 +443,32 @@ export function BoardStage() {
     }
   };
 
-  const handleSelect = (id: string) => {
-    if (state.activeTool !== "select") return;
-    dispatch({ type: "selectLayer", id });
-  };
+  const handleSelect = useCallback(
+    (id: string) => {
+      if (state.activeTool !== "select") return;
+      dispatch({ type: "selectLayer", id });
+    },
+    [state.activeTool, dispatch]
+  );
 
-  const handleLayerDragEnd = (layer: BoardLayer, target: unknown) => {
-    const snapshot = snapshotFromKonvaTarget(target);
-    if (!snapshot) return;
-    dispatch(buildDragTransformAction(layer, snapshot));
-  };
+  const handleLayerDragEnd = useCallback(
+    (layer: BoardLayer, target: unknown) => {
+      const snapshot = snapshotFromKonvaTarget(target);
+      if (!snapshot) return;
+      dispatch(buildDragTransformAction(layer, snapshot));
+    },
+    [dispatch]
+  );
 
-  const handleLayerTransformEnd = (layer: BoardLayer, target: unknown) => {
-    const snapshot = snapshotFromKonvaTarget(target);
-    if (!snapshot) return;
-    bakeScaleOnKonvaTarget(target);
-    dispatch(buildTransformEndAction(layer, snapshot));
-  };
+  const handleLayerTransformEnd = useCallback(
+    (layer: BoardLayer, target: unknown) => {
+      const snapshot = snapshotFromKonvaTarget(target);
+      if (!snapshot) return;
+      bakeScaleOnKonvaTarget(target);
+      dispatch(buildTransformEndAction(layer, snapshot));
+    },
+    [dispatch]
+  );
 
   const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
     if (state.activeTool === "stroke") {

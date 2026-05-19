@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -477,6 +477,163 @@ describe("BoardStage invisible layer (Cut 3.1.3)", () => {
       "data-active-layer-visible",
       "true"
     );
+  });
+});
+
+describe("BoardStage konva drag/transform handlers (Cut 3.1.5 commit 2)", () => {
+  // 排查思路：3.1.4 commit 2 view-sync 已验证「外部 dispatch transformLayer
+  // → Inspector input 跟随刷新」。但用户第三轮真机走查报告「真实画布拖
+  // text 后 Inspector x/y 仍不变」—— 说明拖动路径里 reducer 根本没收到
+  // dispatch。本测试组直接调 layer node 上 React-attached 的 onDragEnd /
+  // onTransformEnd handler（绕过 Konva 真实事件循环），传 Konva-shape-stub
+  // 的 target，断言 reducer 收到 transformLayer 且 Inspector 视图跟刷。
+  //
+  // 如果 PASS → BoardStage 的 handler 链路在测试环境是好的，真机失败的
+  // 根因不在 handler 链路本身（要换方向排查，比如 Konva node 是否
+  // draggable、Transformer 是否拦截事件等）。
+  // 如果 FAIL → handler 链路自身坏，本刀直接修。
+
+  function getReactHandler(
+    node: HTMLElement,
+    prop: string
+  ): (e: { target?: unknown }) => void {
+    const propsKey = Object.keys(node).find((k) =>
+      k.startsWith("__reactProps$")
+    );
+    if (!propsKey) {
+      throw new Error("React 19 props key not found on layer node");
+    }
+    const props = (node as unknown as Record<string, Record<string, unknown>>)[
+      propsKey
+    ];
+    const handler = props[prop];
+    if (typeof handler !== "function") {
+      throw new Error(`${prop} not bound on layer node`);
+    }
+    return handler as (e: { target?: unknown }) => void;
+  }
+
+  function konvaShapeStub(values: {
+    x: number;
+    y: number;
+    scaleX: number;
+    scaleY: number;
+    rotation: number;
+  }) {
+    return {
+      // snapshotFromKonvaTarget 调 .x() / .y() / .scaleX() / .scaleY() / .rotation() —
+      // 全部 getter 风格。bakeScaleOnKonvaTarget 调 .scaleX(1) / .scaleY(1) —
+      // 同名函数允许带参，stub 忽略参数即可。
+      x: () => values.x,
+      y: () => values.y,
+      scaleX: (_v?: number) => values.scaleX,
+      scaleY: (_v?: number) => values.scaleY,
+      rotation: () => values.rotation
+    };
+  }
+
+  async function dropImage(
+    assetId: string,
+    prompt: string,
+    clientX = 50,
+    clientY = 50
+  ) {
+    const stage = screen.getByTestId("board-stage");
+    const dataTransfer = createDataTransferStub();
+    setLibraryAssetDragData(
+      dataTransfer,
+      libraryAssetDragPayload({
+        asset_id: assetId,
+        url: `https://example.com/${assetId}.png`,
+        prompt
+      })
+    );
+    fireEvent.dragOver(stage, { dataTransfer });
+    fireEvent.drop(stage, { dataTransfer, clientX, clientY });
+    await waitFor(() => {
+      expect(
+        document.querySelector("[data-konva-kind=\"Image\"]")
+      ).not.toBeNull();
+    });
+    const items = screen.getByTestId("board-layer-list-items");
+    const rows = items.querySelectorAll<HTMLElement>(
+      "[data-testid^='board-layer-row-']"
+    );
+    return rows[0].getAttribute("data-testid")!.replace("board-layer-row-", "");
+  }
+
+  it("onDragEnd on a layer node dispatches transformLayer with new x/y", async () => {
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+    });
+
+    const layerId = await dropImage("drag_test", "drag test");
+    const layerNode = document.querySelector<HTMLElement>(
+      `[data-testid="board-layer-${layerId}"]`
+    );
+    expect(layerNode).not.toBeNull();
+
+    // Inspector 起步 x/y 不应是 999/888
+    expect(screen.getByTestId("board-inspector-x")).not.toHaveValue(999);
+    expect(screen.getByTestId("board-inspector-y")).not.toHaveValue(888);
+
+    // 直调 React-attached onDragEnd，传 Konva-shape-stub 的 target。
+    // act() 包一下，让 reducer dispatch 触发的 setState 在断言前 flush。
+    const onDragEnd = getReactHandler(layerNode!, "onDragEnd");
+    act(() => {
+      onDragEnd({
+        target: konvaShapeStub({
+          x: 999,
+          y: 888,
+          scaleX: 1,
+          scaleY: 1,
+          rotation: 0
+        })
+      });
+    });
+
+    // 通过 3.1.4 view-sync 通路，Inspector 输入应跟随刷新到新值
+    expect(screen.getByTestId("board-inspector-x")).toHaveValue(999);
+    expect(screen.getByTestId("board-inspector-y")).toHaveValue(888);
+  });
+
+  it("onTransformEnd on an image layer bakes scale into width/height and resets transform.scale", async () => {
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+    });
+
+    const layerId = await dropImage("xform_test", "xform test");
+    const layerNode = document.querySelector<HTMLElement>(
+      `[data-testid="board-layer-${layerId}"]`
+    );
+    expect(layerNode).not.toBeNull();
+
+    // 起步 image width/height = 320（drop 默认 size）
+    expect(screen.getByTestId("board-inspector-image-width")).toHaveValue(320);
+    expect(screen.getByTestId("board-inspector-image-height")).toHaveValue(320);
+
+    // Konva transformerEnd：scaleX=1.5 / scaleY=2 → 烘进 width=480 / height=640
+    const onTransformEnd = getReactHandler(layerNode!, "onTransformEnd");
+    act(() => {
+      onTransformEnd({
+        target: konvaShapeStub({
+          x: 50,
+          y: 60,
+          scaleX: 1.5,
+          scaleY: 2,
+          rotation: 30
+        })
+      });
+    });
+
+    expect(screen.getByTestId("board-inspector-image-width")).toHaveValue(480);
+    expect(screen.getByTestId("board-inspector-image-height")).toHaveValue(640);
+    // scale 烘完应回到 1，rotation 保留
+    expect(screen.getByTestId("board-inspector-scaleX")).toHaveValue(1);
+    expect(screen.getByTestId("board-inspector-scaleY")).toHaveValue(1);
+    expect(screen.getByTestId("board-inspector-rotation")).toHaveValue(30);
   });
 });
 
