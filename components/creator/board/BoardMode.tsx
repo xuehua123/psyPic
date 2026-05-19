@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 
+import { BoardInspector } from "./BoardInspector";
 import { BoardLayerList } from "./BoardLayerList";
 import { BoardToolbar } from "./BoardToolbar";
 import { BoardProvider } from "@/lib/creator/board/board-context";
@@ -57,7 +58,7 @@ export function BoardMode() {
           className="flex flex-col rounded-md border border-border bg-card p-3 text-sm"
         >
           <header className="mb-2 font-medium text-foreground">属性</header>
-          <p className="text-muted-foreground">暂无选中</p>
+          <BoardInspector />
         </aside>
       </div>
     </BoardProvider>

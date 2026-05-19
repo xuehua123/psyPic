@@ -2,9 +2,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
+import { BoardInspector } from "@/components/creator/board/BoardInspector";
 import { BoardLayerList } from "@/components/creator/board/BoardLayerList";
 import { BoardMode } from "@/components/creator/board";
-import { BoardProvider } from "@/lib/creator/board/board-context";
+import { BoardProvider, useBoard } from "@/lib/creator/board/board-context";
 import {
   libraryAssetDragPayload,
   setLibraryAssetDragData
@@ -529,5 +530,154 @@ describe("BoardStage text tool (Cut 3 commit 6)", () => {
     });
 
     expect(screen.getByTestId("board-layer-list-empty")).toBeInTheDocument();
+  });
+});
+
+describe("BoardInspector (Cut 3 commit 7)", () => {
+  function LayerSpy({ id }: { id: string }) {
+    const { state } = useBoard();
+    const layer = state.document.layers.find((l) => l.id === id);
+    if (!layer) return <div data-testid={`spy-${id}-missing`} />;
+    return (
+      <div>
+        <span data-testid={`spy-${id}-name`}>{layer.name}</span>
+        <span data-testid={`spy-${id}-opacity`}>{layer.opacity}</span>
+        {layer.kind === "text" ? (
+          <span data-testid={`spy-${id}-text`}>{layer.text}</span>
+        ) : null}
+        {layer.kind === "stroke" ? (
+          <span data-testid={`spy-${id}-stroke-color`}>{layer.brush.color}</span>
+        ) : null}
+      </div>
+    );
+  }
+
+  it("shows the empty state when no layer is selected", async () => {
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("board-inspector-empty")).toBeInTheDocument();
+  });
+
+  it("dispatches updateLayer on name blur (not on every keystroke)", async () => {
+    const user = userEvent.setup();
+    render(
+      <BoardProvider
+        initialDocument={{
+          layers: [imageLayer],
+          activeLayerId: "img_1"
+        }}
+      >
+        <BoardInspector />
+        <LayerSpy id="img_1" />
+      </BoardProvider>
+    );
+
+    // 初始 spy reads layer.name from reducer state
+    expect(screen.getByTestId("spy-img_1-name")).toHaveTextContent(imageLayer.name);
+
+    const name = screen.getByTestId("board-inspector-name") as HTMLInputElement;
+    await user.clear(name);
+    await user.type(name, "重命名");
+    // 在 blur 之前 reducer 还没收到 dispatch，spy 仍是旧值
+    expect(screen.getByTestId("spy-img_1-name")).toHaveTextContent(imageLayer.name);
+
+    await user.tab();
+    // blur 之后 dispatch 已完成，spy 反映新值
+    expect(screen.getByTestId("spy-img_1-name")).toHaveTextContent("重命名");
+  });
+
+  it("clamps opacity into [0,1] on blur via reducer (verified through spy)", async () => {
+    const user = userEvent.setup();
+    render(
+      <BoardProvider
+        initialDocument={{
+          layers: [imageLayer],
+          activeLayerId: "img_1"
+        }}
+      >
+        <BoardInspector />
+        <LayerSpy id="img_1" />
+      </BoardProvider>
+    );
+
+    expect(screen.getByTestId("spy-img_1-opacity")).toHaveTextContent("1");
+
+    const opacity = screen.getByTestId("board-inspector-opacity") as HTMLInputElement;
+    await user.clear(opacity);
+    await user.type(opacity, "5");
+    await user.tab();
+
+    // reducer state should hold the clamped value (1)
+    expect(screen.getByTestId("spy-img_1-opacity")).toHaveTextContent("1");
+  });
+
+  it("renders the image section when the active layer is an image", () => {
+    render(
+      <BoardProvider
+        initialDocument={{ layers: [imageLayer], activeLayerId: "img_1" }}
+      >
+        <BoardInspector />
+      </BoardProvider>
+    );
+    expect(screen.getByTestId("board-inspector-image-width")).toBeInTheDocument();
+    expect(screen.getByTestId("board-inspector-image-height")).toBeInTheDocument();
+    expect(screen.queryByTestId("board-inspector-stroke-color")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("board-inspector-text-content")).not.toBeInTheDocument();
+  });
+
+  it("renders the stroke section when the active layer is a stroke", () => {
+    render(
+      <BoardProvider
+        initialDocument={{ layers: [strokeLayer], activeLayerId: "stk_1" }}
+      >
+        <BoardInspector />
+      </BoardProvider>
+    );
+    expect(screen.getByTestId("board-inspector-stroke-color")).toBeInTheDocument();
+    expect(screen.getByTestId("board-inspector-stroke-size")).toBeInTheDocument();
+    expect(screen.queryByTestId("board-inspector-image-width")).not.toBeInTheDocument();
+    // Cut 3 不暴露 brush.mode（draw/erase）切换 —— 没有 eraser/mask UI
+    expect(screen.queryByText(/erase/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/橡皮/)).not.toBeInTheDocument();
+  });
+
+  it("text section dispatches updateTextLayer on textarea blur (verified through spy)", async () => {
+    const user = userEvent.setup();
+    const textLayer = {
+      id: "txt_1",
+      name: "Text",
+      kind: "text" as const,
+      visible: true,
+      locked: false,
+      opacity: 1,
+      zIndex: 0,
+      transform: baseTransform,
+      text: "hello",
+      fontSize: 18,
+      fontFamily: "system-ui",
+      fill: "#000000"
+    };
+    render(
+      <BoardProvider
+        initialDocument={{ layers: [textLayer], activeLayerId: "txt_1" }}
+      >
+        <BoardInspector />
+        <LayerSpy id="txt_1" />
+      </BoardProvider>
+    );
+
+    expect(screen.getByTestId("spy-txt_1-text")).toHaveTextContent("hello");
+
+    const content = screen.getByTestId(
+      "board-inspector-text-content"
+    ) as HTMLTextAreaElement;
+    expect(content).toHaveValue("hello");
+    await user.clear(content);
+    await user.type(content, "你好");
+    await user.tab();
+
+    expect(screen.getByTestId("spy-txt_1-text")).toHaveTextContent("你好");
   });
 });
