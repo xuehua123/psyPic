@@ -1859,8 +1859,9 @@ export default function CreatorWorkspace({
 
           <TabsContent
             value="board"
-            className="flex min-h-0 min-w-0 flex-1 flex-col"
+            className="flex min-h-0 min-w-0 flex-1 flex-col data-[state=inactive]:hidden"
             data-testid="creator-view-board"
+            forceMount
           >
             <BoardMode />
           </TabsContent>

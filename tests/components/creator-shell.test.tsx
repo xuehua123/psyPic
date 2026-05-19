@@ -127,25 +127,31 @@ describe("CreatorWorkspace", () => {
     const user = userEvent.setup();
     render(<CreatorWorkspace />);
 
-    // 默认在 transcript tab，board view 不显示
     const transcriptTab = screen.getByTestId("creator-view-tab-transcript");
     const boardTab = screen.getByTestId("creator-view-tab-board");
+    const boardPanel = screen.getByTestId("creator-view-board");
+
+    // 默认在 transcript tab。board panel 通过 forceMount 留在 DOM 里
+    // （让 BoardProvider state 在 tab 切换时不丢，Cut 3 起需要），
+    // 但 data-state=inactive 配合 data-[state=inactive]:hidden 隐藏。
     expect(transcriptTab).toHaveAttribute("data-state", "active");
     expect(boardTab).toHaveAttribute("data-state", "inactive");
-    expect(screen.queryByTestId("board-mode")).not.toBeInTheDocument();
-    // transcript 永远 forceMount，仍然在 DOM 里
+    expect(boardPanel).toHaveAttribute("data-state", "inactive");
     expect(screen.getByTestId("chat-transcript")).toBeInTheDocument();
+    // forceMount + hidden：board-mode 已挂载（state 持久），但视觉隐藏
+    expect(screen.getByTestId("board-mode")).toBeInTheDocument();
 
-    // 点 board tab → BoardMode 渲染出来；transcript tab 切到 inactive
+    // 点 board tab → 切到 active
     await user.click(boardTab);
     expect(boardTab).toHaveAttribute("data-state", "active");
     expect(transcriptTab).toHaveAttribute("data-state", "inactive");
-    expect(screen.getByTestId("board-mode")).toBeInTheDocument();
+    expect(boardPanel).toHaveAttribute("data-state", "active");
 
-    // 点回 transcript → board view 卸载
+    // 点回 transcript → board panel 退回 inactive，但 BoardMode 仍挂载
     await user.click(transcriptTab);
     expect(transcriptTab).toHaveAttribute("data-state", "active");
-    expect(screen.queryByTestId("board-mode")).not.toBeInTheDocument();
+    expect(boardPanel).toHaveAttribute("data-state", "inactive");
+    expect(screen.getByTestId("board-mode")).toBeInTheDocument();
   });
 
   it("keeps the AdvancedParamsDrawer closed by default (plan slug quiet-glittering-prism · Cut 11)", () => {

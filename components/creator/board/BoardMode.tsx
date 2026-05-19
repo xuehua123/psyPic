@@ -2,14 +2,19 @@
 
 import dynamic from "next/dynamic";
 
+import { BoardLayerList } from "./BoardLayerList";
+import { BoardProvider } from "@/lib/creator/board/board-context";
+
 /**
- * Board Mode · Cut 2 (Phase C, plan slug board-mode-final)
+ * Board Mode · Cut 2 + 3 commit 2 (plan slug board-mode-final)
  *
  * 画布主壳：3 列布局（图层列表 / 画布 / 属性面板）。
  * - 画布通过 next/dynamic({ ssr: false }) 加载 BoardStage，避开
  *   Next.js SSR 时 react-konva 触发 `window/canvas is not defined`。
- * - 左右两个 aside 是 Cut 3 的 anchor 占位，**只放 placeholder 文案**，
- *   不实现交互。
+ * - BoardProvider 包在本组件内部（不上 CreatorWorkspace 顶层），避免
+ *   全站 context 污染；CreatorWorkspace 的 board TabsContent 用
+ *   forceMount，让 state 在 tab 切换时不丢。
+ * - 右栏 inspector anchor 占位，commit 7 替换。
  */
 
 const BoardStageDynamic = dynamic(
@@ -29,27 +34,29 @@ const BoardStageDynamic = dynamic(
 
 export function BoardMode() {
   return (
-    <div
-      data-testid="board-mode"
-      className="grid h-full w-full grid-cols-[220px_minmax(0,1fr)_280px] gap-3"
-    >
-      <aside
-        data-testid="board-layer-list"
-        className="flex flex-col rounded-md border border-border bg-card p-3 text-sm"
+    <BoardProvider>
+      <div
+        data-testid="board-mode"
+        className="grid h-full w-full grid-cols-[220px_minmax(0,1fr)_280px] gap-3"
       >
-        <header className="mb-2 font-medium text-foreground">图层</header>
-        <p className="text-muted-foreground">暂无图层</p>
-      </aside>
-      <main className="flex h-full min-h-[480px] flex-col">
-        <BoardStageDynamic />
-      </main>
-      <aside
-        data-testid="board-inspector"
-        className="flex flex-col rounded-md border border-border bg-card p-3 text-sm"
-      >
-        <header className="mb-2 font-medium text-foreground">属性</header>
-        <p className="text-muted-foreground">暂无选中</p>
-      </aside>
-    </div>
+        <aside
+          data-testid="board-layer-list"
+          className="flex flex-col rounded-md border border-border bg-card p-3 text-sm"
+        >
+          <header className="mb-2 font-medium text-foreground">图层</header>
+          <BoardLayerList />
+        </aside>
+        <main className="flex h-full min-h-[480px] flex-col">
+          <BoardStageDynamic />
+        </main>
+        <aside
+          data-testid="board-inspector"
+          className="flex flex-col rounded-md border border-border bg-card p-3 text-sm"
+        >
+          <header className="mb-2 font-medium text-foreground">属性</header>
+          <p className="text-muted-foreground">暂无选中</p>
+        </aside>
+      </div>
+    </BoardProvider>
   );
 }
