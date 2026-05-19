@@ -251,3 +251,89 @@ describe("BoardStage drop from library (Cut 3 commit 3)", () => {
     expect(document.querySelector("[data-konva-kind=\"Image\"]")).toBeNull();
   });
 });
+
+describe("BoardStage selection + transform (Cut 3 commit 4)", () => {
+  async function dropAsset(assetId: string, prompt: string, clientX = 100, clientY = 80) {
+    const stage = screen.getByTestId("board-stage");
+    const dataTransfer = createDataTransferStub();
+    setLibraryAssetDragData(
+      dataTransfer,
+      libraryAssetDragPayload({
+        asset_id: assetId,
+        url: `https://example.com/${assetId}.png`,
+        prompt
+      })
+    );
+    fireEvent.dragOver(stage, { dataTransfer });
+    fireEvent.drop(stage, { dataTransfer, clientX, clientY });
+  }
+
+  function getLayerIds() {
+    const items = screen.getByTestId("board-layer-list-items");
+    return Array.from(
+      items.querySelectorAll<HTMLElement>("[data-testid^='board-layer-row-']")
+    ).map((row) => row.getAttribute("data-testid")!.replace("board-layer-row-", ""));
+  }
+
+  it("renders the Konva Transformer in the empty layer", async () => {
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("board-transformer")).toBeInTheDocument();
+  });
+
+  it("auto-selects a layer when it is dropped onto the canvas", async () => {
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+    });
+
+    await dropAsset("asset_a", "first");
+    await waitFor(() => {
+      expect(screen.queryByTestId("board-layer-list-empty")).not.toBeInTheDocument();
+    });
+    const [firstId] = getLayerIds();
+    expect(screen.getByTestId(`board-layer-row-${firstId}`)).toHaveAttribute(
+      "data-active",
+      "true"
+    );
+  });
+
+  it("clicking a Konva image node re-selects that layer", async () => {
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+    });
+
+    await dropAsset("asset_a", "first", 100, 80);
+    await dropAsset("asset_b", "second", 200, 160);
+
+    await waitFor(() => {
+      // top of list is layers[1] (z-index reversed in BoardLayerList)
+      expect(getLayerIds()).toHaveLength(2);
+    });
+    const [topId, bottomId] = getLayerIds();
+    // 第二个 drop 是新加的 → reducer activeLayerId = 第二个 layer id
+    expect(screen.getByTestId(`board-layer-row-${topId}`)).toHaveAttribute(
+      "data-active",
+      "true"
+    );
+
+    // 点击第一层（list 底部）的 Konva mock 节点 → reducer selectLayer(bottomId)
+    const firstNode = document.querySelector<HTMLElement>(
+      `[data-testid="board-layer-${bottomId}"]`
+    );
+    expect(firstNode).not.toBeNull();
+    fireEvent.click(firstNode!);
+
+    expect(screen.getByTestId(`board-layer-row-${bottomId}`)).toHaveAttribute(
+      "data-active",
+      "true"
+    );
+    expect(screen.getByTestId(`board-layer-row-${topId}`)).toHaveAttribute(
+      "data-active",
+      "false"
+    );
+  });
+});

@@ -1,9 +1,25 @@
 "use client";
 
+import type Konva from "konva";
 import { useEffect, useRef, useState } from "react";
-import { Group, Image as KonvaImage, Layer, Line, Rect, Stage } from "react-konva";
+import {
+  Group,
+  Image as KonvaImage,
+  Layer,
+  Line,
+  Rect,
+  Stage,
+  Transformer
+} from "react-konva";
 
+import {
+  bakeScaleOnKonvaTarget,
+  buildDragTransformAction,
+  buildTransformEndAction,
+  snapshotFromKonvaTarget
+} from "./board-transform";
 import { useImageSource } from "./use-image-source";
+import { useLayerNodeRegistry } from "./use-layer-node-registry";
 import { useBoard } from "@/lib/creator/board/board-context";
 import {
   LIBRARY_ASSET_DRAG_MIME,
@@ -12,19 +28,19 @@ import {
 import type { BoardImageLayer, BoardLayer } from "@/lib/creator/board/types";
 
 /**
- * Board Mode · Cut 2 + Cut 3 commit 3 (plan slug board-mode-final)
+ * Board Mode · Cut 2 + Cut 3 commit 3-4 (plan slug board-mode-final)
  *
- * 画布壳层。本刀：背景、网格、用户图层 slot；接 HTML5 drop 从 LibrarySection
- * 拖入素材生成 BoardImageLayer。
+ * 画布壳层。本刀（commit 4）：选中 + Konva Transformer + 拖动 / 缩放 /
+ * 旋转结束写回 reducer。
  *
- * - 不实现选中、Transformer（Cut 3 commit 4）。
  * - 不实现笔画 / 文字（Cut 3 commit 5/6）。
  * - 不对接 /api/images/edits（Cut 4）。
  * - 不持久化 BoardDocument（Cut 5）。
  *
  * 在测试环境下，react-konva 被 vitest.setup.ts 全量 mock 成 <div>，
- * Konva 节点上的 `name` prop 会被 mock 转成 `data-testid`，
- * smoke test 可断言每个 layer 的 anchor 是否真的渲染出来。
+ * Konva 节点的 `name` prop 转成 `data-testid`，事件 prop（onClick /
+ * onDragEnd / onTransformEnd 等）直接保留为 React handler。Transform
+ * 助手都做了 KonvaShapeLike type-guard，能在 div mock 下安全降级。
  */
 
 const GRID_SIZE = 40;
@@ -43,10 +59,27 @@ function generateLayerId(): string {
 
 type Size = { width: number; height: number };
 
-function BoardImageLayerNode({ layer }: { layer: BoardImageLayer }) {
+type LayerNodeProps<L extends BoardLayer> = {
+  layer: L;
+  isActive: boolean;
+  registerNode: (id: string, node: Konva.Node | null) => void;
+  onSelect: (id: string) => void;
+  onDragEnd: (layer: L, target: unknown) => void;
+  onTransformEnd: (layer: L, target: unknown) => void;
+};
+
+function BoardImageLayerNode({
+  layer,
+  isActive,
+  registerNode,
+  onSelect,
+  onDragEnd,
+  onTransformEnd
+}: LayerNodeProps<BoardImageLayer>) {
   const [image] = useImageSource(layer.src);
   return (
     <KonvaImage
+      ref={(node: Konva.Node | null) => registerNode(layer.id, node)}
       name={`board-layer-${layer.id}`}
       image={image}
       x={layer.transform.x}
@@ -58,13 +91,39 @@ function BoardImageLayerNode({ layer }: { layer: BoardImageLayer }) {
       rotation={layer.transform.rotation}
       opacity={layer.opacity}
       visible={layer.visible}
+      draggable={!layer.locked}
+      onClick={() => onSelect(layer.id)}
+      onTap={() => onSelect(layer.id)}
+      onDragEnd={(e: { target?: unknown }) => onDragEnd(layer, e.target)}
+      onTransformEnd={(e: { target?: unknown }) => onTransformEnd(layer, e.target)}
+      data-active={isActive ? "true" : "false"}
     />
   );
 }
 
-function renderLayerNode(layer: BoardLayer) {
+type LayerRendererProps = {
+  layer: BoardLayer;
+  isActive: boolean;
+  registerNode: (id: string, node: Konva.Node | null) => void;
+  onSelect: (id: string) => void;
+  onDragEnd: (layer: BoardLayer, target: unknown) => void;
+  onTransformEnd: (layer: BoardLayer, target: unknown) => void;
+};
+
+function renderLayerNode(props: LayerRendererProps) {
+  const { layer } = props;
   if (layer.kind === "image") {
-    return <BoardImageLayerNode key={layer.id} layer={layer} />;
+    return (
+      <BoardImageLayerNode
+        key={layer.id}
+        layer={layer}
+        isActive={props.isActive}
+        registerNode={props.registerNode}
+        onSelect={props.onSelect}
+        onDragEnd={(l, t) => props.onDragEnd(l, t)}
+        onTransformEnd={(l, t) => props.onTransformEnd(l, t)}
+      />
+    );
   }
   // stroke / text / mask 在后续 commits 接入
   return null;
@@ -73,7 +132,9 @@ function renderLayerNode(layer: BoardLayer) {
 export function BoardStage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ width: 800, height: 600 });
+  const transformerRef = useRef<Konva.Transformer | null>(null);
   const { state, dispatch } = useBoard();
+  const { register, get } = useLayerNodeRegistry();
 
   useEffect(() => {
     const el = containerRef.current;
@@ -89,6 +150,26 @@ export function BoardStage() {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  // activeLayerId 变化 → 把 Transformer 附着到目标 Konva 节点。
+  // jsdom mock 下 transformerRef.current 不是真 Konva.Transformer，
+  // 调用 .nodes() / .getLayer() 时会 throw —— 用 type-guard 兜底。
+  useEffect(() => {
+    const transformer = transformerRef.current as
+      | (Konva.Transformer & { getLayer?: () => unknown })
+      | null;
+    if (!transformer) return;
+    const node = get(state.document.activeLayerId);
+    if (typeof transformer.nodes !== "function") return;
+    transformer.nodes(node ? [node] : []);
+    if (typeof transformer.getLayer === "function") {
+      const layer = transformer.getLayer() as
+        | { batchDraw?: () => void }
+        | null
+        | undefined;
+      layer?.batchDraw?.();
+    }
+  }, [state.document.activeLayerId, state.document.layers, get]);
 
   const verticalLines: number[][] = [];
   for (let x = 0; x <= size.width; x += GRID_SIZE) {
@@ -138,6 +219,33 @@ export function BoardStage() {
     dispatch({ type: "addLayer", layer });
   };
 
+  const handleStageClick = (event: { target?: { getStage?: () => unknown } }) => {
+    // 点击空白处 → 取消选中。Konva: e.target === stage 时表示空击。
+    const target = event.target;
+    if (target && typeof target.getStage === "function") {
+      if (target.getStage() === target) {
+        dispatch({ type: "selectLayer", id: null });
+      }
+    }
+  };
+
+  const handleSelect = (id: string) => {
+    dispatch({ type: "selectLayer", id });
+  };
+
+  const handleLayerDragEnd = (layer: BoardLayer, target: unknown) => {
+    const snapshot = snapshotFromKonvaTarget(target);
+    if (!snapshot) return;
+    dispatch(buildDragTransformAction(layer, snapshot));
+  };
+
+  const handleLayerTransformEnd = (layer: BoardLayer, target: unknown) => {
+    const snapshot = snapshotFromKonvaTarget(target);
+    if (!snapshot) return;
+    bakeScaleOnKonvaTarget(target);
+    dispatch(buildTransformEndAction(layer, snapshot));
+  };
+
   return (
     <div
       ref={containerRef}
@@ -146,7 +254,12 @@ export function BoardStage() {
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
-      <Stage width={size.width} height={size.height}>
+      <Stage
+        width={size.width}
+        height={size.height}
+        onClick={handleStageClick}
+        onTap={handleStageClick}
+      >
         <Layer name="board-background">
           <Rect
             name="board-background-fill"
@@ -168,7 +281,23 @@ export function BoardStage() {
           </Group>
         </Layer>
         <Layer name="board-empty">
-          {state.document.layers.map((layer) => renderLayerNode(layer))}
+          {state.document.layers.map((layer) =>
+            renderLayerNode({
+              layer,
+              isActive: state.document.activeLayerId === layer.id,
+              registerNode: register,
+              onSelect: handleSelect,
+              onDragEnd: handleLayerDragEnd,
+              onTransformEnd: handleLayerTransformEnd
+            })
+          )}
+          <Transformer
+            ref={transformerRef}
+            name="board-transformer"
+            rotateEnabled
+            keepRatio={false}
+            visible={state.document.activeLayerId !== null}
+          />
         </Layer>
       </Stage>
     </div>

@@ -6,16 +6,47 @@ import { vi } from "vitest";
 // - Konva 节点的 `name` prop 通过 mock 转成 `data-testid`，让 smoke test
 //   能直接 getByTestId(name) 断言背景 / 网格 / 空层 anchor 是否被渲染。
 // - 子节点正常 children 渲染，3 列布局测试可以验证 Stage 嵌套结构。
+// - Konva 事件 prop（onClick / onTap / onDragEnd / onTransformEnd 等）
+//   保留为 React 事件 handler。Konva 真实运行时事件签名是 KonvaEventObject<E>，
+//   测试里只需要触发 dispatch 并断言 reducer 状态，不依赖 e.target.x() 等真实
+//   Konva node 接口。
 vi.mock("react-konva", () => {
   type Props = {
     name?: string;
     children?: React.ReactNode;
     [key: string]: unknown;
   };
+  const KONVA_EVENT_PROPS = new Set([
+    "onClick",
+    "onTap",
+    "onDragStart",
+    "onDragMove",
+    "onDragEnd",
+    "onTransformStart",
+    "onTransform",
+    "onTransformEnd",
+    "onMouseDown",
+    "onMouseMove",
+    "onMouseUp",
+    "onMouseEnter",
+    "onMouseLeave",
+    "onTouchStart",
+    "onTouchMove",
+    "onTouchEnd",
+    "onDblClick",
+    "onDblTap"
+  ]);
   const make = (kind: string) => {
-    const C = ({ name, children }: Props) => {
+    const C = ({ name, children, ...rest }: Props) => {
       const attrs: Record<string, unknown> = { "data-konva-kind": kind };
       if (name) attrs["data-testid"] = name;
+      for (const [key, value] of Object.entries(rest)) {
+        if (KONVA_EVENT_PROPS.has(key) && typeof value === "function") {
+          attrs[key] = value;
+        } else if (key.startsWith("data-") || key === "role") {
+          attrs[key] = value;
+        }
+      }
       return React.createElement("div", attrs, children);
     };
     C.displayName = `Konva${kind}Mock`;
