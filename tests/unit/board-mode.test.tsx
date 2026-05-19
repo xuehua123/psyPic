@@ -401,6 +401,66 @@ describe("BoardStage locked layer (Cut 3 review fix)", () => {
   });
 });
 
+describe("BoardStage invisible layer (Cut 3.1.3)", () => {
+  it("does not expose Transformer affordance for an invisible active layer", async () => {
+    const user = userEvent.setup();
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+    });
+
+    // 起步：drop 一张图 → reducer 自动选中
+    const stage = screen.getByTestId("board-stage");
+    const dataTransfer = createDataTransferStub();
+    setLibraryAssetDragData(
+      dataTransfer,
+      libraryAssetDragPayload({
+        asset_id: "asset_invisible",
+        url: "https://example.com/invisible.png",
+        prompt: "invisible test"
+      })
+    );
+    fireEvent.dragOver(stage, { dataTransfer });
+    fireEvent.drop(stage, { dataTransfer, clientX: 100, clientY: 80 });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("board-layer-list-empty")).not.toBeInTheDocument();
+    });
+
+    // 默认可见 → stage 暴露 data-active-layer-visible="true"
+    expect(screen.getByTestId("board-stage")).toHaveAttribute(
+      "data-active-layer-visible",
+      "true"
+    );
+
+    const items = screen.getByTestId("board-layer-list-items");
+    const rows = items.querySelectorAll<HTMLElement>(
+      "[data-testid^='board-layer-row-']"
+    );
+    expect(rows).toHaveLength(1);
+    const layerId = rows[0]
+      .getAttribute("data-testid")!
+      .replace("board-layer-row-", "");
+
+    // 点 visibility 按钮 → reducer toggleVisible → stage 暴露 visible=false
+    await user.click(screen.getByTestId(`board-layer-visibility-${layerId}`));
+    expect(
+      screen.getByTestId(`board-layer-visibility-${layerId}`)
+    ).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByTestId("board-stage")).toHaveAttribute(
+      "data-active-layer-visible",
+      "false"
+    );
+
+    // 再 toggle 回去
+    await user.click(screen.getByTestId(`board-layer-visibility-${layerId}`));
+    expect(screen.getByTestId("board-stage")).toHaveAttribute(
+      "data-active-layer-visible",
+      "true"
+    );
+  });
+});
+
 describe("BoardToolbar (Cut 3 commit 5)", () => {
   it("renders 4 tool chips with select active by default", async () => {
     render(<BoardMode />);
