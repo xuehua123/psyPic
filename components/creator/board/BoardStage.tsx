@@ -521,7 +521,7 @@ export function BoardStage() {
       data-active-tool={state.activeTool}
       data-active-layer-locked={activeLayerLocked ? "true" : "false"}
       data-active-layer-visible={activeLayerVisible ? "true" : "false"}
-      className="relative h-[60vh] w-full overflow-hidden rounded-md border border-border bg-card @[720px]/board:h-full @[720px]/board:min-h-[480px]"
+      className="relative h-[40vh] max-h-[320px] min-h-[240px] w-full overflow-hidden rounded-md border border-border bg-card @[720px]/board:h-full @[720px]/board:min-h-[480px] @[720px]/board:max-h-none"
       onDragOver={handleDragOver}
       onDrop={handleDrop}
       onMouseDown={handleMouseDown}
