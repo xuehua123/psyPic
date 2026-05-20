@@ -1,9 +1,14 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { vi } from "vitest";
 import CreatorWorkspace from "@/components/creator/CreatorWorkspace";
 import { useSession } from "@/components/auth/SessionProvider";
+import * as boardExportModule from "@/lib/creator/board/board-export";
+import {
+  libraryAssetDragPayload,
+  setLibraryAssetDragData
+} from "@/lib/creator/board/library-drag";
 import { useWorkbench } from "@/lib/creator/use-workbench";
 
 // useWorkbench 默认返回 fallback 模式，避免内部 fetch 干扰测试中的 fetchSpy mock chain
@@ -152,6 +157,90 @@ describe("CreatorWorkspace", () => {
     expect(transcriptTab).toHaveAttribute("data-state", "active");
     expect(boardPanel).toHaveAttribute("data-state", "inactive");
     expect(screen.getByTestId("board-mode")).toBeInTheDocument();
+  });
+
+  it("injects a board export PNG into the composer reference slot and switches back to transcript (Cut 4.3)", async () => {
+    const user = userEvent.setup();
+
+    // mock exportBoardToPng：不依赖真实 canvas，返回固定的 dataUrl + Blob，
+    // 让 BoardModeInner.handleExport 走完成功分支。
+    const fakeBlob = new Blob([new Uint8Array([0, 1, 2, 3])], {
+      type: "image/png"
+    });
+    const exportSpy = vi
+      .spyOn(boardExportModule, "exportBoardToPng")
+      .mockReturnValue({
+        dataUrl: "data:image/png;base64,AAECAw==",
+        blob: fakeBlob,
+        width: 1280,
+        height: 960
+      });
+
+    try {
+      render(<CreatorWorkspace />);
+
+      // 1. 切到 Board tab
+      const boardTab = screen.getByTestId("creator-view-tab-board");
+      const transcriptTab = screen.getByTestId("creator-view-tab-transcript");
+      await user.click(boardTab);
+      await waitFor(() => {
+        expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+      });
+
+      // 2. 起步 reference 槽为空 + composer-reference-row 不渲染
+      expect(
+        screen.queryByTestId("composer-reference-row")
+      ).not.toBeInTheDocument();
+
+      // 3. drop 一张图让 export 按钮 enable（复用 LibrarySection 拖图协议）
+      const stage = screen.getByTestId("board-stage");
+      const dataTransfer = createDataTransferStub();
+      setLibraryAssetDragData(
+        dataTransfer,
+        libraryAssetDragPayload({
+          asset_id: "asset_cut43",
+          url: "https://example.com/cut43.png",
+          prompt: "cut 4.3"
+        })
+      );
+      fireEvent.dragOver(stage, { dataTransfer });
+      fireEvent.drop(stage, { dataTransfer, clientX: 80, clientY: 80 });
+
+      const exportButton = await screen.findByTestId(
+        "board-export-as-reference"
+      );
+      await waitFor(() => {
+        expect(exportButton).not.toBeDisabled();
+      });
+
+      // 4. 点击「作为参考图编辑」
+      await user.click(exportButton);
+
+      // 5. exportBoardToPng 被调用
+      await waitFor(() => {
+        expect(exportSpy).toHaveBeenCalledTimes(1);
+      });
+
+      // 6. 切回 transcript（CreatorWorkspace setView("transcript")）
+      await waitFor(() => {
+        expect(transcriptTab).toHaveAttribute("data-state", "active");
+        expect(boardTab).toHaveAttribute("data-state", "inactive");
+      });
+
+      // 7. Composer reference 槽显示 board export PNG。文件名 = boardExportAssetId.png
+      const referenceRow = await screen.findByTestId("composer-reference-row");
+      expect(referenceRow).toBeInTheDocument();
+      // BoardExportPanel 的 success state 也带 boardExportAssetId，链路一致
+      const successAssetId = screen.getByTestId("board-export-asset-id")
+        .textContent ?? "";
+      expect(successAssetId).toMatch(/^board-export-\d+-[a-z0-9]{4}$/);
+
+      // referenceRow 里应该出现刚才生成的 board PNG（缩略图 alt / src 含 blob URL）
+      const composerImg = within(referenceRow).queryByRole("img");
+      expect(composerImg).not.toBeNull();
+    } finally {
+      exportSpy.mockRestore();
+    }
   });
 
   it("keeps the AdvancedParamsDrawer closed by default (plan slug quiet-glittering-prism · Cut 11)", () => {
@@ -1717,6 +1806,28 @@ describe("CreatorWorkspace", () => {
     expect(screen.getByText(/\(请稍后重试\)/i)).toBeInTheDocument();
   });
 });
+
+function createDataTransferStub(): DataTransfer {
+  // Cut 4.3：复用 board-mode.test.tsx 的 stub 形态。jsdom 没有完整
+  // DataTransfer，最小集合够覆盖 readLibraryAssetDragData 的解析路径。
+  const store = new Map<string, string>();
+  return {
+    get types() {
+      return Array.from(store.keys());
+    },
+    setData(type: string, value: string) {
+      store.set(type, value);
+    },
+    getData(type: string) {
+      return store.get(type) ?? "";
+    },
+    clearData() {
+      store.clear();
+    },
+    effectAllowed: "uninitialized",
+    dropEffect: "none"
+  } as unknown as DataTransfer;
+}
 
 function generationResponse(input: {
   taskId: string;

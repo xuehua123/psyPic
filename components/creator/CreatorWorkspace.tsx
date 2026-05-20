@@ -36,6 +36,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { formatApiError, formatTaskError } from "@/lib/creator/api-error";
+import type { BoardCompositionRef } from "@/lib/creator/board/composition-ref";
 import {
   fetchReferenceImageFile,
   mimeTypeForFormat
@@ -207,6 +208,21 @@ export default function CreatorWorkspace({
       url: URL.createObjectURL(image)
     }));
   }, [referenceImages]);
+
+  // Board Mode · Cut 4.3 (plan slug 2026-05-20-board-mode-cut4-plan)
+  // 用户在 Board 点「作为参考图编辑」后，BoardMode 把当次导出的全部上下文
+  // 抛给 onUseBoardExportAsReference，这里收下：
+  // - 把 export blob 包成 File，注入既有的 referenceImages 槽（复用现有
+  //   Composer reference UI / 提交链路）
+  // - 把 BoardCompositionRef 留在前端 state，给 Cut 4.4 提交时塞 board_*
+  //   context 用。Cut 4.3 本身**不发**这些字段。
+  // - 切回 transcript tab，让用户立刻看到 Composer 已经被填充。
+  const [boardComposition, setBoardComposition] =
+    useState<BoardCompositionRef | null>(null);
+  // Cut 4.3 仅注入 reference + 切 tab，本刀不读 boardComposition；Cut 4.4
+  // 提交链路接 generation-context 时再消费它。`void` 显式声明保留意图,
+  // 通过 lint @typescript-eslint/no-unused-vars。
+  void boardComposition;
   const [maskEnabled, setMaskEnabled] = useState(false);
   const [maskMode, setMaskMode] = useState<MaskMode>("paint");
   const [maskBrushSize, setMaskBrushSize] = useState(48);
@@ -1283,6 +1299,31 @@ export default function CreatorWorkspace({
     }
   }
 
+  /**
+   * Board Mode · Cut 4.3 (plan slug 2026-05-20-board-mode-cut4-plan).
+   *
+   * 用户在 Board Mode 点「作为参考图编辑」并成功导出 PNG 后，BoardMode
+   * 把全部 BoardCompositionRef 抛上来。这里只做 4 件事：
+   *   1. blob → File，命名带 boardExportAssetId 方便排查；
+   *   2. setReferenceImages([file]) 复用现有 Composer reference 槽；
+   *   3. setMode("image") + 清错误，与历史 reference 注入路径对齐；
+   *   4. 留下 boardComposition state，给 Cut 4.4 提交时塞 board_* context；
+   *   5. setView("transcript") 切回对话流，让用户看到 Composer 已被填充。
+   *
+   * 本刀**不**触发提交，**不**改 generation-context，**不**发 board_* 字段。
+   */
+  function handleUseBoardExportAsReference(composition: BoardCompositionRef) {
+    const fileName = `${composition.boardExportAssetId}.png`;
+    const file = new File([composition.export.blob], fileName, {
+      type: "image/png"
+    });
+    setReferenceImages([file]);
+    setBoardComposition(composition);
+    setMode("image");
+    setErrorMessage("");
+    setView("transcript");
+  }
+
   async function handleResultAsReference(image: GenerationImage) {
     try {
       const reference = await fetchReferenceImageFile({
@@ -1863,7 +1904,9 @@ export default function CreatorWorkspace({
             data-testid="creator-view-board"
             forceMount
           >
-            <BoardMode />
+            <BoardMode
+              onUseBoardExportAsReference={handleUseBoardExportAsReference}
+            />
           </TabsContent>
         </Tabs>
 

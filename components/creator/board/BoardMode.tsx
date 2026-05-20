@@ -12,11 +12,12 @@ import type {
 import { BoardInspector } from "./BoardInspector";
 import { BoardLayerList } from "./BoardLayerList";
 import { BoardToolbar } from "./BoardToolbar";
-import { BoardProvider } from "@/lib/creator/board/board-context";
+import { BoardProvider, useBoard } from "@/lib/creator/board/board-context";
 import {
   exportBoardToPng,
   type BoardExportResult
 } from "@/lib/creator/board/board-export";
+import type { BoardCompositionRef } from "@/lib/creator/board/composition-ref";
 
 /**
  * Board Mode · Cut 2 + Cut 3 commit 2 / 5 + Cut 3.1.1 (plan slug board-mode-final)
@@ -54,6 +55,10 @@ import {
  *     inspector 跑到 composer 后面（y=558 / y=644，composer 从 y=484
  *     起）。outer 加 `overflow-y-auto` 让移动端在分配空间内独立滚动；
  *     桌面 `@[720px]/board:overflow-visible` 重置回非滚动 3 列布局。
+ *
+ *   Cut 4.3 split：BoardMode 拆成 wrapper + Inner。Inner 在 BoardProvider
+ *   内部，能调 useBoard() 拿当前 BoardDocument 做 BoardCompositionRef
+ *   snapshot，再通过 onUseBoardExportAsReference 抛给 CreatorWorkspace。
  */
 
 const BoardStageDynamic = dynamic(
@@ -82,6 +87,18 @@ function generateBoardExportAssetId(): string {
   return `board-export-${ts}-${rand}`;
 }
 
+/**
+ * Cut 4.3 stable client board id：reducer document.id 默认空字符串，
+ * BoardProvider 没收到 initialDocument 时一直为空。沿用 reducer
+ * document.id 优先，为空时生成一份稳定 client id 留给本会话使用。Cut 5
+ * 接持久化后再换成服务端 board document id。
+ */
+function generateClientBoardDocumentId(): string {
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 6).padStart(4, "0");
+  return `board-doc-${ts}-${rand}`;
+}
+
 export type LastBoardExport = {
   boardExportAssetId: string;
   pixelRatio: 1 | 2;
@@ -89,19 +106,48 @@ export type LastBoardExport = {
   exportedAt: number;
 };
 
-export function BoardMode() {
+export type BoardModeProps = {
+  /**
+   * Cut 4.3：用户在 BoardExportPanel 点「作为参考图编辑」并成功导出后,
+   * BoardMode 会同步调一次该 callback 把 BoardCompositionRef 传给上层
+   * （CreatorWorkspace），由它注入 Composer reference 并切回 transcript。
+   * 不传时本组件仅在内部记录 lastExport，UI 不会自动跳出 Board。
+   */
+  onUseBoardExportAsReference?: (composition: BoardCompositionRef) => void;
+};
+
+/**
+ * BoardMode 是「BoardProvider + 三栏布局」的薄壳。导出 / Composer 注入
+ * 路径需要读 BoardProvider 内的 reducer state，所以拆出 BoardModeInner
+ * 在 provider 内部消费 useBoard()。stageRef / lastExport / handleExport
+ * 都搬进 inner，保持「需要 useBoard 的代码在 provider 里」这个边界。
+ */
+export function BoardMode({ onUseBoardExportAsReference }: BoardModeProps = {}) {
+  return (
+    <BoardProvider>
+      <BoardModeInner onUseBoardExportAsReference={onUseBoardExportAsReference} />
+    </BoardProvider>
+  );
+}
+
+function BoardModeInner({ onUseBoardExportAsReference }: BoardModeProps) {
+  const { state } = useBoard();
+
   // Cut 4.1：局部 stageRef，接 BoardStage 的 onStageReady callback。仅
-  // 供 4.2 起的 BoardExportPanel 调 stage.toDataURL 用，不放进
-  // BoardContext —— BoardContext 仍是纯 reducer state。
+  // 供 BoardExportPanel 调 stage.toDataURL 用，不放进 BoardContext —
+  // BoardContext 仍是纯 reducer state。
   const stageRef = useRef<Konva.Stage | null>(null);
   const handleStageReady = useCallback((stage: Konva.Stage | null) => {
     stageRef.current = stage;
   }, []);
 
-  // Cut 4.2：把最近一次成功导出的结果保留在 BoardMode 本地 state。Cut 4.3
-  // 起 BoardExportPanel 的 onExport 也会注入 Composer reference；本刀只
-  // 存住，4.3 才消费。
+  // Cut 4.2：把最近一次成功导出的结果保留在 BoardModeInner 本地 state，
+  // 给后续真机走查 / Cut 4.4 的提交链路留落地点。
   const [lastExport, setLastExport] = useState<LastBoardExport | null>(null);
+
+  // Cut 4.3：reducer document.id 默认 ""，session 期内只生成一次 client
+  // id 复用。useRef 而非 useState 避免改 ref 触发 rerender。
+  const clientBoardIdRef = useRef<string | null>(null);
 
   const handleExport = useCallback(
     async (
@@ -125,6 +171,35 @@ export function BoardMode() {
           result,
           exportedAt: Date.now()
         });
+
+        if (onUseBoardExportAsReference) {
+          // BoardDocument id 解析：优先用 reducer 内部 id，为空时复用 / 生成
+          // 一份会话稳定的 client id（不发后端，仅给前端 Composer 关联用）。
+          let boardDocumentId = state.document.id;
+          if (!boardDocumentId) {
+            if (!clientBoardIdRef.current) {
+              clientBoardIdRef.current = generateClientBoardDocumentId();
+            }
+            boardDocumentId = clientBoardIdRef.current;
+          }
+
+          // 深拷贝 BoardDocument 快照，避免后续编辑画布时改写历史 ref。
+          // structuredClone 在 Node 17+ / 现代浏览器原生支持；jsdom 也有。
+          const composition: BoardCompositionRef = {
+            boardDocumentId,
+            boardExportAssetId,
+            boardSnapshot: structuredClone(state.document),
+            export: {
+              blob: result.blob,
+              dataUrl: result.dataUrl,
+              width: result.width,
+              height: result.height,
+              pixelRatio: input.pixelRatio
+            }
+          };
+          onUseBoardExportAsReference(composition);
+        }
+
         return { ok: true, boardExportAssetId, result };
       } catch (err) {
         return {
@@ -133,53 +208,51 @@ export function BoardMode() {
         };
       }
     },
-    []
+    [onUseBoardExportAsReference, state.document]
   );
 
-  // 当前 lastExport 仅在 BoardMode 内观察；Cut 4.3 起会传给 Composer
-  // 注入 helper。本刀刻意不消费它，避免 4.3 之前误用。
+  // 当前 lastExport 仅在 BoardModeInner 内观察；Cut 4.4 起会接 generation
+  // context。本刀刻意不消费它，避免 4.4 之前的代码误用。
   void lastExport;
 
   return (
-    <BoardProvider>
-      {/* Outer：仅声明 container，不参与 grid 解析。
-          移动端 (<720px) 加 overflow-y-auto：CreatorWorkspace 给 board tab
-          分配的高度不够装 stage(320) + layer-list + inspector，内容会溢
-          出 section 范围跑到 composer 后面。让 outer 自己内部滚动，避免
-          和兄弟元素 composer 抢空间。
-          桌面 (>=720px) 重置回 overflow-visible：3 列网格不需要滚动，
-          也避免桌面上意外出现纵向滚动条。
-          Inner：消费 @[720px]/board: 查询。CSS container query 总是查祖先,
-          不查自身 —— 同一元素同时声明 + 消费会永远不命中（3.1.1 → 3.1.4
-          的 1920 仍单列就是这个根因）。 */}
-      <div
-        data-testid="board-mode"
-        className="@container/board h-full w-full overflow-y-auto @[720px]/board:overflow-visible"
-      >
-        <div className="grid h-full w-full grid-cols-1 gap-3 @[720px]/board:grid-cols-[clamp(180px,18cqw,240px)_minmax(0,1fr)_clamp(200px,20cqw,280px)]">
-          {/* 容器 < 720px：order-2 把 layer-list 排到 canvas 下方（canvas order-1）。
-              容器 >= 720px：grid-cols 三列把 layer-list / canvas / inspector 顺位放好。 */}
-          <aside
-            data-testid="board-layer-list"
-            className="order-2 flex flex-col rounded-md border border-border bg-card p-3 text-sm @[720px]/board:order-1"
-          >
-            <header className="mb-2 font-medium text-foreground">图层</header>
-            <BoardLayerList />
-          </aside>
-          <main className="order-1 flex flex-col gap-2 @[720px]/board:order-2 @[720px]/board:min-h-[480px]">
-            <BoardToolbar />
-            <BoardStageDynamic onStageReady={handleStageReady} />
-          </main>
-          <aside
-            data-testid="board-inspector"
-            className="order-3 flex flex-col gap-3 rounded-md border border-border bg-card p-3 text-sm @[720px]/board:order-3"
-          >
-            <header className="font-medium text-foreground">属性</header>
-            <BoardInspector />
-            <BoardExportPanel onExport={handleExport} />
-          </aside>
-        </div>
+    /* Outer：仅声明 container，不参与 grid 解析。
+       移动端 (<720px) 加 overflow-y-auto：CreatorWorkspace 给 board tab
+       分配的高度不够装 stage(320) + layer-list + inspector，内容会溢
+       出 section 范围跑到 composer 后面。让 outer 自己内部滚动，避免
+       和兄弟元素 composer 抢空间。
+       桌面 (>=720px) 重置回 overflow-visible：3 列网格不需要滚动，
+       也避免桌面上意外出现纵向滚动条。
+       Inner：消费 @[720px]/board: 查询。CSS container query 总是查祖先,
+       不查自身 —— 同一元素同时声明 + 消费会永远不命中（3.1.1 → 3.1.4
+       的 1920 仍单列就是这个根因）。 */
+    <div
+      data-testid="board-mode"
+      className="@container/board h-full w-full overflow-y-auto @[720px]/board:overflow-visible"
+    >
+      <div className="grid h-full w-full grid-cols-1 gap-3 @[720px]/board:grid-cols-[clamp(180px,18cqw,240px)_minmax(0,1fr)_clamp(200px,20cqw,280px)]">
+        {/* 容器 < 720px：order-2 把 layer-list 排到 canvas 下方（canvas order-1）。
+            容器 >= 720px：grid-cols 三列把 layer-list / canvas / inspector 顺位放好。 */}
+        <aside
+          data-testid="board-layer-list"
+          className="order-2 flex flex-col rounded-md border border-border bg-card p-3 text-sm @[720px]/board:order-1"
+        >
+          <header className="mb-2 font-medium text-foreground">图层</header>
+          <BoardLayerList />
+        </aside>
+        <main className="order-1 flex flex-col gap-2 @[720px]/board:order-2 @[720px]/board:min-h-[480px]">
+          <BoardToolbar />
+          <BoardStageDynamic onStageReady={handleStageReady} />
+        </main>
+        <aside
+          data-testid="board-inspector"
+          className="order-3 flex flex-col gap-3 rounded-md border border-border bg-card p-3 text-sm @[720px]/board:order-3"
+        >
+          <header className="font-medium text-foreground">属性</header>
+          <BoardInspector />
+          <BoardExportPanel onExport={handleExport} />
+        </aside>
       </div>
-    </BoardProvider>
+    </div>
   );
 }
