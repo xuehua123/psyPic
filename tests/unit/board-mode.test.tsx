@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { BoardInspector } from "@/components/creator/board/BoardInspector";
 import { BoardLayerList } from "@/components/creator/board/BoardLayerList";
@@ -645,6 +645,36 @@ describe("BoardStage konva drag/transform handlers (Cut 3.1.5 commit 2)", () => 
     expect(screen.getByTestId("board-inspector-scaleX")).toHaveValue(1);
     expect(screen.getByTestId("board-inspector-scaleY")).toHaveValue(1);
     expect(screen.getByTestId("board-inspector-rotation")).toHaveValue(30);
+  });
+});
+
+describe("BoardStage onStageReady (Cut 4.1)", () => {
+  it("forwards a non-null stage handle on mount and clears it on unmount", async () => {
+    // BoardStage 在 BoardMode 里通过 next/dynamic 异步加载；这里直接拿
+    // 内部 BoardStage 在 BoardProvider 下挂载，绕过 dynamic loader，可
+    // 同步断言 onStageReady 调用。
+    const { BoardStage } = await import(
+      "@/components/creator/board/BoardStage"
+    );
+    const onStageReady = vi.fn();
+    const { unmount } = render(
+      <BoardProvider>
+        <BoardStage onStageReady={onStageReady} />
+      </BoardProvider>
+    );
+
+    // mount effect 至少触发一次
+    expect(onStageReady).toHaveBeenCalled();
+    // 至少其中一次拿到非 null（react-konva mock 把 ref 透传到 div）
+    const argsBeforeUnmount = onStageReady.mock.calls.map(
+      (call: unknown[]) => call[0]
+    );
+    expect(argsBeforeUnmount.some((arg: unknown) => arg !== null)).toBe(true);
+
+    onStageReady.mockClear();
+    unmount();
+    // unmount 时调一次 null 让 BoardMode 清掉 ref
+    expect(onStageReady).toHaveBeenCalledWith(null);
   });
 });
 

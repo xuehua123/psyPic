@@ -37,8 +37,22 @@ vi.mock("react-konva", () => {
     "onDblTap"
   ]);
   const make = (kind: string) => {
-    const C = ({ name, children, ...rest }: Props) => {
+    const C = ({
+      name,
+      children,
+      ref,
+      ...rest
+    }: Props & { ref?: React.Ref<unknown> }) => {
       const attrs: Record<string, unknown> = { "data-konva-kind": kind };
+      // Cut 4.1: forward `ref` so callers like BoardStage can grab a DOM
+      // stand-in for Konva.Stage in jsdom. React 19 accepts `ref` as a
+      // regular prop on function components, so passing it through to
+      // React.createElement attaches the callback ref to the underlying
+      // <div>. Existing components type-guard against missing Konva
+      // methods (e.g. `transformer.nodes` not being a function on a div),
+      // so callers that previously got `null` and now receive a div keep
+      // the same no-op behaviour in tests.
+      if (ref !== undefined) attrs.ref = ref;
       if (name) attrs["data-testid"] = name;
       for (const [key, value] of Object.entries(rest)) {
         if (KONVA_EVENT_PROPS.has(key) && typeof value === "function") {

@@ -1,6 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type Konva from "konva";
+import { useCallback, useRef } from "react";
 
 import { BoardInspector } from "./BoardInspector";
 import { BoardLayerList } from "./BoardLayerList";
@@ -61,6 +63,15 @@ const BoardStageDynamic = dynamic(
 );
 
 export function BoardMode() {
+  // Cut 4.1：局部 stageRef，接 BoardStage 的 onStageReady callback。仅
+  // 供 4.2 起的 BoardExportPanel 调 stage.toDataURL 用，不放进
+  // BoardContext —— BoardContext 仍是纯 reducer state。本刀只接好线，
+  // 不消费 ref，避免 4.2 之前的代码引用空指针。
+  const stageRef = useRef<Konva.Stage | null>(null);
+  const handleStageReady = useCallback((stage: Konva.Stage | null) => {
+    stageRef.current = stage;
+  }, []);
+
   return (
     <BoardProvider>
       {/* Outer：仅声明 container，不参与 grid 解析。
@@ -70,7 +81,7 @@ export function BoardMode() {
           和兄弟元素 composer 抢空间。
           桌面 (>=720px) 重置回 overflow-visible：3 列网格不需要滚动，
           也避免桌面上意外出现纵向滚动条。
-          Inner：消费 @[720px]/board: 查询。CSS container query 总是查祖先，
+          Inner：消费 @[720px]/board: 查询。CSS container query 总是查祖先,
           不查自身 —— 同一元素同时声明 + 消费会永远不命中（3.1.1 → 3.1.4
           的 1920 仍单列就是这个根因）。 */}
       <div
@@ -89,7 +100,7 @@ export function BoardMode() {
           </aside>
           <main className="order-1 flex flex-col gap-2 @[720px]/board:order-2 @[720px]/board:min-h-[480px]">
             <BoardToolbar />
-            <BoardStageDynamic />
+            <BoardStageDynamic onStageReady={handleStageReady} />
           </main>
           <aside
             data-testid="board-inspector"

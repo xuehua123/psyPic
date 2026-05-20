@@ -242,10 +242,21 @@ function renderLayerNode(props: LayerRendererProps) {
   return null;
 }
 
-export function BoardStage() {
+export function BoardStage({
+  onStageReady
+}: {
+  /**
+   * Cut 4.1：把 Konva.Stage instance 暴露给 BoardMode 局部 ref，仅供
+   * BoardExportPanel（Cut 4.2 起）调 stage.toDataURL 用。
+   * 不放进 BoardContext —— BoardContext 仍是纯 reducer state，不混入
+   * Konva runtime ref。
+   */
+  onStageReady?: (stage: Konva.Stage | null) => void;
+} = {}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<Size>({ width: 800, height: 600 });
   const transformerRef = useRef<Konva.Transformer | null>(null);
+  const stageRef = useRef<Konva.Stage | null>(null);
   const { state, dispatch } = useBoard();
   const { register, get } = useLayerNodeRegistry();
   // 正在绘制的 stroke：layer id + 已采集的 points。drawing!=null 时
@@ -279,6 +290,17 @@ export function BoardStage() {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  // Cut 4.1：mount 后把 Konva.Stage 通知给 BoardMode 局部 ref；unmount
+  // 时调一次 null 让 BoardMode 清掉。BoardStage 通过 next/dynamic({ssr:false})
+  // 异步加载，所以 onStageReady 可能在父组件第一次渲染后再调。
+  useEffect(() => {
+    if (!onStageReady) return;
+    onStageReady(stageRef.current);
+    return () => {
+      onStageReady(null);
+    };
+  }, [onStageReady]);
 
   // activeLayerId 变化 → 把 Transformer 附着到目标 Konva 节点。
   // jsdom mock 下 transformerRef.current 不是真 Konva.Transformer，
@@ -530,6 +552,9 @@ export function BoardStage() {
       onMouseLeave={handleMouseUp}
     >
       <Stage
+        ref={(s: Konva.Stage | null) => {
+          stageRef.current = s;
+        }}
         width={size.width}
         height={size.height}
         onClick={handleStageClick}
