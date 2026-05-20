@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { BoardInspector } from "@/components/creator/board/BoardInspector";
 import { BoardLayerList } from "@/components/creator/board/BoardLayerList";
 import { BoardMode } from "@/components/creator/board";
+import * as boardExportModule from "@/lib/creator/board/board-export";
 import { BoardProvider, useBoard } from "@/lib/creator/board/board-context";
 import {
   libraryAssetDragPayload,
@@ -675,6 +676,172 @@ describe("BoardStage onStageReady (Cut 4.1)", () => {
     unmount();
     // unmount 时调一次 null 让 BoardMode 清掉 ref
     expect(onStageReady).toHaveBeenCalledWith(null);
+  });
+});
+
+describe("BoardExportPanel (Cut 4.2)", () => {
+  it("disables the export button on an empty board and shows the empty hint", async () => {
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+    });
+    const button = screen.getByTestId("board-export-as-reference");
+    expect(button).toBeDisabled();
+    expect(screen.getByTestId("board-export-empty-hint")).toBeInTheDocument();
+  });
+
+  it("enables the export button after dropping an image layer", async () => {
+    render(<BoardMode />);
+    await waitFor(() => {
+      expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+    });
+
+    const stage = screen.getByTestId("board-stage");
+    const dataTransfer = createDataTransferStub();
+    setLibraryAssetDragData(
+      dataTransfer,
+      libraryAssetDragPayload({
+        asset_id: "asset_export_enable",
+        url: "https://example.com/enable.png",
+        prompt: "enable"
+      })
+    );
+    fireEvent.dragOver(stage, { dataTransfer });
+    fireEvent.drop(stage, { dataTransfer, clientX: 80, clientY: 80 });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("board-export-as-reference")).not.toBeDisabled();
+    });
+    expect(screen.queryByTestId("board-export-empty-hint")).not.toBeInTheDocument();
+  });
+
+  it("calls exportBoardToPng with the chosen pixel ratio and renders success state with a temp asset id", async () => {
+    const user = userEvent.setup();
+    const exportSpy = vi
+      .spyOn(boardExportModule, "exportBoardToPng")
+      .mockReturnValue({
+        dataUrl: "data:image/png;base64,AAEC",
+        blob: new Blob([new Uint8Array([0, 1, 2])], { type: "image/png" }),
+        width: 1280,
+        height: 960
+      });
+
+    try {
+      render(<BoardMode />);
+      await waitFor(() => {
+        expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+      });
+
+      // drop 一张图让按钮 enable
+      const stage = screen.getByTestId("board-stage");
+      const dataTransfer = createDataTransferStub();
+      setLibraryAssetDragData(
+        dataTransfer,
+        libraryAssetDragPayload({
+          asset_id: "asset_export_run",
+          url: "https://example.com/run.png",
+          prompt: "run"
+        })
+      );
+      fireEvent.dragOver(stage, { dataTransfer });
+      fireEvent.drop(stage, { dataTransfer, clientX: 80, clientY: 80 });
+      await waitFor(() => {
+        expect(screen.getByTestId("board-export-as-reference")).not.toBeDisabled();
+      });
+
+      // 切到 2x
+      await user.click(screen.getByTestId("board-export-pixel-ratio-2"));
+      expect(screen.getByTestId("board-export-pixel-ratio-2")).toHaveAttribute(
+        "aria-checked",
+        "true"
+      );
+
+      // 点击导出
+      await user.click(screen.getByTestId("board-export-as-reference"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("board-export-success")).toBeInTheDocument();
+      });
+
+      expect(exportSpy).toHaveBeenCalledTimes(1);
+      const callArgs = exportSpy.mock.calls[0];
+      expect(callArgs[1]).toEqual({ pixelRatio: 2 });
+
+      const tempId = screen.getByTestId("board-export-asset-id").textContent ?? "";
+      expect(tempId).toMatch(/^board-export-\d+-[a-z0-9]{4}$/);
+    } finally {
+      exportSpy.mockRestore();
+    }
+  });
+
+  it("shows the helper exception message when exportBoardToPng throws (e.g. tainted canvas)", async () => {
+    const user = userEvent.setup();
+    const exportSpy = vi
+      .spyOn(boardExportModule, "exportBoardToPng")
+      .mockImplementation(() => {
+        throw new Error("tainted canvas");
+      });
+
+    try {
+      render(<BoardMode />);
+      await waitFor(() => {
+        expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+      });
+
+      const stage = screen.getByTestId("board-stage");
+      const dataTransfer = createDataTransferStub();
+      setLibraryAssetDragData(
+        dataTransfer,
+        libraryAssetDragPayload({
+          asset_id: "asset_export_err",
+          url: "https://example.com/err.png",
+          prompt: "err"
+        })
+      );
+      fireEvent.dragOver(stage, { dataTransfer });
+      fireEvent.drop(stage, { dataTransfer, clientX: 80, clientY: 80 });
+      await waitFor(() => {
+        expect(screen.getByTestId("board-export-as-reference")).not.toBeDisabled();
+      });
+
+      await user.click(screen.getByTestId("board-export-as-reference"));
+
+      const errorNode = await screen.findByTestId("board-export-error");
+      expect(errorNode).toHaveTextContent("tainted canvas");
+      expect(screen.queryByTestId("board-export-success")).not.toBeInTheDocument();
+    } finally {
+      exportSpy.mockRestore();
+    }
+  });
+
+  it("renders an error returned by the onExport callback without crashing (e.g. stage ref missing)", async () => {
+    // BoardMode.handleExport 在 stageRef.current === null 时会返回
+    // { ok: false, message: "画布尚未就绪…" }。这里直接以 onExport=
+    // () => ({ ok: false, message }) mock 那种集成态，验证 panel 把
+    // 错误消息渲染到 board-export-error，且不抛异常崩 React tree。
+    const user = userEvent.setup();
+    const { BoardExportPanel } = await import(
+      "@/components/creator/board/BoardExportPanel"
+    );
+    render(
+      <BoardProvider
+        initialDocument={{ layers: [imageLayer], activeLayerId: "img_1" }}
+      >
+        <BoardExportPanel
+          onExport={() => ({
+            ok: false,
+            message: "画布尚未就绪，请稍后再试。"
+          })}
+        />
+      </BoardProvider>
+    );
+
+    await user.click(screen.getByTestId("board-export-as-reference"));
+    expect(screen.getByTestId("board-export-error")).toHaveTextContent(
+      /未就绪/
+    );
+    // panel 仍在树里 —— 没崩
+    expect(screen.getByTestId("board-export-panel")).toBeInTheDocument();
   });
 });
 

@@ -2,12 +2,21 @@
 
 import dynamic from "next/dynamic";
 import type Konva from "konva";
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 
+import { BoardExportPanel } from "./BoardExportPanel";
+import type {
+  BoardExportPanelExportInput,
+  BoardExportPanelExportOutput
+} from "./BoardExportPanel";
 import { BoardInspector } from "./BoardInspector";
 import { BoardLayerList } from "./BoardLayerList";
 import { BoardToolbar } from "./BoardToolbar";
 import { BoardProvider } from "@/lib/creator/board/board-context";
+import {
+  exportBoardToPng,
+  type BoardExportResult
+} from "@/lib/creator/board/board-export";
 
 /**
  * Board Mode · Cut 2 + Cut 3 commit 2 / 5 + Cut 3.1.1 (plan slug board-mode-final)
@@ -62,15 +71,74 @@ const BoardStageDynamic = dynamic(
   }
 );
 
+/**
+ * Cut 4.2 client-side temp id：本刀不持久化导出资产，仅给 4.4 提交时
+ * 走 board_export_asset_id 字段透传。Cut 5 接持久化 Asset 表后再升级
+ * 为真实 asset id。
+ */
+function generateBoardExportAssetId(): string {
+  const ts = Date.now();
+  const rand = Math.random().toString(36).slice(2, 6).padStart(4, "0");
+  return `board-export-${ts}-${rand}`;
+}
+
+export type LastBoardExport = {
+  boardExportAssetId: string;
+  pixelRatio: 1 | 2;
+  result: BoardExportResult;
+  exportedAt: number;
+};
+
 export function BoardMode() {
   // Cut 4.1：局部 stageRef，接 BoardStage 的 onStageReady callback。仅
   // 供 4.2 起的 BoardExportPanel 调 stage.toDataURL 用，不放进
-  // BoardContext —— BoardContext 仍是纯 reducer state。本刀只接好线，
-  // 不消费 ref，避免 4.2 之前的代码引用空指针。
+  // BoardContext —— BoardContext 仍是纯 reducer state。
   const stageRef = useRef<Konva.Stage | null>(null);
   const handleStageReady = useCallback((stage: Konva.Stage | null) => {
     stageRef.current = stage;
   }, []);
+
+  // Cut 4.2：把最近一次成功导出的结果保留在 BoardMode 本地 state。Cut 4.3
+  // 起 BoardExportPanel 的 onExport 也会注入 Composer reference；本刀只
+  // 存住，4.3 才消费。
+  const [lastExport, setLastExport] = useState<LastBoardExport | null>(null);
+
+  const handleExport = useCallback(
+    async (
+      input: BoardExportPanelExportInput
+    ): Promise<BoardExportPanelExportOutput> => {
+      const stage = stageRef.current;
+      if (!stage) {
+        return {
+          ok: false,
+          message: "画布尚未就绪，请稍后再试。"
+        };
+      }
+      try {
+        const result = exportBoardToPng(stage, {
+          pixelRatio: input.pixelRatio
+        });
+        const boardExportAssetId = generateBoardExportAssetId();
+        setLastExport({
+          boardExportAssetId,
+          pixelRatio: input.pixelRatio,
+          result,
+          exportedAt: Date.now()
+        });
+        return { ok: true, boardExportAssetId, result };
+      } catch (err) {
+        return {
+          ok: false,
+          message: err instanceof Error ? err.message : "导出失败，请稍后再试。"
+        };
+      }
+    },
+    []
+  );
+
+  // 当前 lastExport 仅在 BoardMode 内观察；Cut 4.3 起会传给 Composer
+  // 注入 helper。本刀刻意不消费它，避免 4.3 之前误用。
+  void lastExport;
 
   return (
     <BoardProvider>
@@ -104,10 +172,11 @@ export function BoardMode() {
           </main>
           <aside
             data-testid="board-inspector"
-            className="order-3 flex flex-col rounded-md border border-border bg-card p-3 text-sm @[720px]/board:order-3"
+            className="order-3 flex flex-col gap-3 rounded-md border border-border bg-card p-3 text-sm @[720px]/board:order-3"
           >
-            <header className="mb-2 font-medium text-foreground">属性</header>
+            <header className="font-medium text-foreground">属性</header>
             <BoardInspector />
+            <BoardExportPanel onExport={handleExport} />
           </aside>
         </div>
       </div>
