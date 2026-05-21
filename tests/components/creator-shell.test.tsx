@@ -243,6 +243,172 @@ describe("CreatorWorkspace", () => {
     }
   });
 
+  it("submits board workbench context (board_document_id / board_export_asset_id / board_snapshot) when the reference came from board mode (Cut 4.4)", async () => {
+    const user = userEvent.setup();
+
+    const fakeBlob = new Blob([new Uint8Array([0, 1, 2, 3])], {
+      type: "image/png"
+    });
+    const exportSpy = vi
+      .spyOn(boardExportModule, "exportBoardToPng")
+      .mockReturnValue({
+        dataUrl: "data:image/png;base64,AAECAw==",
+        blob: fakeBlob,
+        width: 1280,
+        height: 960
+      });
+
+    // Cut 4.4：fetchSpy 拦 /api/images/edits 提交，断言 FormData 带 board_*。
+    // mockImplementation 让每次调用返回独立 Response（避免 jsdom Response body
+    // 被 once-consumed 后下次拿不到）。
+    const fetchSpy = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        generationResponse({
+          taskId: "task_board_44",
+          assetId: "asset_board_44",
+          requestId: "req_board_44"
+        })
+      )
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    try {
+      render(<CreatorWorkspace />);
+
+      // 1. 走 Cut 4.3 注入流程：board tab → drop asset → 点 export
+      await user.click(screen.getByTestId("creator-view-tab-board"));
+      await waitFor(() => {
+        expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+      });
+      const stage = screen.getByTestId("board-stage");
+      const dataTransfer = createDataTransferStub();
+      setLibraryAssetDragData(
+        dataTransfer,
+        libraryAssetDragPayload({
+          asset_id: "asset_cut44",
+          url: "https://example.com/cut44.png",
+          prompt: "cut 4.4"
+        })
+      );
+      fireEvent.dragOver(stage, { dataTransfer });
+      fireEvent.drop(stage, { dataTransfer, clientX: 80, clientY: 80 });
+
+      const exportButton = await screen.findByTestId(
+        "board-export-as-reference"
+      );
+      await waitFor(() => {
+        expect(exportButton).not.toBeDisabled();
+      });
+      await user.click(exportButton);
+      // 等 panel success 区出现并拿稳定 asset id（与 Cut 4.3 用例一致的等待模式）。
+      const expectedAssetId = await waitFor(() => {
+        const el = screen.getByTestId("board-export-asset-id");
+        const txt = el.textContent ?? "";
+        expect(txt).toMatch(/^board-export-\d+-[a-z0-9]{4}$/);
+        return txt;
+      });
+
+      // 2. CreatorWorkspace 自动切回 transcript + reference 槽就位
+      await waitFor(() => {
+        expect(
+          screen.getByTestId("creator-view-tab-transcript")
+        ).toHaveAttribute("data-state", "active");
+      });
+      await screen.findByTestId("composer-reference-row");
+
+      // 3. 输入 prompt 并提交
+      await user.type(
+        screen.getByRole("textbox", { name: "Prompt" }),
+        "Compose with the board reference."
+      );
+      await user.click(screen.getByRole("button", { name: /生成图片/ }));
+
+      // 4. fetchSpy 收到 /api/images/edits 提交（FormData 体）
+      await waitFor(() => {
+        const editCall = fetchSpy.mock.calls.find(
+          ([url]) => url === "/api/images/edits"
+        );
+        expect(editCall).toBeDefined();
+      });
+      const editCall = fetchSpy.mock.calls.find(
+        ([url]) => url === "/api/images/edits"
+      );
+      const body = editCall![1].body as FormData;
+
+      // 5. 三个 board_* 字段都在 FormData 里，且和 BoardCompositionRef 一致。
+      // FormData.get 返回 string|File|null，先各自校验非空再断言形状。
+      const boardDocId = body.get("board_document_id");
+      const boardAssetId = body.get("board_export_asset_id");
+      const snapshotRaw = body.get("board_snapshot");
+      expect(typeof boardDocId).toBe("string");
+      expect(typeof boardAssetId).toBe("string");
+      expect(typeof snapshotRaw).toBe("string");
+      expect(String(boardDocId)).toMatch(/^board-doc-\d+-[a-z0-9]{4}$/);
+      expect(String(boardAssetId)).toBe(expectedAssetId);
+      const parsedSnapshot = JSON.parse(String(snapshotRaw)) as {
+        layers: Array<{ kind: string }>;
+      };
+      expect(Array.isArray(parsedSnapshot.layers)).toBe(true);
+      // board 上 drop 进去的 library 图层落在 snapshot 里
+      expect(parsedSnapshot.layers.length).toBeGreaterThan(0);
+
+      // 6. reference image 也作为 image 字段进去了（plan §2.3 验收口径）
+      const imageEntry = body.get("image");
+      expect(imageEntry).toBeInstanceOf(File);
+      expect((imageEntry as File).name).toBe(`${expectedAssetId}.png`);
+    } finally {
+      exportSpy.mockRestore();
+    }
+  });
+
+  it("does NOT include any board_* fields when the reference is a normal upload (Cut 4.4 regression)", async () => {
+    const user = userEvent.setup();
+
+    const fetchSpy = vi.fn().mockResolvedValue(
+      generationResponse({
+        taskId: "task_no_board_44",
+        assetId: "asset_no_board_44",
+        requestId: "req_no_board_44"
+      })
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+
+    render(<CreatorWorkspace />);
+
+    // 完全普通 reference upload 路径，不碰 board。
+    await user.click(screen.getByRole("button", { name: "图生图" }));
+    const reference = new File(
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+      "plain.png",
+      { type: "image/png" }
+    );
+    await user.upload(screen.getByLabelText("参考图"), reference);
+    await user.type(
+      screen.getByRole("textbox", { name: "Prompt" }),
+      "Plain reference submit."
+    );
+    await user.click(screen.getByRole("button", { name: /生成图片/ }));
+
+    await waitFor(() => {
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/images/edits",
+        expect.objectContaining({
+          method: "POST",
+          body: expect.any(FormData)
+        })
+      );
+    });
+    const editCall = fetchSpy.mock.calls.find(
+      ([url]) => url === "/api/images/edits"
+    );
+    const body = editCall![1].body as FormData;
+
+    // 三个 board_* 字段一个都不能出现 —— 防退化（plan §3 非破坏铁律）。
+    expect(body.has("board_document_id")).toBe(false);
+    expect(body.has("board_export_asset_id")).toBe(false);
+    expect(body.has("board_snapshot")).toBe(false);
+  });
+
   it("keeps the AdvancedParamsDrawer closed by default (plan slug quiet-glittering-prism · Cut 11)", () => {
     render(<CreatorWorkspace />);
 

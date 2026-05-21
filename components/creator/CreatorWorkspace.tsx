@@ -209,20 +209,18 @@ export default function CreatorWorkspace({
     }));
   }, [referenceImages]);
 
-  // Board Mode · Cut 4.3 (plan slug 2026-05-20-board-mode-cut4-plan)
-  // 用户在 Board 点「作为参考图编辑」后，BoardMode 把当次导出的全部上下文
-  // 抛给 onUseBoardExportAsReference，这里收下：
-  // - 把 export blob 包成 File，注入既有的 referenceImages 槽（复用现有
-  //   Composer reference UI / 提交链路）
-  // - 把 BoardCompositionRef 留在前端 state，给 Cut 4.4 提交时塞 board_*
-  //   context 用。Cut 4.3 本身**不发**这些字段。
-  // - 切回 transcript tab，让用户立刻看到 Composer 已经被填充。
+  // Board Mode · Cut 4.3 + Cut 4.4 (plan slug 2026-05-20-board-mode-cut4-plan)
+  //
+  // 4.3：BoardMode 通过 onUseBoardExportAsReference 把 BoardCompositionRef
+  //      抛上来 → blob 包 File 进 referenceImages 槽 + state 留住 composition
+  //      + 切回 transcript tab。
+  // 4.4：FormData submit 分支读 boardComposition，把
+  //      board_document_id / board_export_asset_id / board_snapshot 合进
+  //      generationContext；提交完成后清掉 composition；用户主动改 reference
+  //      （6 个 setReferenceImages 入口）也要清掉，避免普通 reference 提交
+  //      错带 board_* 字段（plan §3 非破坏铁律 + plan §4 风险表第 4 行）。
   const [boardComposition, setBoardComposition] =
     useState<BoardCompositionRef | null>(null);
-  // Cut 4.3 仅注入 reference + 切 tab，本刀不读 boardComposition；Cut 4.4
-  // 提交链路接 generation-context 时再消费它。`void` 显式声明保留意图,
-  // 通过 lint @typescript-eslint/no-unused-vars。
-  void boardComposition;
   const [maskEnabled, setMaskEnabled] = useState(false);
   const [maskMode, setMaskMode] = useState<MaskMode>("paint");
   const [maskBrushSize, setMaskBrushSize] = useState(48);
@@ -476,6 +474,9 @@ export default function CreatorWorkspace({
         }
 
         setReferenceImages([reference]);
+        // Cut 4.4：用户在资产卡触发的 reference 替换。清掉上一次 board
+        // composition，避免下次提交错带 board_* 字段。
+        setBoardComposition(null);
         setPrompt(asset.prompt);
         setSize(asset.params.size);
         setQuality(asset.params.quality);
@@ -649,6 +650,28 @@ export default function CreatorWorkspace({
         refreshWorkbench: workbench.refresh
       });
 
+      // Cut 4.4 (plan slug 2026-05-20-board-mode-cut4-plan)：当 boardComposition
+      // 存在时，把 board_document_id / board_export_asset_id / board_snapshot
+      // 合进 submitContext。两条独立条件：
+      //   - 普通 transcript / 普通 reference 提交：boardComposition === null，
+      //     submitContext === generationContext，完全不出现 board_* 字段
+      //     （plan §3 非破坏铁律）。
+      //   - fallback 模式（generationContext === null）但用了 board reference：
+      //     仍构造一份仅含 board_* 字段的 partial context，让 board 字段
+      //     在 fallback 用户路径下也能发出去（GenerationWorkbenchContext
+      //     的 projectId/sessionId 已是 optional，helper 字段存在才写入）。
+      // boardComposition 当前只能由 BoardMode 注入（Cut 4.3 的
+      // handleUseBoardExportAsReference）；任何用户主动改 reference 的入口
+      // 都会同步清空它，避免普通 reference 提交错带 board context。
+      const submitContext = boardComposition
+        ? {
+            ...(generationContext ?? {}),
+            boardDocumentId: boardComposition.boardDocumentId,
+            boardExportAssetId: boardComposition.boardExportAssetId,
+            boardSnapshot: boardComposition.boardSnapshot
+          }
+        : generationContext;
+
       const response = await fetch(
         mode === "image" ? "/api/images/edits" : "/api/images/generations",
         mode === "image" && referenceImages.length > 0
@@ -656,14 +679,14 @@ export default function CreatorWorkspace({
               method: "POST",
               body: appendWorkbenchContextToFormData(
                 buildEditFormData(requestParams, referenceImages, maskFile),
-                generationContext
+                submitContext
               )
             }
           : {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify(
-                injectWorkbenchContext(requestParams, generationContext)
+                injectWorkbenchContext(requestParams, submitContext)
               )
             }
       );
@@ -686,13 +709,22 @@ export default function CreatorWorkspace({
         upstream_request_id: body.upstream_request_id
       };
 
-      if (generationContext) {
+      if (generationContext?.sessionId) {
         // server context：不追加本地 node，刷新 server version nodes
         // 使用 generationContext.sessionId 绕过可能过期的闭包 sessionId
+        // Cut 4.4：sessionId 改成 optional 后这里加显式 narrow；server 模式
+        // 下 ensureGenerationContext 必然填 sessionId（line 67/87），所以
+        // 该 narrow 不影响实际行为。
         void refreshServerVersionNodesForSession(generationContext.sessionId);
       } else {
         // fallback/no-context：保持旧行为，追加本地 node
         commitGenerationResult(nextResult, requestParams);
+      }
+
+      // Cut 4.4：本次 board submit 完成后清空 composition，避免下次普通
+      // reference 提交错带 board_* 字段（plan §4 风险表第 4 行）。
+      if (boardComposition) {
+        setBoardComposition(null);
       }
 
       setCurrentTask({
@@ -1125,6 +1157,9 @@ export default function CreatorWorkspace({
       const merged = [...prev, ...incoming];
       return merged.slice(0, MAX_REFERENCE_IMAGES);
     });
+    // Cut 4.4：用户主动追加非 board 来源的 reference，清掉之前的 board
+    // composition，避免提交时错带 board_* 字段。
+    setBoardComposition(null);
     // 拖 / 粘 / 选图自动切到图生图模式 —— 用户拖图的意图就是切模式。
     setMode("image");
     setMaskEnabled(
@@ -1140,6 +1175,12 @@ export default function CreatorWorkspace({
     setReferenceImages((current) =>
       current.filter((_, itemIndex) => itemIndex !== index)
     );
+    // Cut 4.4：用户移除任一 reference 槽位，统一清掉 board composition。
+    // 保守：哪怕 board 是多 reference 中的某一张，移除任意一张也清空，
+    // 避免 composition 与 referenceImages 错位（4.3 当前一次只注入 1 张，
+    // 不存在多 reference 与 board 共存场景，这是给 Cut 5 多源拼合预留的
+    // 防御）。
+    setBoardComposition(null);
   }
 
   function resetMaskCanvas() {
@@ -1333,6 +1374,8 @@ export default function CreatorWorkspace({
       });
 
       setReferenceImages([reference]);
+      // Cut 4.4：用户把历史结果转 reference，清掉上一次 board composition。
+      setBoardComposition(null);
       setMode("image");
       setErrorMessage("");
     } catch {
@@ -1467,6 +1510,9 @@ export default function CreatorWorkspace({
       });
 
       setReferenceImages([reference]);
+      // Cut 4.4：library / history 触发的 reference 替换，清掉上一次
+      // board composition，避免下次提交错带 board_* 字段。
+      setBoardComposition(null);
       setPrompt(item.prompt);
       setSize(item.params.size);
       setQuality(item.params.quality);
@@ -1495,6 +1541,9 @@ export default function CreatorWorkspace({
       });
 
       setReferenceImages([reference]);
+      // Cut 4.4：library / history 触发的 reference 替换，清掉上一次
+      // board composition，避免下次提交错带 board_* 字段。
+      setBoardComposition(null);
       setPrompt(item.prompt);
       setSize(item.params.size);
       setQuality(item.params.quality);
