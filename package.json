@@ -60,19 +60,20 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "@vitejs/plugin-react": "latest",
+    "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "latest",
     "eslint": "latest",
     "eslint-plugin-react-hooks": "latest",
     "fake-indexeddb": "^6.2.5",
     "globals": "latest",
-    "jsdom": "latest",
+    "jsdom": "^25.0.1",
     "postcss": "latest",
     "prisma": "^7.8.0",
     "tailwindcss": "latest",
     "typescript": "latest",
     "typescript-eslint": "latest",
-    "vitest": "latest"
+    "vite": "^7.3.3",
+    "vitest": "3.2.4"
   },
   "packageManager": "pnpm@10.30.2"
 }

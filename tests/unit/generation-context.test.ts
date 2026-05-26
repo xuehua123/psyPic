@@ -21,6 +21,46 @@ const fullContext: GenerationWorkbenchContext = {
   parentVersionNodeId: "vn_789"
 };
 
+const boardSnapshot = {
+  id: "",
+  version: 1,
+  projectId: "proj_123",
+  sessionId: "sess_456",
+  title: "Board draft",
+  width: 1280,
+  height: 960,
+  background: { type: "transparent" as const },
+  layers: [
+    {
+      id: "layer_1",
+      name: "Reference",
+      kind: "image" as const,
+      visible: true,
+      locked: false,
+      opacity: 1,
+      zIndex: 0,
+      transform: { x: 10, y: 20, scaleX: 1, scaleY: 1, rotation: 0 },
+      assetId: "asset_123",
+      src: "/api/assets/asset_123",
+      width: 512,
+      height: 512
+    }
+  ],
+  activeLayerId: "layer_1",
+  sourceVersionNodeIds: [],
+  sourceAssetIds: ["asset_123"],
+  createdAt: "2026-05-20T00:00:00.000Z",
+  updatedAt: "2026-05-20T00:00:00.000Z",
+  deletedAt: null
+};
+
+const boardContext: GenerationWorkbenchContext = {
+  ...fullContext,
+  boardDocumentId: "board-doc_123",
+  boardExportAssetId: "board-export_123",
+  boardSnapshot
+};
+
 describe("injectWorkbenchContext (JSON body)", () => {
   it("injects project_id, session_id, parent_version_node_id when context exists", () => {
     const result = injectWorkbenchContext(baseParams, fullContext);
@@ -54,12 +94,22 @@ describe("injectWorkbenchContext (JSON body)", () => {
     expect(result).not.toHaveProperty("parent_version_node_id");
   });
 
-  it("never sends board_* fields", () => {
+  it("does not send board_* fields when board context is absent", () => {
     const result = injectWorkbenchContext(baseParams, fullContext);
 
     expect(result).not.toHaveProperty("board_document_id");
     expect(result).not.toHaveProperty("board_snapshot");
     expect(result).not.toHaveProperty("board_export_asset_id");
+  });
+
+  it("injects board context fields when a board composition exists", () => {
+    const result = injectWorkbenchContext(baseParams, boardContext);
+
+    expect(result).toMatchObject({
+      board_document_id: "board-doc_123",
+      board_export_asset_id: "board-export_123",
+      board_snapshot: boardSnapshot
+    });
   });
 
   it("does not mutate the original params object", () => {
@@ -104,12 +154,21 @@ describe("appendWorkbenchContextToFormData (edit requests)", () => {
     expect(fd.has("parent_version_node_id")).toBe(false);
   });
 
-  it("never sends board_* fields", () => {
+  it("does not send board_* fields when board context is absent", () => {
     const fd = new FormData();
     appendWorkbenchContextToFormData(fd, fullContext);
 
     expect(fd.has("board_document_id")).toBe(false);
     expect(fd.has("board_snapshot")).toBe(false);
     expect(fd.has("board_export_asset_id")).toBe(false);
+  });
+
+  it("appends board context fields when a board composition exists", () => {
+    const fd = new FormData();
+    appendWorkbenchContextToFormData(fd, boardContext);
+
+    expect(fd.get("board_document_id")).toBe("board-doc_123");
+    expect(fd.get("board_export_asset_id")).toBe("board-export_123");
+    expect(fd.get("board_snapshot")).toBe(JSON.stringify(boardSnapshot));
   });
 });

@@ -277,9 +277,17 @@ describe("POST /api/images/edits", () => {
       )
     );
     const formData = validEditFormData();
+    const boardSnapshot = {
+      id: "",
+      version: 1,
+      layers: [{ id: "layer_board_1", kind: "image", assetId: "asset_board" }]
+    };
     formData.set("project_id", project.id);
     formData.set("session_id", creativeSession.id);
     formData.set("parent_version_node_id", parent.id);
+    formData.set("board_document_id", "board-doc_123");
+    formData.set("board_export_asset_id", "board-export_123");
+    formData.set("board_snapshot", JSON.stringify(boardSnapshot));
 
     const response = await editImage(editRequest(cookie, formData));
     const body = await response.json();
@@ -298,6 +306,9 @@ describe("POST /api/images/edits", () => {
     });
     expect(child).toMatchObject({
       parent_version_node_id: parent.id,
+      board_document_id: "board-doc_123",
+      board_snapshot: boardSnapshot,
+      board_export_asset_id: "board-export_123",
       status: "succeeded",
       output_asset_ids: body.data.images.map(
         (image: { asset_id: string }) => image.asset_id

@@ -106,6 +106,44 @@ if (typeof globalThis.ResizeObserver === "undefined") {
   } as unknown as typeof ResizeObserver;
 }
 
+// jsdom 25 不实现 URL.createObjectURL / revokeObjectURL（jsdom 29+ 才补上）。
+// Composer 渲染 reference 缩略图时用 createObjectURL 生成 <img src="blob:...">，
+// 测试里也直接 vi.spyOn(URL, "createObjectURL") 做断言。降级到 jsdom 25 后必须
+// 显式 polyfill，否则 board export → composer reference 与 history → composer
+// 路径会因 src 缺失或 spyOn 找不到方法而挂掉。
+if (typeof URL !== "undefined") {
+  if (typeof URL.createObjectURL !== "function") {
+    URL.createObjectURL = () => "blob:vitest-stub";
+  }
+  if (typeof URL.revokeObjectURL !== "function") {
+    URL.revokeObjectURL = () => {};
+  }
+}
+
+// jsdom 25 的 Blob#slice() 返回值没有 arrayBuffer()，而上传校验会读取
+// file.slice(...).arrayBuffer() 来 sniff 图片头。用 FileReader 补齐这个
+// Web API 缺口，让 API route 测试仍走真实上传校验。
+if (
+  typeof Blob !== "undefined" &&
+  typeof Blob.prototype.arrayBuffer !== "function" &&
+  typeof FileReader !== "undefined"
+) {
+  Blob.prototype.arrayBuffer = function arrayBuffer() {
+    return new Promise<ArrayBuffer>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (reader.result instanceof ArrayBuffer) {
+          resolve(reader.result);
+          return;
+        }
+        reject(new Error("Expected FileReader to return an ArrayBuffer"));
+      };
+      reader.onerror = () => reject(reader.error ?? new Error("Failed to read Blob"));
+      reader.readAsArrayBuffer(this);
+    });
+  };
+}
+
 // jsdom 不实现 window.matchMedia；ThemeProvider 用它判 prefers-color-scheme，
 // 不 polyfill 会让任何渲染了 ThemeProvider 的测试在 readSystemTheme() 处挂掉。
 if (typeof window !== "undefined" && typeof window.matchMedia === "undefined") {

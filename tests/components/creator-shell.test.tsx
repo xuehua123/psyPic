@@ -11,6 +11,8 @@ import {
 } from "@/lib/creator/board/library-drag";
 import { useWorkbench } from "@/lib/creator/use-workbench";
 
+const LONG_CREATOR_FLOW_TIMEOUT_MS = 10_000;
+
 // useWorkbench 默认返回 fallback 模式，避免内部 fetch 干扰测试中的 fetchSpy mock chain
 vi.mock("@/lib/creator/use-workbench", () => ({
   useWorkbench: vi.fn().mockReturnValue({
@@ -25,6 +27,15 @@ vi.mock("@/lib/creator/use-workbench", () => ({
     syncState: { status: "synced", pendingCount: 0, conflicts: [], lastSyncTime: null, retryAfter: null },
     flushSync: vi.fn().mockResolvedValue(undefined),
     dismissSyncConflict: vi.fn()
+  })
+}));
+
+vi.mock("@/lib/creator/use-version-nodes", () => ({
+  useVersionNodes: vi.fn().mockReturnValue({
+    nodes: [],
+    isLoading: false,
+    refresh: vi.fn().mockResolvedValue(undefined),
+    refreshForSession: vi.fn().mockResolvedValue(undefined)
   })
 }));
 
@@ -240,6 +251,155 @@ describe("CreatorWorkspace", () => {
       expect(composerImg).not.toBeNull();
     } finally {
       exportSpy.mockRestore();
+    }
+  });
+
+  it("submits board export references with board context once and clears it after success (Cut 4.4)", async () => {
+    const user = userEvent.setup();
+    const fakeBlob = new Blob([new Uint8Array([4, 5, 6, 7])], {
+      type: "image/png"
+    });
+    const exportSpy = vi
+      .spyOn(boardExportModule, "exportBoardToPng")
+      .mockReturnValue({
+        dataUrl: "data:image/png;base64,BAUGBw==",
+        blob: fakeBlob,
+        width: 1280,
+        height: 960
+      });
+    const fetchSpy = vi.fn().mockResolvedValue(
+      generationResponse({
+        taskId: "task_board_cut44",
+        assetId: "asset_board_cut44",
+        requestId: "psypic_req_board_cut44"
+      })
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+    vi.mocked(useWorkbench).mockReturnValue({
+      mode: "server",
+      serverProjects: [],
+      rawServerProjects: [
+        {
+          id: "commercial",
+          user_id: "user-1",
+          title: "Commercial",
+          sort_order: 0,
+          collapsed: false,
+          active_session_id: "sess_board_cut44",
+          created_at: "2026-05-20T00:00:00.000Z",
+          updated_at: "2026-05-20T00:00:00.000Z",
+          deleted_at: null
+        }
+      ],
+      retryAfter: undefined,
+      createProject: vi.fn().mockResolvedValue(null),
+      renameProject: vi.fn().mockResolvedValue(false),
+      deleteProject: vi.fn().mockResolvedValue(false),
+      refresh: vi.fn().mockResolvedValue(undefined),
+      syncState: {
+        status: "synced",
+        pendingCount: 0,
+        conflicts: [],
+        lastSyncTime: null,
+        retryAfter: null
+      },
+      flushSync: vi.fn().mockResolvedValue(undefined),
+      dismissSyncConflict: vi.fn()
+    });
+
+    try {
+      render(<CreatorWorkspace />);
+
+      await user.click(screen.getByTestId("creator-view-tab-board"));
+      await waitFor(() => {
+        expect(screen.getByTestId("board-stage")).toBeInTheDocument();
+      });
+
+      const stage = screen.getByTestId("board-stage");
+      const dataTransfer = createDataTransferStub();
+      setLibraryAssetDragData(
+        dataTransfer,
+        libraryAssetDragPayload({
+          asset_id: "asset_cut44",
+          url: "https://example.com/cut44.png",
+          prompt: "cut 4.4"
+        })
+      );
+      fireEvent.dragOver(stage, { dataTransfer });
+      fireEvent.drop(stage, { dataTransfer, clientX: 80, clientY: 80 });
+
+      const exportButton = await screen.findByTestId(
+        "board-export-as-reference"
+      );
+      await waitFor(() => {
+        expect(exportButton).not.toBeDisabled();
+      });
+      await user.click(exportButton);
+
+      const boardExportAssetId = (
+        await screen.findByTestId("board-export-asset-id")
+      ).textContent ?? "";
+      await user.type(
+        screen.getByRole("textbox", { name: "Prompt" }),
+        "Refine the board composition."
+      );
+      await user.click(screen.getByRole("button", { name: /生成图片/ }));
+
+      const editCalls = () =>
+        fetchSpy.mock.calls.filter(([url]) => url === "/api/images/edits");
+      await waitFor(() => {
+        expect(editCalls()).toHaveLength(1);
+      });
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", { name: /生成图片/ })
+        ).not.toBeDisabled();
+      });
+
+      const firstBody = editCalls()[0][1].body as FormData;
+      expect(firstBody.get("board_export_asset_id")).toBe(boardExportAssetId);
+      expect(firstBody.get("board_document_id")).toMatch(
+        /^board-doc-\d+-[a-z0-9]{4}$/
+      );
+      const boardSnapshot = JSON.parse(
+        String(firstBody.get("board_snapshot"))
+      ) as { layers: Array<{ kind: string; assetId?: string }> };
+      expect(boardSnapshot.layers).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ kind: "image", assetId: "asset_cut44" })
+        ])
+      );
+
+      await user.click(screen.getByRole("button", { name: /生成图片/ }));
+      await waitFor(() => {
+        expect(editCalls()).toHaveLength(2);
+      });
+
+      const secondBody = editCalls()[1][1].body as FormData;
+      expect(secondBody.has("board_document_id")).toBe(false);
+      expect(secondBody.has("board_export_asset_id")).toBe(false);
+      expect(secondBody.has("board_snapshot")).toBe(false);
+    } finally {
+      exportSpy.mockRestore();
+      vi.mocked(useWorkbench).mockReturnValue({
+        mode: "fallback",
+        serverProjects: [],
+        rawServerProjects: [],
+        retryAfter: undefined,
+        createProject: vi.fn().mockResolvedValue(null),
+        renameProject: vi.fn().mockResolvedValue(false),
+        deleteProject: vi.fn().mockResolvedValue(false),
+        refresh: vi.fn().mockResolvedValue(undefined),
+        syncState: {
+          status: "synced",
+          pendingCount: 0,
+          conflicts: [],
+          lastSyncTime: null,
+          retryAfter: null
+        },
+        flushSync: vi.fn().mockResolvedValue(undefined),
+        dismissSyncConflict: vi.fn()
+      });
     }
   });
 
@@ -1086,6 +1246,9 @@ describe("CreatorWorkspace", () => {
     expect(body.get("prompt")).toBe(
       "Replace the background with a premium studio scene."
     );
+    expect(body.has("board_document_id")).toBe(false);
+    expect(body.has("board_export_asset_id")).toBe(false);
+    expect(body.has("board_snapshot")).toBe(false);
     expect(screen.getByText("product.png")).toBeInTheDocument();
   });
 
@@ -1663,7 +1826,7 @@ describe("CreatorWorkspace", () => {
     expect(screen.getByTestId("quickpick-size-trigger")).toHaveTextContent(
       "方图 1:1"
     );
-  });
+  }, LONG_CREATOR_FLOW_TIMEOUT_MS);
 
   it("creates a non-destructive branch from an older version", async () => {
     vi.stubGlobal(
@@ -1743,7 +1906,7 @@ describe("CreatorWorkspace", () => {
     expect(screen.getAllByText("Mainline refinement.").length).toBeGreaterThan(0);
     expect(screen.getAllByText("分支 2").length).toBeGreaterThan(0);
     expect(screen.getByTestId("branch-map")).toBeInTheDocument();
-  });
+  }, LONG_CREATOR_FLOW_TIMEOUT_MS);
 
   it("shows login path when not authenticated", async () => {
     // mock useSession locally

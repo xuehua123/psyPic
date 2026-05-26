@@ -6,14 +6,19 @@
  *
  * 规则：
  *   - 仅在 context 存在时注入字段。
- *   - 不发送 board_* 字段（Board Mode 仍不开发）。
+ *   - board_* 字段仅在 Board Mode composition context 存在时注入。
  *   - parent_version_node_id 仅在有可信 node id 时传递。
  */
+
+import type { BoardDocument } from "./board/types";
 
 export type GenerationWorkbenchContext = {
   projectId: string;
   sessionId: string;
   parentVersionNodeId?: string | null;
+  boardDocumentId?: string;
+  boardExportAssetId?: string;
+  boardSnapshot?: BoardDocument;
 };
 
 /**
@@ -36,7 +41,16 @@ export function injectWorkbenchContext<T extends Record<string, unknown>>(
     result.parent_version_node_id = context.parentVersionNodeId;
   }
 
-  // 显式不发送 board_* 字段
+  if (context.boardDocumentId) {
+    result.board_document_id = context.boardDocumentId;
+  }
+  if (context.boardExportAssetId) {
+    result.board_export_asset_id = context.boardExportAssetId;
+  }
+  if (context.boardSnapshot) {
+    result.board_snapshot = context.boardSnapshot;
+  }
+
   return result as T;
 }
 
@@ -59,6 +73,15 @@ export function appendWorkbenchContextToFormData(
     formData.set("parent_version_node_id", context.parentVersionNodeId);
   }
 
-  // 显式不发送 board_* 字段
+  if (context.boardDocumentId) {
+    formData.set("board_document_id", context.boardDocumentId);
+  }
+  if (context.boardExportAssetId) {
+    formData.set("board_export_asset_id", context.boardExportAssetId);
+  }
+  if (context.boardSnapshot) {
+    formData.set("board_snapshot", JSON.stringify(context.boardSnapshot));
+  }
+
   return formData;
 }

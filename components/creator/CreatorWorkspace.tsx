@@ -7,7 +7,8 @@ import type {
   ClipboardEvent,
   DragEvent,
   FormEvent,
-  PointerEvent as ReactPointerEvent
+  PointerEvent as ReactPointerEvent,
+  SetStateAction
 } from "react";
 
 import BatchWorkflowPanel from "@/components/creator/BatchWorkflowPanel";
@@ -112,7 +113,8 @@ import {
 import { useWorkbench } from "@/lib/creator/use-workbench";
 import {
   injectWorkbenchContext,
-  appendWorkbenchContextToFormData
+  appendWorkbenchContextToFormData,
+  type GenerationWorkbenchContext
 } from "@/lib/creator/generation-context";
 import { useVersionNodes } from "@/lib/creator/use-version-nodes";
 import { ensureGenerationContext } from "@/lib/creator/ensure-generation-context";
@@ -127,6 +129,22 @@ const defaultTemplateId = "tpl_ecommerce_main";
  * 产品（多素材输入）习惯对齐。
  */
 const MAX_REFERENCE_IMAGES = 8;
+
+function mergeBoardCompositionIntoContext(
+  context: GenerationWorkbenchContext | null,
+  composition: BoardCompositionRef | null
+): GenerationWorkbenchContext | null {
+  if (!context || !composition) {
+    return context;
+  }
+
+  return {
+    ...context,
+    boardDocumentId: composition.boardDocumentId,
+    boardExportAssetId: composition.boardExportAssetId,
+    boardSnapshot: composition.boardSnapshot
+  };
+}
 
 export default function CreatorWorkspace({
   showAdminLink = false
@@ -214,15 +232,25 @@ export default function CreatorWorkspace({
   // 抛给 onUseBoardExportAsReference，这里收下：
   // - 把 export blob 包成 File，注入既有的 referenceImages 槽（复用现有
   //   Composer reference UI / 提交链路）
-  // - 把 BoardCompositionRef 留在前端 state，给 Cut 4.4 提交时塞 board_*
-  //   context 用。Cut 4.3 本身**不发**这些字段。
+  // - 把 BoardCompositionRef 留在前端 state，Composer 提交时塞 board_*
+  //   context；提交成功后清空，避免后续普通 reference 错带来源。
   // - 切回 transcript tab，让用户立刻看到 Composer 已经被填充。
   const [boardComposition, setBoardComposition] =
     useState<BoardCompositionRef | null>(null);
-  // Cut 4.3 仅注入 reference + 切 tab，本刀不读 boardComposition；Cut 4.4
-  // 提交链路接 generation-context 时再消费它。`void` 显式声明保留意图,
-  // 通过 lint @typescript-eslint/no-unused-vars。
-  void boardComposition;
+
+  function setCreatorMode(nextMode: SetStateAction<CreatorMode>) {
+    const resolvedMode =
+      typeof nextMode === "function"
+        ? (nextMode as (current: CreatorMode) => CreatorMode)(mode)
+        : nextMode;
+
+    if (resolvedMode !== "image") {
+      setBoardComposition(null);
+    }
+
+    setMode(resolvedMode);
+  }
+
   const [maskEnabled, setMaskEnabled] = useState(false);
   const [maskMode, setMaskMode] = useState<MaskMode>("paint");
   const [maskBrushSize, setMaskBrushSize] = useState(48);
@@ -476,6 +504,7 @@ export default function CreatorWorkspace({
         }
 
         setReferenceImages([reference]);
+        setBoardComposition(null);
         setPrompt(asset.prompt);
         setSize(asset.params.size);
         setQuality(asset.params.quality);
@@ -640,7 +669,7 @@ export default function CreatorWorkspace({
       const candidateParentId = activeConversationId === "new"
         ? null
         : (forkParentId ?? activeNodeId);
-      const generationContext = await ensureGenerationContext({
+      const baseGenerationContext = await ensureGenerationContext({
         mode: workbench.mode,
         rawServerProjects: workbench.rawServerProjects,
         activeProjectId,
@@ -648,6 +677,14 @@ export default function CreatorWorkspace({
         serverNodeIds,
         refreshWorkbench: workbench.refresh
       });
+      const activeBoardComposition =
+        mode === "image" && referenceImages.length > 0
+          ? boardComposition
+          : null;
+      const generationContext = mergeBoardCompositionIntoContext(
+        baseGenerationContext,
+        activeBoardComposition
+      );
 
       const response = await fetch(
         mode === "image" ? "/api/images/edits" : "/api/images/generations",
@@ -693,6 +730,10 @@ export default function CreatorWorkspace({
       } else {
         // fallback/no-context：保持旧行为，追加本地 node
         commitGenerationResult(nextResult, requestParams);
+      }
+
+      if (activeBoardComposition) {
+        setBoardComposition(null);
       }
 
       setCurrentTask({
@@ -1057,7 +1098,7 @@ export default function CreatorWorkspace({
 
   function applyPromptFavorite(item: PromptFavoriteItem) {
     setPrompt(item.prompt);
-    setMode(item.mode);
+    setCreatorMode(item.mode);
     if (item.templateId) {
       setSelectedTemplateId(item.templateId);
     }
@@ -1117,6 +1158,8 @@ export default function CreatorWorkspace({
       return;
     }
 
+    setBoardComposition(null);
+
     // 追加而非覆盖；截尾到 MAX_REFERENCE_IMAGES（plan slug calm-squishing-globe ·
     // Cut 1）。三入口（input / drop / paste）共享，inspector 区与 composer 区
     // 行为一致。其他 5 处直接 setReferenceImages([reference]) 的语义是「从历史
@@ -1137,6 +1180,7 @@ export default function CreatorWorkspace({
   }
 
   function removeReferenceImage(index: number) {
+    setBoardComposition(null);
     setReferenceImages((current) =>
       current.filter((_, itemIndex) => itemIndex !== index)
     );
@@ -1286,7 +1330,7 @@ export default function CreatorWorkspace({
         : String(rendered.params.output_compression)
     );
     setModeration(rendered.params.moderation);
-    setMode(template.requiresImage ? "image" : "text");
+    setCreatorMode(template.requiresImage ? "image" : "text");
     setMaskEnabled(Boolean(template.requiresMask));
     setErrorMessage("");
   }
@@ -1307,10 +1351,10 @@ export default function CreatorWorkspace({
    *   1. blob → File，命名带 boardExportAssetId 方便排查；
    *   2. setReferenceImages([file]) 复用现有 Composer reference 槽；
    *   3. setMode("image") + 清错误，与历史 reference 注入路径对齐；
-   *   4. 留下 boardComposition state，给 Cut 4.4 提交时塞 board_* context；
+   *   4. 留下 boardComposition state，给后续 Composer 提交塞 board_* context；
    *   5. setView("transcript") 切回对话流，让用户看到 Composer 已被填充。
    *
-   * 本刀**不**触发提交，**不**改 generation-context，**不**发 board_* 字段。
+   * 这里仍不触发提交；board_* 只在用户下一次显式提交时发送。
    */
   function handleUseBoardExportAsReference(composition: BoardCompositionRef) {
     const fileName = `${composition.boardExportAssetId}.png`;
@@ -1333,6 +1377,7 @@ export default function CreatorWorkspace({
       });
 
       setReferenceImages([reference]);
+      setBoardComposition(null);
       setMode("image");
       setErrorMessage("");
     } catch {
@@ -1467,6 +1512,7 @@ export default function CreatorWorkspace({
       });
 
       setReferenceImages([reference]);
+      setBoardComposition(null);
       setPrompt(item.prompt);
       setSize(item.params.size);
       setQuality(item.params.quality);
@@ -1495,6 +1541,7 @@ export default function CreatorWorkspace({
       });
 
       setReferenceImages([reference]);
+      setBoardComposition(null);
       setPrompt(item.prompt);
       setSize(item.params.size);
       setQuality(item.params.quality);
@@ -1757,7 +1804,7 @@ export default function CreatorWorkspace({
     isGenerating,
     optimizePrompt,
     saveCurrentPromptFavorite,
-    setMode,
+    setMode: setCreatorMode,
     setSize,
     setQuality,
     setOutputFormat,
@@ -2051,5 +2098,3 @@ export default function CreatorWorkspace({
     </AppShell>
   );
 }
-
-

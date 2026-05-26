@@ -7,12 +7,12 @@ import type { BoardDocument } from "./types";
  * 收进一个 BoardCompositionRef，放在 CreatorWorkspace 的本地 state 里：
  *
  *   - 4.3 (本刀)：仅注入 Composer reference 槽 + 切回 transcript tab，
- *     存 BoardCompositionRef 不消费。
- *   - 4.4 (下一刀)：Composer 提交时若检测到 BoardCompositionRef 存在，
+ *     存 BoardCompositionRef。
+ *   - 4.4：Composer 提交时若检测到 BoardCompositionRef 存在，
  *     才把 board_document_id / board_export_asset_id / board_snapshot
  *     注入 generation context（plan 2026-05-20 §2 非破坏铁律）。
  *
- * 4.4 之前**不发**这些字段。
+ * 普通 transcript reference 路径没有 BoardCompositionRef，因此不发这些字段。
  */
 
 export type BoardCompositionRef = {
