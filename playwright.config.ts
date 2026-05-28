@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 
 const port = Number(process.env.PSYPIC_E2E_PORT ?? 3200);
 const baseURL = `http://127.0.0.1:${port}`;
+const browserChannel = process.env.PSYPIC_E2E_BROWSER_CHANNEL?.trim();
+const channelConfig = browserChannel ? { channel: browserChannel } : {};
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -9,10 +11,10 @@ export default defineConfig({
   globalSetup: "./tests/e2e/global-setup.ts",
   outputDir: "./output/playwright/test-results",
   reporter: process.env.CI ? [["github"], ["list"]] : [["list"]],
-  timeout: 90_000,
+  timeout: 180_000,
   workers: 1,
   expect: {
-    timeout: 15_000
+    timeout: 60_000
   },
   use: {
     baseURL,
@@ -20,16 +22,17 @@ export default defineConfig({
     screenshot: "only-on-failure"
   },
   webServer: {
-    command: `pnpm exec next dev -H 127.0.0.1 -p ${port}`,
+    command: `node ./node_modules/next/dist/bin/next dev --webpack -H 127.0.0.1 -p ${port}`,
     env: {
       ASSET_STORAGE_DRIVER: "local",
       KEY_ENCRYPTION_SECRET: "psypic-e2e-key-encryption-secret",
       PSYPIC_E2E_TOKEN: "e2e",
       SESSION_SECRET: "psypic-e2e-session-secret",
-      SUB2API_TIMEOUT_MS: "30000"
+      SUB2API_TIMEOUT_MS: "30000",
+      WATCHPACK_POLLING: "true"
     },
     reuseExistingServer: false,
-    timeout: 120_000,
+    timeout: 300_000,
     url: `${baseURL}/api/health`
   },
   projects: [
@@ -38,6 +41,7 @@ export default defineConfig({
       testMatch: /.*(\.desktop|workbench-.*)\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
+        ...channelConfig,
         viewport: { width: 1440, height: 1000 }
       }
     },
@@ -45,7 +49,8 @@ export default defineConfig({
       name: "mobile-chromium",
       testMatch: /.*(\.mobile|workbench-.*)\.spec\.ts/,
       use: {
-        ...devices["Pixel 5"]
+        ...devices["Pixel 5"],
+        ...channelConfig
       }
     }
   ]

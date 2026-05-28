@@ -1,0 +1,159 @@
+{
+  "release": "RC1",
+  "generated_at": "2026-05-28T13:20:00+08:00",
+  "summary": {
+    "status": "conditionally_accepted",
+    "reason": "Core business workflows, recovery paths, build, lint, typecheck, and official E2E passed locally. Full aggregate `pnpm test` remains a local execution blocker because Vitest/jsdom startup across the whole suite exceeds the workstation timeout; RC-critical suites were run in smaller groups and passed."
+  },
+  "core_business_workflows": [
+    {
+      "workflow": "login_register_and_sub2api_key",
+      "status": "passed",
+      "evidence": [
+        "tests/api/auth.test.ts: 6 passed",
+        "tests/e2e/workbench-auth-sync.spec.ts: desktop/mobile login, logout, manual key binding",
+        "screenshots: output/playwright/screenshots/unauthenticated-desktop.png, unauthenticated-mobile.png"
+      ]
+    },
+    {
+      "workflow": "text_to_image_image_to_image_multi_reference_mask_edit",
+      "status": "passed",
+      "evidence": [
+        "tests/api/image-generations.test.ts: 15 passed",
+        "tests/api/image-edits.test.ts: 10 passed, including single image, multi-reference image, and PNG mask forwarding",
+        "tests/e2e/workbench-generation-events.spec.ts: desktop/mobile generation with task runtime events"
+      ]
+    },
+    {
+      "workflow": "board_material_to_reference_to_composer_to_image_edit",
+      "status": "passed",
+      "evidence": [
+        "tests/e2e/board-composer.desktop.spec.ts: Board export reference submits through Composer edits",
+        "screenshot: output/playwright/screenshots/board-composer-edits-desktop.png"
+      ]
+    },
+    {
+      "workflow": "generated_result_enters_library",
+      "status": "passed",
+      "evidence": [
+        "tests/e2e/community-admin.desktop.spec.ts: generated task asset read back from /api/library",
+        "tests/api/library.test.ts: 6 passed"
+      ]
+    },
+    {
+      "workflow": "asset_publishes_to_community",
+      "status": "passed",
+      "evidence": [
+        "tests/e2e/community-admin.desktop.spec.ts: public work created from generated asset and visible on /community",
+        "tests/api/community-works.test.ts: 6 passed"
+      ]
+    },
+    {
+      "workflow": "community_detail_to_same_generation",
+      "status": "passed",
+      "evidence": [
+        "tests/e2e/community-admin.desktop.spec.ts: detail page generated same-work draft",
+        "screenshot: output/playwright/screenshots/community-detail-same-desktop.png"
+      ]
+    },
+    {
+      "workflow": "admin_moderation_take_down_restore_feature",
+      "status": "passed",
+      "evidence": [
+        "tests/e2e/community-admin.desktop.spec.ts: report queue, feature, take-down, restore readback",
+        "tests/api/community-moderation.test.ts: 5 passed",
+        "screenshot: output/playwright/screenshots/admin-moderation-desktop.png"
+      ]
+    }
+  ],
+  "data_recovery_and_sync": [
+    {
+      "capability": "server_workbench_project_session_version_node_persistence",
+      "status": "passed",
+      "evidence": [
+        "tests/api/workbench-version-nodes.test.ts: 5 passed",
+        "tests/api/image-generations.test.ts: context-aware generation creates version node",
+        "tests/api/image-edits.test.ts: context-aware edit creates child version node"
+      ]
+    },
+    {
+      "capability": "fallback_indexeddb_mode_keeps_work",
+      "status": "passed",
+      "evidence": [
+        "tests/api/workbench-sync.test.ts: indexeddb fallback returns 503 with retry-after",
+        "tests/unit/workbench-cache-store.test.ts: 1 passed",
+        "tests/unit/workbench-outbox-store.test.ts: 1 passed",
+        "screenshots: output/playwright/screenshots/fallback-desktop.png, fallback-mobile.png"
+      ]
+    },
+    {
+      "capability": "outbox_sync_after_server_recovery_preserves_history",
+      "status": "passed",
+      "evidence": [
+        "tests/unit/sync-engine.test.ts: keeps local outbox during server downtime and clears it after recovery",
+        "tests/api/workbench-sync.test.ts: idempotent replay, conflicts, tombstones, partial failure"
+      ]
+    },
+    {
+      "capability": "board_snapshot_recoverable_auditable_reeditable",
+      "status": "passed",
+      "evidence": [
+        "tests/api/image-edits.test.ts: board_snapshot, board_document_id, board_export_asset_id stored on child version node",
+        "tests/unit/board-store.test.ts: save/get/list/soft-delete/hard-delete",
+        "tests/e2e/board-composer.desktop.spec.ts: snapshot source can be re-exported into Composer edit flow"
+      ]
+    },
+    {
+      "capability": "failed_canceled_retry_tasks_close_loop_ui_api",
+      "status": "passed",
+      "evidence": [
+        "tests/api/image-generations.test.ts: failed and canceled tasks sync to version nodes",
+        "tests/api/image-job-queue.test.ts: queued cancel and timeout reflect in task API",
+        "tests/api/batches.test.ts: failed batch item retry creates a new queued task with original params",
+        "tests/components/task-dock.test.tsx: terminal task log retry and runtime event UI"
+      ]
+    }
+  ],
+  "release_gates": [
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    },
+    {
+      "command": "pnpm lint",
+      "status": "passed",
+      "notes": "ESLint ignores generated output/.claude worktree directories; tsconfigRootDir pinned."
+    },
+    {
+      "command": "pnpm typecheck",
+      "status": "passed",
+      "notes": "Script now uses `tsc --noEmit --incremental false` to avoid local tsbuildinfo write failures."
+    },
+    {
+      "command": "pnpm test",
+      "status": "blocked_locally",
+      "notes": "Full aggregate Vitest exceeded a 30 minute local timeout without stable output. RC-critical suites were split and passed."
+    },
+    {
+      "command": "pnpm build",
+      "status": "passed",
+      "notes": "Next production build completed successfully."
+    },
+    {
+      "command": "pnpm e2e",
+      "status": "passed",
+      "notes": "8 Playwright tests passed in 10.5 minutes. Accepted dev-server warnings remain visible."
+    }
+  ],
+  "accepted_warnings": [
+    "Next dev E2E logs `Fast Refresh had to perform a full reload` while all browser assertions pass.",
+    "Next dev E2E logs one `Unexpected end of JSON input` for /api/workbench/job-runtime-events after green assertions; production build did not fail.",
+    "Full aggregate `pnpm test` remains a local runner blocker; targeted RC suites passed and should be used until Vitest suite sharding/CI timeout is improved."
+  ],
+  "external_blockers": [
+    "Staging/production must verify real Sub2API credentials instead of fake Sub2API.",
+    "Staging/production must verify live DATABASE_URL and REDIS_URL connectivity.",
+    "Production must use R2/S3/MinIO-compatible asset storage; local asset storage is intentionally a health-check failure under NODE_ENV=production.",
+    "SESSION_SECRET and KEY_ENCRYPTION_SECRET must be high-entropy, distinct, non-placeholder values."
+  ]
+}

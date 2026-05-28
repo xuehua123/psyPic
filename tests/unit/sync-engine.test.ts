@@ -97,6 +97,80 @@ describe("sync-engine: flushOutbox", () => {
     expect(deps.removeOutboxOperations).not.toHaveBeenCalled();
   });
 
+  it("keeps local outbox during server downtime and clears it after recovery", async () => {
+    const op = makeOutboxOp("mut_recovery");
+    const listOutboxOperations = vi
+      .fn()
+      .mockResolvedValueOnce([op])
+      .mockResolvedValueOnce([op])
+      .mockResolvedValueOnce([]);
+    const removeOutboxOperations = vi.fn().mockResolvedValue(undefined);
+    const pushWorkbenchChanges = vi
+      .fn()
+      .mockResolvedValueOnce({
+        success: false,
+        error: { code: "workbench_store_unavailable", message: "unavailable" },
+        retryAfter: "30"
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        data: {
+          push_results: [
+            {
+              client_mutation_id: "mut_recovery",
+              status: "applied",
+              entity: "project",
+              id: "project_mut_recovery"
+            }
+          ],
+          pulled: {
+            projects: [
+              {
+                id: "project_mut_recovery",
+                user_id: "u1",
+                title: "Recovered project",
+                sort_order: 0,
+                collapsed: false,
+                active_session_id: null,
+                created_at: "2026-05-09T00:00:00.000Z",
+                updated_at: "2026-05-09T00:00:00.000Z",
+                deleted_at: null
+              }
+            ],
+            sessions: [],
+            version_nodes: []
+          }
+        }
+      });
+    const deps = makeDeps({
+      listOutboxOperations,
+      pushWorkbenchChanges,
+      removeOutboxOperations
+    });
+
+    const offline = await flushOutbox(state, deps);
+
+    expect(offline.status).toBe("offline");
+    expect(offline.pendingCount).toBe(1);
+    expect(removeOutboxOperations).not.toHaveBeenCalledWith(["mut_recovery"]);
+
+    const recovered = await flushOutbox(offline, deps);
+
+    expect(recovered.status).toBe("synced");
+    expect(recovered.pendingCount).toBe(0);
+    expect(removeOutboxOperations).toHaveBeenCalledWith(["mut_recovery"]);
+    expect(deps.savePulledData).toHaveBeenCalledWith({
+      projects: [
+        expect.objectContaining({
+          id: "project_mut_recovery",
+          title: "Recovered project"
+        })
+      ],
+      sessions: [],
+      version_nodes: []
+    });
+  });
+
   it("enters offline status on network error", async () => {
     const deps = makeDeps({
       listOutboxOperations: vi.fn().mockResolvedValue([makeOutboxOp("mut_1")]),

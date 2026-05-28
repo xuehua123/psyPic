@@ -37,6 +37,12 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    ".data",
+    ".next",
+    ".playwright-browsers",
+    "coverage",
+    "dist",
+    "node_modules",
+    "output"
   ]
 }

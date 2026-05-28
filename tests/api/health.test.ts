@@ -10,12 +10,17 @@ describe("Health API", () => {
     const previousRuntimeStore = process.env.PSYPIC_RUNTIME_SETTINGS_STORE;
     const previousAuthStore = process.env.PSYPIC_AUTH_STORE;
     const previousWorkbenchStore = process.env.PSYPIC_WORKBENCH_PROJECTS_STORE;
+    const previousSessionSecret = process.env.SESSION_SECRET;
+    const previousKeyEncryptionSecret = process.env.KEY_ENCRYPTION_SECRET;
     process.env.DATABASE_URL = "postgresql://user:secret@db.example.com/psypic";
     process.env.REDIS_URL = "redis://:secret@redis.example.com:6379";
     process.env.ASSET_STORAGE_DRIVER = "local";
     process.env.PSYPIC_RUNTIME_SETTINGS_STORE = "file";
     process.env.PSYPIC_AUTH_STORE = "database";
     process.env.PSYPIC_WORKBENCH_PROJECTS_STORE = "database";
+    process.env.SESSION_SECRET = "unit-session-secret-with-production-entropy";
+    process.env.KEY_ENCRYPTION_SECRET =
+      "unit-key-encryption-secret-with-production-entropy";
     resetRuntimeSettingsStore();
 
     try {
@@ -26,6 +31,12 @@ describe("Health API", () => {
       expect(body.data.ok).toBe(true);
       expect(body.data.checks.db).toMatchObject({ status: "configured" });
       expect(body.data.checks.redis).toMatchObject({ status: "configured" });
+      expect(body.data.checks.credentials).toMatchObject({
+        status: "configured",
+        session_signing: "configured",
+        key_encryption: "configured",
+        distinct_keys: "configured"
+      });
       expect(body.data.checks.auth_session).toMatchObject({
         status: "configured",
         store: "database"
@@ -52,6 +63,8 @@ describe("Health API", () => {
       restoreEnv("PSYPIC_RUNTIME_SETTINGS_STORE", previousRuntimeStore);
       restoreEnv("PSYPIC_AUTH_STORE", previousAuthStore);
       restoreEnv("PSYPIC_WORKBENCH_PROJECTS_STORE", previousWorkbenchStore);
+      restoreEnv("SESSION_SECRET", previousSessionSecret);
+      restoreEnv("KEY_ENCRYPTION_SECRET", previousKeyEncryptionSecret);
     }
   });
 
@@ -118,6 +131,44 @@ describe("Health API", () => {
       restoreEnv("ASSET_STORAGE_SECRET_ACCESS_KEY", previousSecretKey);
     }
   });
+
+  it("fails production readiness for placeholder secrets and local storage", async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousSessionSecret = process.env.SESSION_SECRET;
+    const previousKeyEncryptionSecret = process.env.KEY_ENCRYPTION_SECRET;
+    const previousStorageDriver = process.env.ASSET_STORAGE_DRIVER;
+    setEnv("NODE_ENV", "production");
+    process.env.SESSION_SECRET = "replace-with-session-secret";
+    process.env.KEY_ENCRYPTION_SECRET =
+      "replace-with-different-key-encryption-secret";
+    process.env.ASSET_STORAGE_DRIVER = "local";
+
+    try {
+      const response = await health(new Request("http://localhost/api/health"));
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body.data.ok).toBe(false);
+      expect(body.data.checks.credentials).toMatchObject({
+        status: "fail",
+        session_signing: "placeholder",
+        key_encryption: "placeholder"
+      });
+      expect(body.data.checks.credentials.issues).toEqual(
+        expect.arrayContaining(["session_signing", "key_encryption"])
+      );
+      expect(body.data.checks.storage).toMatchObject({
+        status: "fail",
+        driver: "local",
+        missing: ["s3_compatible_storage_driver"]
+      });
+    } finally {
+      restoreEnv("NODE_ENV", previousNodeEnv);
+      restoreEnv("SESSION_SECRET", previousSessionSecret);
+      restoreEnv("KEY_ENCRYPTION_SECRET", previousKeyEncryptionSecret);
+      restoreEnv("ASSET_STORAGE_DRIVER", previousStorageDriver);
+    }
+  });
 });
 
 function restoreEnv(name: string, value: string | undefined) {
@@ -126,5 +177,9 @@ function restoreEnv(name: string, value: string | undefined) {
     return;
   }
 
+  process.env[name] = value;
+}
+
+function setEnv(name: string, value: string) {
   process.env[name] = value;
 }

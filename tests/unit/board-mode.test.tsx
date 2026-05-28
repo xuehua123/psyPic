@@ -509,6 +509,15 @@ describe("BoardStage konva drag/transform handlers (Cut 3.1.5 commit 2)", () => 
     node: HTMLElement,
     prop: string
   ): (e: { target?: unknown }) => void {
+    const konvaHandler = (
+      node as HTMLElement & {
+        __konvaHandlers?: Record<string, unknown>;
+      }
+    ).__konvaHandlers?.[prop];
+    if (typeof konvaHandler === "function") {
+      return konvaHandler as (e: { target?: unknown }) => void;
+    }
+
     const propsKey = Object.keys(node).find((k) =>
       k.startsWith("__reactProps$")
     );

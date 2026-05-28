@@ -69,7 +69,7 @@ export function useProjects(): UseProjectsReturn {
     // SSR / 首次渲染：先用 seeds，避免 hydration 时 sidebar 空白
     defaultProjectSeeds.map((seed) => ({ ...seed }))
   );
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => canUseIndexedDB());
   /** 防止 setState on unmounted —— 卸载后 reload 完成不再写状态。 */
   const isMountedRef = useRef(true);
 
@@ -78,10 +78,6 @@ export function useProjects(): UseProjectsReturn {
   // 本地 IndexedDB 加载（fallback 路径）
   const reloadLocal = useCallback(async () => {
     if (!canUseIndexedDB()) {
-      if (isMountedRef.current) {
-        setProjects(defaultProjectSeeds.map((seed) => ({ ...seed })));
-        setIsLoading(false);
-      }
       return;
     }
 
@@ -99,9 +95,6 @@ export function useProjects(): UseProjectsReturn {
 
     (async () => {
       if (!canUseIndexedDB()) {
-        if (isMountedRef.current) {
-          setIsLoading(false);
-        }
         return;
       }
 
@@ -131,7 +124,7 @@ export function useProjects(): UseProjectsReturn {
       }
     } else if (workbench.mode !== "loading") {
       // fallback 或 auth_error：保持本地数据（reloadLocal 已经设好了）
-      if (isMountedRef.current) {
+      if (isMountedRef.current && canUseIndexedDB()) {
         setIsLoading(false);
       }
     }

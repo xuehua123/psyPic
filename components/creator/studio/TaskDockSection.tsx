@@ -51,19 +51,19 @@ export default function TaskDockSection({
   });
 
   const finalRefreshDoneRef = useRef<{ taskId: string; status: string } | null>(null);
+  const terminalErrorRetryRef = useRef<{ key: string; count: number } | null>(null);
+  const isTerminalStatus =
+    activeTaskStatus === "succeeded" ||
+    activeTaskStatus === "failed" ||
+    activeTaskStatus === "canceled" ||
+    activeTaskStatus === "timed_out";
 
   useEffect(() => {
     if (!activeTaskId || !activeTaskStatus) {
       return;
     }
 
-    const isTerminal =
-      activeTaskStatus === "succeeded" ||
-      activeTaskStatus === "failed" ||
-      activeTaskStatus === "canceled" ||
-      activeTaskStatus === "timed_out";
-
-    if (isTerminal) {
+    if (isTerminalStatus) {
       if (
         finalRefreshDoneRef.current?.taskId !== activeTaskId ||
         finalRefreshDoneRef.current?.status !== activeTaskStatus
@@ -83,7 +83,29 @@ export default function TaskDockSection({
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [activeTaskId, activeTaskStatus, refresh]);
+  }, [activeTaskId, activeTaskStatus, isTerminalStatus, refresh]);
+
+  useEffect(() => {
+    if (!activeTaskId || !activeTaskStatus || !isTerminalStatus || mode !== "error") {
+      return;
+    }
+
+    const key = `${activeTaskId}:${activeTaskStatus}`;
+    if (terminalErrorRetryRef.current?.key !== key) {
+      terminalErrorRetryRef.current = { key, count: 0 };
+    }
+
+    if (terminalErrorRetryRef.current.count >= 3) {
+      return;
+    }
+
+    terminalErrorRetryRef.current.count += 1;
+    const timeout = setTimeout(() => {
+      void refresh();
+    }, 1000);
+
+    return () => clearTimeout(timeout);
+  }, [activeTaskId, activeTaskStatus, isTerminalStatus, mode, refresh]);
 
   if (!targetTaskId && !targetNodeId) {
     return (

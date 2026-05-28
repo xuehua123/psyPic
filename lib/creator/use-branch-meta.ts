@@ -43,13 +43,18 @@ export function useBranchMeta(): UseBranchMetaReturn {
   const [metaById, setMetaById] = useState<Map<string, StoredBranchMeta>>(
     () => new Map()
   );
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() =>
+    typeof window !== "undefined" && typeof window.indexedDB !== "undefined"
+  );
   const isMountedRef = useRef(true);
 
   useEffect(() => {
     isMountedRef.current = true;
 
     (async () => {
+      if (typeof window === "undefined" || typeof window.indexedDB === "undefined") {
+        return;
+      }
       const items = await listBranchMeta();
       if (!isMountedRef.current) {
         return;

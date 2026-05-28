@@ -451,6 +451,9 @@ export default function CreatorWorkspace({
   useEffect(() => {
     void listLocalHistoryItems()
       .then((items) => {
+        if (items.length === 0) {
+          return;
+        }
         setHistoryItems(items);
         const importedNodes = items.map(createNodeFromHistory);
         setVersionNodes((nodes) => (nodes.length > 0 ? nodes : importedNodes));
@@ -467,7 +470,11 @@ export default function CreatorWorkspace({
 
   useEffect(() => {
     void listPromptFavorites()
-      .then(setPromptFavorites)
+      .then((items) => {
+        if (items.length > 0) {
+          setPromptFavorites(items);
+        }
+      })
       .catch(() => setPromptFavorites([]));
   }, []);
 

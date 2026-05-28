@@ -339,10 +339,21 @@ export function BoardStage({
     horizontalLines.push([0, y, size.width, y]);
   }
 
-  const pointerPos = (event: { clientX: number; clientY: number }) => {
+  const pointerPos = (event: { clientX?: number; clientY?: number }) => {
+    const clientX =
+      typeof event.clientX === "number" && Number.isFinite(event.clientX)
+        ? event.clientX
+        : null;
+    const clientY =
+      typeof event.clientY === "number" && Number.isFinite(event.clientY)
+        ? event.clientY
+        : null;
+    if (clientX === null || clientY === null) {
+      return { x: size.width / 2, y: size.height / 2 };
+    }
     const rect = containerRef.current?.getBoundingClientRect();
     if (!rect) return { x: size.width / 2, y: size.height / 2 };
-    return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    return { x: clientX - rect.left, y: clientY - rect.top };
   };
 
   const handleDragOver = (event: React.DragEvent<HTMLDivElement>) => {

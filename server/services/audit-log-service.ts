@@ -304,10 +304,7 @@ async function getPrismaAuditClient() {
   }
 
   try {
-    const prismaClientPackage = "@prisma/client";
-    const prismaModule = (await import(
-      /* turbopackIgnore: true */ prismaClientPackage
-    )) as {
+    const prismaModule = (await import("@prisma/client")) as {
       PrismaClient?: new (options: { adapter: unknown }) => PrismaAuditClient;
     };
 

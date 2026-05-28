@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 import { vi } from "vitest";
 import CreatorWorkspace from "@/components/creator/CreatorWorkspace";
@@ -70,6 +71,7 @@ vi.mock("@/components/auth/SessionProvider", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/components/auth/SessionProvider")>();
   return {
     ...actual,
+    SessionProvider: ({ children }: { children: ReactNode }) => children,
     useSession: vi.fn().mockReturnValue({
       state: {
         status: "loaded",
@@ -1118,6 +1120,7 @@ describe("CreatorWorkspace", () => {
     );
 
     render(<CreatorWorkspace />);
+    await screen.findByTestId("board-stage");
 
     const user = userEvent.setup();
     await user.type(
@@ -1803,12 +1806,13 @@ describe("CreatorWorkspace", () => {
       screen.getAllByText("1024x1024 · medium · 1 张 · png").length
     ).toBeGreaterThan(0);
 
+    await user.click(screen.getByTestId("quickpick-template-trigger"));
+    await user.click(await screen.findByTestId("template-card-tpl_ad_banner"));
+    expect(screen.getByTestId("quickpick-size-trigger")).toHaveTextContent(
+      "横版 16:9"
+    );
     await user.clear(promptBox);
     await user.type(promptBox, "Create a wide banner product photo.");
-    // size 切换通过 quickpick-size dropdown（plan slug
-    // quiet-glittering-prism · Cut 14）。1536x1024 对应预设 ad_banner_wide。
-    await user.click(screen.getByTestId("quickpick-size-trigger"));
-    await user.click(screen.getByTestId("quickpick-size-ad_banner_wide"));
     await user.click(screen.getByRole("button", { name: /生成图片/ }));
 
     expect(

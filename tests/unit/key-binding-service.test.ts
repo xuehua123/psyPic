@@ -44,4 +44,38 @@ describe("key binding service", () => {
     expect(redactSensitiveValue("psypic_session=sess_secret")).toBe("[REDACTED]");
     expect(redactSensitiveValue("safe metadata")).toBe("safe metadata");
   });
+
+  it("rejects the development encryption secret in production", () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousSecret = process.env.KEY_ENCRYPTION_SECRET;
+    setEnv("NODE_ENV", "production");
+    delete process.env.KEY_ENCRYPTION_SECRET;
+
+    try {
+      expect(() =>
+        createEncryptedKeyBinding({
+          userId: "user_test",
+          baseUrl: "https://sub2api.example.com/v1",
+          apiKey: "secret-token-value",
+          defaultModel: "gpt-image-2"
+        })
+      ).toThrow("KEY_ENCRYPTION_SECRET must be configured for production");
+    } finally {
+      restoreEnv("NODE_ENV", previousNodeEnv);
+      restoreEnv("KEY_ENCRYPTION_SECRET", previousSecret);
+    }
+  });
 });
+
+function restoreEnv(name: string, value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+
+  process.env[name] = value;
+}
+
+function setEnv(name: string, value: string) {
+  process.env[name] = value;
+}

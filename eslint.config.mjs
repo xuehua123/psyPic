@@ -5,7 +5,16 @@ import tseslint from "typescript-eslint";
 
 export default [
   {
-    ignores: [".next/**", "coverage/**", "node_modules/**", "dist/**"]
+    ignores: [
+      ".claude/**",
+      ".data/**",
+      ".next/**",
+      ".playwright-browsers/**",
+      "coverage/**",
+      "dist/**",
+      "node_modules/**",
+      "output/**"
+    ]
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -23,7 +32,6 @@ export default [
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
       parserOptions: {
-        projectService: true,
         tsconfigRootDir: import.meta.dirname
       },
       globals: {

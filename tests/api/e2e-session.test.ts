@@ -3,14 +3,12 @@ import { POST } from "@/app/api/e2e/session/route";
 import { resetDevStore } from "@/server/services/dev-store";
 
 const originalToken = process.env.PSYPIC_E2E_TOKEN;
+const originalNodeEnv = process.env.NODE_ENV;
 
 describe("E2E session helper", () => {
   afterEach(() => {
-    if (originalToken === undefined) {
-      delete process.env.PSYPIC_E2E_TOKEN;
-    } else {
-      process.env.PSYPIC_E2E_TOKEN = originalToken;
-    }
+    restoreEnv("PSYPIC_E2E_TOKEN", originalToken);
+    restoreEnv("NODE_ENV", originalNodeEnv);
     resetDevStore();
   });
 
@@ -40,7 +38,36 @@ describe("E2E session helper", () => {
     expect(body.data.role).toBe("admin");
     expect(response.headers.get("set-cookie")).toContain("psypic_session=");
   });
+
+  it("returns 404 in production even when the E2E token matches", async () => {
+    setEnv("NODE_ENV", "production");
+    process.env.PSYPIC_E2E_TOKEN = "unit-e2e-token";
+
+    const response = await POST(
+      e2eSessionRequest(
+        { role: "admin" },
+        { "x-psypic-e2e-token": "unit-e2e-token" }
+      )
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(404);
+    expect(body.error.code).toBe("not_found");
+  });
 });
+
+function setEnv(name: string, value: string) {
+  process.env[name] = value;
+}
+
+function restoreEnv(name: string, value: string | undefined) {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+
+  process.env[name] = value;
+}
 
 function e2eSessionRequest(
   body: Record<string, unknown>,

@@ -171,7 +171,7 @@ export default function QuickPickRow({
       </button>
 
       {/* 比例 */}
-      <DropdownMenu>
+      <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <button
             className="quickpick-chip"

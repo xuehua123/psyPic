@@ -218,6 +218,42 @@ describe("TaskDockSection", () => {
     vi.useRealTimers();
   });
 
+  it("retries terminal task log fetch after a transient error", () => {
+    vi.useFakeTimers();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCreatorStudio.mockReturnValue({ activeNodeId: null } as any);
+    const mockRefresh = vi.fn();
+    mockUseJobRuntimeEvents.mockReturnValue({
+      events: [],
+      isLoading: false,
+      error: null,
+      mode: "ready",
+      refresh: mockRefresh
+    });
+
+    const { rerender, unmount } = render(
+      <TaskDockSection activeTaskId="task_1" activeTaskStatus="running" />
+    );
+
+    rerender(<TaskDockSection activeTaskId="task_1" activeTaskStatus="succeeded" />);
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+
+    mockUseJobRuntimeEvents.mockReturnValue({
+      events: [],
+      isLoading: false,
+      error: { code: "http_500", message: "请求失败" },
+      mode: "error",
+      refresh: mockRefresh
+    });
+    rerender(<TaskDockSection activeTaskId="task_1" activeTaskStatus="succeeded" />);
+
+    vi.advanceTimersByTime(1000);
+    expect(mockRefresh).toHaveBeenCalledTimes(2);
+
+    unmount();
+    vi.useRealTimers();
+  });
+
   it("target 清空后旧请求不能覆盖空状态 (stale request guard)", async () => {
     const actualModule = await vi.importActual<typeof import("@/lib/creator/use-job-runtime-events")>("@/lib/creator/use-job-runtime-events");
     const { useJobRuntimeEvents: actualUseJobRuntimeEvents } = actualModule;

@@ -11,6 +11,7 @@ export async function GET(_request: Request) {
   const checks = {
     db: checkConfigured("DATABASE_URL"),
     redis: checkConfigured("REDIS_URL"),
+    credentials: checkProductionCredentials(),
     auth_session: checkAuthSessionStore(),
     workbench: checkWorkbenchStore(),
     temp_asset: await checkTempAssetStorage(),
@@ -28,6 +29,53 @@ export async function GET(_request: Request) {
 function checkConfigured(envName: string) {
   return {
     status: process.env[envName]?.trim() ? ("configured" as const) : ("skipped" as const)
+  };
+}
+
+function checkProductionCredentials(): {
+  status: HealthStatus;
+  session_signing: string;
+  key_encryption: string;
+  distinct_keys: string;
+  issues?: string[];
+} {
+  const sessionSecret = classifySecret("SESSION_SECRET", [
+    "replace-with-session-secret"
+  ]);
+  const keyEncryptionSecret = classifySecret("KEY_ENCRYPTION_SECRET", [
+    "replace-with-different-key-encryption-secret",
+    "psypic-development-only-key-encryption-secret"
+  ]);
+  const sessionValue = process.env.SESSION_SECRET?.trim();
+  const keyValue = process.env.KEY_ENCRYPTION_SECRET?.trim();
+  const isDistinct =
+    Boolean(sessionValue) && Boolean(keyValue) && sessionValue !== keyValue;
+  const issues: string[] = [];
+
+  if (process.env.NODE_ENV === "production") {
+    if (sessionSecret !== "configured") {
+      issues.push("session_signing");
+    }
+
+    if (keyEncryptionSecret !== "configured") {
+      issues.push("key_encryption");
+    }
+
+    if (!isDistinct) {
+      issues.push("credentials_must_be_distinct");
+    }
+  }
+
+  return {
+    status: issues.length
+      ? "fail"
+      : sessionSecret === "configured" && keyEncryptionSecret === "configured"
+        ? "configured"
+        : "skipped",
+    session_signing: sessionSecret,
+    key_encryption: keyEncryptionSecret,
+    distinct_keys: isDistinct ? "configured" : "missing",
+    ...(issues.length ? { issues } : {})
   };
 }
 
@@ -108,6 +156,14 @@ function checkAssetStorage(): {
   const driver = process.env.ASSET_STORAGE_DRIVER?.trim() || "local";
 
   if (driver === "local") {
+    if (process.env.NODE_ENV === "production") {
+      return {
+        status: "fail",
+        driver,
+        missing: ["s3_compatible_storage_driver"]
+      };
+    }
+
     return { status: "pass", driver };
   }
 
@@ -138,6 +194,16 @@ function checkAssetStorage(): {
   return missing.length > 0
     ? { status: "fail", driver, missing }
     : { status: "configured", driver };
+}
+
+function classifySecret(name: string, placeholders: string[]) {
+  const value = process.env[name]?.trim();
+
+  if (!value) {
+    return "missing";
+  }
+
+  return placeholders.includes(value) ? "placeholder" : "configured";
 }
 
 function getTempAssetRoot() {

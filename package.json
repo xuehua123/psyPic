@@ -8,11 +8,12 @@
     "build": "next build --webpack",
     "build:turbo": "next build --turbopack",
     "lint": "eslint . --max-warnings=0",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit --incremental false",
     "test": "vitest --run",
     "test:watch": "vitest",
-    "e2e": "playwright test",
-    "e2e:install": "playwright install chromium",
+    "e2e": "node scripts/e2e.mjs test",
+    "e2e:chrome": "node scripts/e2e.mjs test --browser-channel=chrome",
+    "e2e:install": "node scripts/e2e.mjs install chromium",
     "load:smoke": "node scripts/load-smoke.mjs"
   },
   "dependencies": {

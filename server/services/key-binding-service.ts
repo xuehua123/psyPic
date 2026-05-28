@@ -8,6 +8,12 @@ import {
 
 const CIPHER_ALGORITHM = "aes-256-gcm";
 const CIPHER_VERSION = "v1";
+const DEVELOPMENT_KEY_ENCRYPTION_SECRET =
+  "psypic-development-only-key-encryption-secret";
+const PLACEHOLDER_KEY_ENCRYPTION_SECRETS = new Set([
+  "replace-with-different-key-encryption-secret",
+  DEVELOPMENT_KEY_ENCRYPTION_SECRET
+]);
 
 export type KeyBindingLimits = {
   max_n: number;
@@ -119,9 +125,16 @@ function decryptSecret(payload: string) {
 }
 
 function getEncryptionKey() {
-  const secret =
-    process.env.KEY_ENCRYPTION_SECRET ??
-    "psypic-development-only-key-encryption-secret";
+  const configuredSecret = process.env.KEY_ENCRYPTION_SECRET?.trim();
+
+  if (
+    process.env.NODE_ENV === "production" &&
+    (!configuredSecret || PLACEHOLDER_KEY_ENCRYPTION_SECRETS.has(configuredSecret))
+  ) {
+    throw new Error("KEY_ENCRYPTION_SECRET must be configured for production");
+  }
+
+  const secret = configuredSecret || DEVELOPMENT_KEY_ENCRYPTION_SECRET;
 
   return createHash("sha256").update(secret).digest();
 }

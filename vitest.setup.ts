@@ -6,15 +6,17 @@ import { vi } from "vitest";
 // - Konva 节点的 `name` prop 通过 mock 转成 `data-testid`，让 smoke test
 //   能直接 getByTestId(name) 断言背景 / 网格 / 空层 anchor 是否被渲染。
 // - 子节点正常 children 渲染，3 列布局测试可以验证 Stage 嵌套结构。
-// - Konva 事件 prop（onClick / onTap / onDragEnd / onTransformEnd 等）
-//   保留为 React 事件 handler。Konva 真实运行时事件签名是 KonvaEventObject<E>，
-//   测试里只需要触发 dispatch 并断言 reducer 状态，不依赖 e.target.x() 等真实
-//   Konva node 接口。
+// - DOM 能识别的事件 prop（onClick / onDragEnd / onMouseDown 等）保留为
+//   React event handler；Konva-only 事件（onTap / onTransformEnd 等）挂到
+//   DOM 节点的 __konvaHandlers 上，避免 React 对未知 DOM event prop 报 warning。
 vi.mock("react-konva", () => {
   type Props = {
     name?: string;
     children?: React.ReactNode;
     [key: string]: unknown;
+  };
+  type KonvaMockNode = HTMLDivElement & {
+    __konvaHandlers?: Record<string, unknown>;
   };
   const KONVA_EVENT_PROPS = new Set([
     "onClick",
@@ -36,6 +38,28 @@ vi.mock("react-konva", () => {
     "onDblClick",
     "onDblTap"
   ]);
+  const DOM_EVENT_PROPS = new Set([
+    "onClick",
+    "onDragStart",
+    "onDragEnd",
+    "onMouseDown",
+    "onMouseMove",
+    "onMouseUp",
+    "onMouseEnter",
+    "onMouseLeave",
+    "onTouchStart",
+    "onTouchMove",
+    "onTouchEnd"
+  ]);
+  function assignRef(ref: React.Ref<unknown> | undefined, node: KonvaMockNode | null) {
+    if (typeof ref === "function") {
+      ref(node);
+      return;
+    }
+    if (ref && typeof ref === "object") {
+      (ref as React.MutableRefObject<unknown>).current = node;
+    }
+  }
   const make = (kind: string) => {
     const C = ({
       name,
@@ -44,6 +68,7 @@ vi.mock("react-konva", () => {
       ...rest
     }: Props & { ref?: React.Ref<unknown> }) => {
       const attrs: Record<string, unknown> = { "data-konva-kind": kind };
+      const konvaHandlers: Record<string, unknown> = {};
       // Cut 4.1: forward `ref` so callers like BoardStage can grab a DOM
       // stand-in for Konva.Stage in jsdom. React 19 accepts `ref` as a
       // regular prop on function components, so passing it through to
@@ -52,16 +77,27 @@ vi.mock("react-konva", () => {
       // methods (e.g. `transformer.nodes` not being a function on a div),
       // so callers that previously got `null` and now receive a div keep
       // the same no-op behaviour in tests.
-      if (ref !== undefined) attrs.ref = ref;
       if (name) attrs["data-testid"] = name;
       for (const [key, value] of Object.entries(rest)) {
         if (KONVA_EVENT_PROPS.has(key) && typeof value === "function") {
-          attrs[key] = value;
+          if (DOM_EVENT_PROPS.has(key)) {
+            attrs[key] = value;
+          } else {
+            konvaHandlers[key] = value;
+          }
         } else if (key.startsWith("data-") || key === "role") {
           attrs[key] = value;
         } else if (key === "points" && Array.isArray(value)) {
           attrs["data-konva-points"] = (value as number[]).join(",");
         }
+      }
+      if (ref !== undefined || Object.keys(konvaHandlers).length > 0) {
+        attrs.ref = (node: KonvaMockNode | null) => {
+          if (node) {
+            node.__konvaHandlers = konvaHandlers;
+          }
+          assignRef(ref, node);
+        };
       }
       return React.createElement("div", attrs, children);
     };

@@ -14,10 +14,7 @@ export async function createPostgresPrismaClient<TClient>(
     throw new Error("DATABASE_URL is required for database Prisma stores");
   }
 
-  const adapterPackage = "@prisma/adapter-pg";
-  const adapterModule = (await import(
-    /* turbopackIgnore: true */ adapterPackage
-  )) as {
+  const adapterModule = (await import("@prisma/adapter-pg")) as {
     PrismaPg?: PrismaPgConstructor;
   };
 
