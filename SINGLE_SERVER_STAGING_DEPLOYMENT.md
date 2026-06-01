@@ -250,6 +250,12 @@ APP_URL=https://staging.psypic.com
 PSYPIC_APP_HOST=127.0.0.1
 PSYPIC_INSECURE_COOKIES=false
 
+NODE_IMAGE=node:22-bookworm-slim
+POSTGRES_IMAGE=postgres:17-bookworm
+REDIS_IMAGE=redis:7-alpine
+MINIO_IMAGE=minio/minio:latest
+MINIO_MC_IMAGE=minio/mc:latest
+
 POSTGRES_USER=psypic
 POSTGRES_PASSWORD=replace-with-postgres-password
 POSTGRES_DB=psypic_staging
@@ -354,6 +360,15 @@ bash scripts/deploy-single-server.sh
 APP_URL=http://119.45.125.174:3000
 PSYPIC_APP_HOST=0.0.0.0
 PSYPIC_INSECURE_COOKIES=true
+```
+
+如果 Docker Hub 拉取不稳定，可以按服务器已有镜像或可用镜像源设置：
+
+```env
+NODE_IMAGE=node:24-slim
+POSTGRES_IMAGE=postgres:18-alpine
+MINIO_IMAGE=quay.io/minio/minio:latest
+MINIO_MC_IMAGE=quay.io/minio/mc:latest
 ```
 
 同时确认云厂商安全组允许 `3000/tcp` 入站。这只适合临时 staging 测试，正式域名/HTTPS 部署必须改回：
