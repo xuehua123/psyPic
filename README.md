@@ -125,6 +125,7 @@ RC1 单机自托管部署文件已经内置：
 
 - `Dockerfile`
 - `docker-compose.single-server.yml`
+- `docker-compose.direct-ip.yml`
 - `.env.single-server.example`
 - `deploy/Caddyfile.single-server.example`
 - `deploy/nginx.single-server.conf.example`

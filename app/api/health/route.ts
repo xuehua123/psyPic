@@ -152,11 +152,20 @@ function checkAssetStorage(): {
   status: HealthStatus;
   driver: string;
   missing?: string[];
+  mode?: string;
 } {
   const driver = process.env.ASSET_STORAGE_DRIVER?.trim() || "local";
 
   if (driver === "local") {
     if (process.env.NODE_ENV === "production") {
+      if (process.env.PSYPIC_ALLOW_LOCAL_ASSET_STORAGE === "true") {
+        return {
+          status: "configured",
+          driver,
+          mode: "temporary_direct_ip"
+        };
+      }
+
       return {
         status: "fail",
         driver,

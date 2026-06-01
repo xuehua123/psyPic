@@ -27,6 +27,10 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1"
 }
 
+has_service() {
+  compose config --services | grep -qx "$1"
+}
+
 validate_environment() {
   [ -d "$APP_DIR" ] || fail "APP_DIR does not exist: $APP_DIR"
   cd "$APP_DIR"
@@ -82,10 +86,18 @@ main() {
   compose config >/dev/null
 
   log "starting data services"
-  compose up -d postgres redis minio
+  services="postgres redis"
+  if has_service minio; then
+    services="$services minio"
+  fi
+  compose up -d $services
 
-  log "initializing MinIO bucket and app user"
-  compose run --rm minio-init
+  if has_service minio-init; then
+    log "initializing MinIO bucket and app user"
+    compose run --rm minio-init
+  else
+    log "MinIO initialization skipped"
+  fi
 
   log "building app image"
   compose build app

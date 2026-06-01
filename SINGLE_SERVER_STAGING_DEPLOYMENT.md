@@ -294,6 +294,7 @@ MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=replace-with-minio-root-password
 
 ASSET_STORAGE_DRIVER=minio
+PSYPIC_ALLOW_LOCAL_ASSET_STORAGE=false
 ASSET_STORAGE_ENDPOINT=http://minio:9000
 ASSET_STORAGE_REGION=auto
 ASSET_STORAGE_BUCKET=psypic-staging
@@ -360,6 +361,8 @@ bash scripts/deploy-single-server.sh
 APP_URL=http://119.45.125.174:3000
 PSYPIC_APP_HOST=0.0.0.0
 PSYPIC_INSECURE_COOKIES=true
+ASSET_STORAGE_DRIVER=local
+PSYPIC_ALLOW_LOCAL_ASSET_STORAGE=true
 ```
 
 如果 Docker Hub 拉取不稳定，可以按服务器已有镜像或可用镜像源设置：
@@ -369,6 +372,12 @@ NODE_IMAGE=node:24-slim
 POSTGRES_IMAGE=postgres:18-alpine
 MINIO_IMAGE=quay.io/minio/minio:latest
 MINIO_MC_IMAGE=quay.io/minio/mc:latest
+```
+
+如果使用本地文件存储临时直连测试，不需要拉 MinIO 镜像，部署时使用：
+
+```bash
+COMPOSE_FILE=docker-compose.direct-ip.yml bash scripts/deploy-single-server.sh
 ```
 
 同时确认云厂商安全组允许 `3000/tcp` 入站。这只适合临时 staging 测试，正式域名/HTTPS 部署必须改回：

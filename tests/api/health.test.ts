@@ -137,11 +137,14 @@ describe("Health API", () => {
     const previousSessionSecret = process.env.SESSION_SECRET;
     const previousKeyEncryptionSecret = process.env.KEY_ENCRYPTION_SECRET;
     const previousStorageDriver = process.env.ASSET_STORAGE_DRIVER;
+    const previousAllowLocalStorage =
+      process.env.PSYPIC_ALLOW_LOCAL_ASSET_STORAGE;
     setEnv("NODE_ENV", "production");
     process.env.SESSION_SECRET = "replace-with-session-secret";
     process.env.KEY_ENCRYPTION_SECRET =
       "replace-with-different-key-encryption-secret";
     process.env.ASSET_STORAGE_DRIVER = "local";
+    delete process.env.PSYPIC_ALLOW_LOCAL_ASSET_STORAGE;
 
     try {
       const response = await health(new Request("http://localhost/api/health"));
@@ -167,6 +170,40 @@ describe("Health API", () => {
       restoreEnv("SESSION_SECRET", previousSessionSecret);
       restoreEnv("KEY_ENCRYPTION_SECRET", previousKeyEncryptionSecret);
       restoreEnv("ASSET_STORAGE_DRIVER", previousStorageDriver);
+      restoreEnv("PSYPIC_ALLOW_LOCAL_ASSET_STORAGE", previousAllowLocalStorage);
+    }
+  });
+
+  it("allows local storage for temporary direct-IP production staging", async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    const previousSessionSecret = process.env.SESSION_SECRET;
+    const previousKeyEncryptionSecret = process.env.KEY_ENCRYPTION_SECRET;
+    const previousStorageDriver = process.env.ASSET_STORAGE_DRIVER;
+    const previousAllowLocalStorage =
+      process.env.PSYPIC_ALLOW_LOCAL_ASSET_STORAGE;
+    setEnv("NODE_ENV", "production");
+    process.env.SESSION_SECRET = "unit-session-secret-with-production-entropy";
+    process.env.KEY_ENCRYPTION_SECRET =
+      "unit-key-encryption-secret-with-production-entropy";
+    process.env.ASSET_STORAGE_DRIVER = "local";
+    process.env.PSYPIC_ALLOW_LOCAL_ASSET_STORAGE = "true";
+
+    try {
+      const response = await health(new Request("http://localhost/api/health"));
+      const body = await response.json();
+
+      expect(response.status).toBe(200);
+      expect(body.data.checks.storage).toMatchObject({
+        status: "configured",
+        driver: "local",
+        mode: "temporary_direct_ip"
+      });
+    } finally {
+      restoreEnv("NODE_ENV", previousNodeEnv);
+      restoreEnv("SESSION_SECRET", previousSessionSecret);
+      restoreEnv("KEY_ENCRYPTION_SECRET", previousKeyEncryptionSecret);
+      restoreEnv("ASSET_STORAGE_DRIVER", previousStorageDriver);
+      restoreEnv("PSYPIC_ALLOW_LOCAL_ASSET_STORAGE", previousAllowLocalStorage);
     }
   });
 });
