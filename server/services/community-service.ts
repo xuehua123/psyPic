@@ -1221,7 +1221,7 @@ async function getPrismaCommunityClient() {
   }
 
   try {
-    const prismaModule = (await import("@prisma/client")) as {
+    const prismaModule = (await import("@prisma/client")) as unknown as {
       PrismaClient?: new (options: { adapter: unknown }) => PrismaCommunityClient;
     };
 
