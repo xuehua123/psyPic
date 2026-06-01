@@ -3,35 +3,23 @@ set -Eeuo pipefail
 
 HEALTH_URL="${HEALTH_URL:-https://staging.example.com/api/health}"
 
-node -e "
-  const url = process.argv[1];
-  fetch(url)
-    .then(async (response) => {
-      const body = await response.text();
-      if (!response.ok) {
-        console.error('HTTP ' + response.status);
-        console.error(body);
-        process.exit(1);
-      }
-      const data = JSON.parse(body);
-      console.log(JSON.stringify(data, null, 2));
-      const checks = data.checks || {};
-      const failures = [];
-      if (!data.ok) failures.push('ok is false');
-      if (checks.credentials?.status !== 'configured') failures.push('credentials not configured');
-      if (checks.credentials?.distinct_keys !== 'configured') failures.push('credentials not distinct');
-      if (checks.auth_session?.store !== 'database') failures.push('auth_session not database');
-      if (checks.workbench?.store !== 'database') failures.push('workbench not database');
-      if (checks.storage?.driver !== 'minio') failures.push('storage driver not minio');
-      if (checks.storage?.status !== 'configured') failures.push('storage not configured');
-      if (failures.length) {
-        console.error('Health validation failed:');
-        for (const failure of failures) console.error('- ' + failure);
-        process.exit(1);
-      }
-    })
-    .catch((error) => {
-      console.error(error);
-      process.exit(1);
-    });
-" "$HEALTH_URL"
+body="$(curl -fsS "$HEALTH_URL")"
+printf '%s\n' "$body"
+
+check() {
+  pattern="$1"
+  message="$2"
+
+  if ! printf '%s\n' "$body" | grep -Eq "$pattern"; then
+    printf 'Health validation failed: %s\n' "$message" >&2
+    exit 1
+  fi
+}
+
+check '"ok"[[:space:]]*:[[:space:]]*true' 'ok is not true'
+check '"credentials"[^{]*\{[^}]*"status"[[:space:]]*:[[:space:]]*"configured"' 'credentials not configured'
+check '"distinct_keys"[[:space:]]*:[[:space:]]*"configured"' 'credentials not distinct'
+check '"auth_session"[^{]*\{[^}]*"store"[[:space:]]*:[[:space:]]*"database"' 'auth_session not database'
+check '"workbench"[^{]*\{[^}]*"store"[[:space:]]*:[[:space:]]*"database"' 'workbench not database'
+check '"storage"[^{]*\{[^}]*"driver"[[:space:]]*:[[:space:]]*"minio"' 'storage driver not minio'
+check '"storage"[^{]*\{[^}]*"status"[[:space:]]*:[[:space:]]*"configured"' 'storage not configured'

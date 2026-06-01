@@ -127,6 +127,7 @@ RC1 单机自托管部署文件已经内置：
 - `docker-compose.single-server.yml`
 - `.env.single-server.example`
 - `deploy/Caddyfile.single-server.example`
+- `deploy/nginx.single-server.conf.example`
 - `deploy/minio-init.sh`
 - `scripts/bootstrap-single-server.sh`
 - `scripts/deploy-single-server.sh`

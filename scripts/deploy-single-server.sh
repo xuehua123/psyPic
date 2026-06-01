@@ -59,16 +59,7 @@ wait_for_health() {
   log "waiting for health: $HEALTH_URL"
 
   for attempt in $(seq 1 "$HEALTH_RETRIES"); do
-    if node -e "
-      fetch(process.argv[1])
-        .then(async (response) => {
-          const text = await response.text();
-          if (!response.ok) process.exit(1);
-          const data = JSON.parse(text);
-          process.exit(data.ok ? 0 : 1);
-        })
-        .catch(() => process.exit(1));
-    " "$HEALTH_URL"; then
+    if curl -fsS "$HEALTH_URL" | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'; then
       log "health check passed"
       return
     fi
@@ -83,7 +74,7 @@ wait_for_health() {
 main() {
   require_command git
   require_command docker
-  require_command node
+  require_command curl
   validate_environment
   update_code
 

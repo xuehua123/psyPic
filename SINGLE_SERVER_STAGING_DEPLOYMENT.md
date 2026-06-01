@@ -315,6 +315,7 @@ Dockerfile
 docker-compose.single-server.yml
 .env.single-server.example
 deploy/Caddyfile.single-server.example
+deploy/nginx.single-server.conf.example
 deploy/minio-init.sh
 scripts/bootstrap-single-server.sh
 scripts/deploy-single-server.sh
@@ -393,6 +394,8 @@ curl -s http://127.0.0.1:3000/api/health
 
 ## 12. 配置 Caddy
 
+如果是全新空服务器，可以使用 Caddy。若服务器已经有 Nginx 和 Certbot，例如复用现有 sub2api 服务器，请跳到本节后面的 Nginx 配置。
+
 复制内置模板：
 
 ```bash
@@ -414,6 +417,37 @@ sudo systemctl status caddy
 
 ```bash
 curl -s https://staging.psypic.com/api/health
+```
+
+### 复用已有 Nginx 的服务器
+
+已有 Nginx/Cerbot 的服务器不要安装或启用 Caddy，避免抢占 `80/443`。改用内置 Nginx 模板：
+
+```bash
+sudo cp /opt/psypic/app/deploy/nginx.single-server.conf.example /etc/nginx/sites-available/psypic-staging
+sudo nano /etc/nginx/sites-available/psypic-staging
+```
+
+把 `staging.example.com` 和 `minio-staging.example.com` 替换成你的真实域名。如果不暴露 MinIO 管理后台，删除第二个 `server` block。
+
+启用并检查：
+
+```bash
+sudo ln -s /etc/nginx/sites-available/psypic-staging /etc/nginx/sites-enabled/psypic-staging
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+签发证书：
+
+```bash
+sudo certbot --nginx -d staging.psypic.com
+```
+
+如果保留 MinIO 管理后台域名：
+
+```bash
+sudo certbot --nginx -d minio-staging.psypic.com
 ```
 
 ## 13. /api/health 验收标准
