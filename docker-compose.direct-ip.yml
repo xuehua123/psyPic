@@ -39,6 +39,7 @@ services:
       context: .
       args:
         NODE_IMAGE: ${NODE_IMAGE:-node:22-bookworm-slim}
+        APT_MIRROR: ${APT_MIRROR:-}
     container_name: psypic-app
     env_file: ${PSYPIC_ENV_FILE:-.env.production}
     ports:

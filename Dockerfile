@@ -9,7 +9,14 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV DATABASE_URL=postgresql://placeholder:placeholder@localhost:5432/placeholder
 
-RUN apt-get update \
+ARG APT_MIRROR=
+RUN if [ -n "$APT_MIRROR" ]; then \
+    sed -i \
+      -e "s|http://deb.debian.org/debian-security|${APT_MIRROR}/debian-security|g" \
+      -e "s|http://deb.debian.org/debian|${APT_MIRROR}/debian|g" \
+      /etc/apt/sources.list.d/debian.sources; \
+  fi \
+  && apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates openssl \
   && rm -rf /var/lib/apt/lists/*
 

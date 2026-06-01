@@ -255,6 +255,7 @@ POSTGRES_IMAGE=postgres:17-bookworm
 REDIS_IMAGE=redis:7-alpine
 MINIO_IMAGE=minio/minio:latest
 MINIO_MC_IMAGE=minio/mc:latest
+APT_MIRROR=
 
 POSTGRES_USER=psypic
 POSTGRES_PASSWORD=replace-with-postgres-password
@@ -365,13 +366,15 @@ ASSET_STORAGE_DRIVER=local
 PSYPIC_ALLOW_LOCAL_ASSET_STORAGE=true
 ```
 
-如果 Docker Hub 拉取不稳定，可以按服务器已有镜像或可用镜像源设置：
+如果 Docker Hub 或 Debian apt 源不稳定，可以按服务器已有镜像或可用镜像源设置：
 
 ```env
 NODE_IMAGE=node:24-slim
 POSTGRES_IMAGE=postgres:18-alpine
+REDIS_IMAGE=redis:7-alpine
 MINIO_IMAGE=quay.io/minio/minio:latest
 MINIO_MC_IMAGE=quay.io/minio/mc:latest
+APT_MIRROR=http://mirrors.tencent.com
 ```
 
 如果使用本地文件存储临时直连测试，不需要拉 MinIO 镜像，部署时使用：
