@@ -43,7 +43,7 @@ export function buildSessionCookie(sessionId: string) {
   return [
     `${SESSION_COOKIE_NAME}=${encodeURIComponent(sessionId)}`,
     "HttpOnly",
-    "Secure",
+    ...secureCookieAttribute(),
     "SameSite=Lax",
     "Path=/",
     "Max-Age=2592000"
@@ -54,9 +54,13 @@ export function buildExpiredSessionCookie() {
   return [
     `${SESSION_COOKIE_NAME}=`,
     "HttpOnly",
-    "Secure",
+    ...secureCookieAttribute(),
     "SameSite=Lax",
     "Path=/",
     "Max-Age=0"
   ].join("; ");
+}
+
+function secureCookieAttribute() {
+  return process.env.PSYPIC_INSECURE_COOKIES === "true" ? [] : ["Secure"];
 }

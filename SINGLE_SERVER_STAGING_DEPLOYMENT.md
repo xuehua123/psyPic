@@ -247,6 +247,8 @@ nano /opt/psypic/app/.env.production
 ```env
 NODE_ENV=production
 APP_URL=https://staging.psypic.com
+PSYPIC_APP_HOST=127.0.0.1
+PSYPIC_INSECURE_COOKIES=false
 
 POSTGRES_USER=psypic
 POSTGRES_PASSWORD=replace-with-postgres-password
@@ -344,6 +346,21 @@ chmod +x scripts/*-single-server.sh
 ```bash
 cd /opt/psypic/app
 bash scripts/deploy-single-server.sh
+```
+
+如果暂时没有域名、只想直接用公网 IP + 端口测试，把 `.env.production` 改成：
+
+```env
+APP_URL=http://119.45.125.174:3000
+PSYPIC_APP_HOST=0.0.0.0
+PSYPIC_INSECURE_COOKIES=true
+```
+
+同时确认云厂商安全组允许 `3000/tcp` 入站。这只适合临时 staging 测试，正式域名/HTTPS 部署必须改回：
+
+```env
+PSYPIC_APP_HOST=127.0.0.1
+PSYPIC_INSECURE_COOKIES=false
 ```
 
 脚本会依次执行：

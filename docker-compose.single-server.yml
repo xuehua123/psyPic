@@ -73,7 +73,7 @@ services:
     container_name: psypic-app
     env_file: ${PSYPIC_ENV_FILE:-.env.production}
     ports:
-      - "127.0.0.1:3000:3000"
+      - "${PSYPIC_APP_HOST:-127.0.0.1}:3000:3000"
     volumes:
       - appdata:/app/.data
       - appoutput:/app/output

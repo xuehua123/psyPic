@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { POST as exchangeImportCode } from "@/app/api/import/exchange/route";
 import { resetDevStore } from "@/server/services/dev-store";
 
@@ -13,6 +13,10 @@ function importRequest(importCode: string) {
 }
 
 describe("POST /api/import/exchange", () => {
+  afterEach(() => {
+    Reflect.deleteProperty(process.env, "PSYPIC_INSECURE_COOKIES");
+  });
+
   it("binds a session without returning an API key", async () => {
     resetDevStore();
 
@@ -30,6 +34,20 @@ describe("POST /api/import/exchange", () => {
     expect(body.data.binding_id).toMatch(/^kb_/);
     expect(JSON.stringify(body)).not.toContain("api_key");
     expect(JSON.stringify(body)).not.toContain("Authorization");
+  });
+
+  it("can omit Secure cookies for temporary direct-IP HTTP staging", async () => {
+    Reflect.set(process.env, "PSYPIC_INSECURE_COOKIES", "true");
+    resetDevStore();
+
+    const response = await exchangeImportCode(importRequest("valid_one_time_code"));
+    const cookie = response.headers.get("set-cookie");
+
+    expect(response.status).toBe(200);
+    expect(cookie).toContain("psypic_session=");
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).not.toContain("Secure");
+    expect(cookie).toContain("SameSite=Lax");
   });
 
   it("rejects a repeated one-time import code", async () => {
