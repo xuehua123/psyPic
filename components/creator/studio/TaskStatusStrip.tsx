@@ -1,6 +1,6 @@
 "use client";
 
-import { RotateCcw, X } from "lucide-react";
+import { Download, RotateCcw, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -68,6 +68,26 @@ export default function TaskStatusStrip({
           <span>{currentTask.error.message}</span>
         ) : null}
       </div>
+      {currentTask.status === "succeeded" && currentTask.images?.length ? (
+        <div className="result-grid task-result-grid">
+          {currentTask.images.map((image) => (
+            <article className="result-card" key={image.asset_id}>
+              <img alt="生成结果" src={image.url} />
+              <div className="result-card-body">
+                <strong>{image.asset_id}</strong>
+                <div className="result-actions">
+                  <Button asChild variant="secondary">
+                    <a download href={image.url}>
+                      <Download size={16} aria-hidden="true" />
+                      下载
+                    </a>
+                  </Button>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      ) : null}
       <div className="task-status-actions">
         {currentTask.id ? (
           <Button

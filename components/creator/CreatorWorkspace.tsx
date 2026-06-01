@@ -753,6 +753,7 @@ export default function CreatorWorkspace({
         duration_ms: nextResult.duration_ms,
         upstream_request_id: nextResult.upstream_request_id
       });
+      void loadServerLibrary();
       void refreshTaskStatus(nextResult.task_id);
 
     } catch {
@@ -912,6 +913,7 @@ export default function CreatorWorkspace({
             duration_ms: durationMs,
             upstream_request_id: upstreamRequestId
           });
+          void loadServerLibrary();
         }
 
         if (event.event === "error") {
