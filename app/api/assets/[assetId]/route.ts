@@ -1,6 +1,5 @@
 import { createRequestId, jsonError } from "@/server/services/api-response";
-import { getSession } from "@/server/services/dev-store";
-import { readSessionIdFromRequest } from "@/server/services/session-service";
+import { getRequestViewer } from "@/server/services/request-user-service";
 import {
   readTempAssetForUser,
   TempAssetError
@@ -11,10 +10,9 @@ export async function GET(
   context: { params: Promise<{ assetId: string }> }
 ) {
   const requestId = createRequestId();
-  const sessionId = readSessionIdFromRequest(request);
-  const session = sessionId ? getSession(sessionId) : null;
+  const viewer = await getRequestViewer(request);
 
-  if (!session) {
+  if (!viewer.user) {
     return jsonError({
       status: 401,
       code: "unauthorized",
@@ -26,7 +24,7 @@ export async function GET(
   const { assetId } = await context.params;
 
   try {
-    const asset = await readTempAssetForUser(assetId, session.user_id);
+    const asset = await readTempAssetForUser(assetId, viewer.user.id);
 
     const body = new ArrayBuffer(asset.bytes.byteLength);
     new Uint8Array(body).set(asset.bytes);

@@ -29,6 +29,9 @@ export type ImageTaskImage = {
   width?: number;
   height?: number;
   format: string;
+  storage_key?: string;
+  mime_type?: string;
+  size_bytes?: number;
 };
 
 export type ImageTask = {
@@ -84,9 +87,12 @@ type PrismaImageAssetRow = {
   id: string;
   userId: string;
   taskId: string | null;
+  storageKey: string | null;
+  mimeType: string | null;
   format: string;
   width: number | null;
   height: number | null;
+  sizeBytes: number | null;
   favorite: boolean;
   metadata: unknown;
   createdAt: Date;
@@ -928,8 +934,11 @@ async function createDatabaseImageAssets(
         userId: task.user_id,
         taskId: task.id,
         format: image.format,
+        storageKey: image.storage_key,
+        mimeType: image.mime_type,
         width: image.width,
         height: image.height,
+        sizeBytes: image.size_bytes,
         favorite: false,
         metadata: { url: image.url },
         createdAt: new Date(task.updated_at),
@@ -1271,7 +1280,10 @@ function fromPrismaImageAsset(row: PrismaImageAssetRow): ImageTaskImage {
     url: readAssetUrl(row),
     width: row.width ?? undefined,
     height: row.height ?? undefined,
-    format: row.format
+    format: row.format,
+    storage_key: row.storageKey ?? undefined,
+    mime_type: row.mimeType ?? undefined,
+    size_bytes: row.sizeBytes ?? undefined
   };
 }
 

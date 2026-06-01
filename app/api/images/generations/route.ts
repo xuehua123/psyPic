@@ -166,7 +166,10 @@ export async function POST(request: Request) {
           url: `/api/assets/${asset.id}`,
           width: asset.width,
           height: asset.height,
-          format: parsed.data.output_format
+          format: parsed.data.output_format,
+          storage_key: asset.temp_storage_key,
+          mime_type: asset.mime_type,
+          size_bytes: asset.size_bytes
         };
       })
     );

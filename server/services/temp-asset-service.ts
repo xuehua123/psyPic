@@ -7,6 +7,7 @@ import {
   S3Client
 } from "@aws-sdk/client-s3";
 import { createId } from "@/server/services/key-binding-service";
+import { createPostgresPrismaClient } from "@/server/services/prisma-client-factory";
 
 export type TempAsset = {
   id: string;
@@ -25,6 +26,19 @@ type ReadableTempAsset = TempAsset & {
   bytes: Uint8Array;
 };
 
+type PersistedAssetRow = {
+  id: string;
+  userId: string;
+  taskId: string | null;
+  storageKey: string | null;
+  mimeType: string | null;
+  format: string;
+  width: number | null;
+  height: number | null;
+  sizeBytes: number | null;
+  createdAt: Date;
+};
+
 type TempAssetErrorCode = "not_found" | "forbidden" | "expired";
 
 type ObjectStorageClient = {
@@ -35,6 +49,12 @@ type ObjectStorageClient = {
   }): Promise<void>;
   getObject(input: { key: string }): Promise<Uint8Array>;
   deleteObject?(input: { key: string }): Promise<void>;
+};
+
+type PersistedAssetClient = {
+  imageAsset: {
+    findFirst(input: Record<string, unknown>): Promise<PersistedAssetRow | null>;
+  };
 };
 
 export class TempAssetError extends Error {
@@ -50,6 +70,10 @@ export class TempAssetError extends Error {
 declare global {
   var __psypicTempAssets: Map<string, TempAsset> | undefined;
   var __psypicObjectStorageClient: ObjectStorageClient | undefined;
+  var __psypicTempAssetPrismaClient:
+    | PersistedAssetClient
+    | null
+    | undefined;
 }
 
 const tempAssets = globalThis.__psypicTempAssets ?? new Map<string, TempAsset>();
@@ -111,6 +135,12 @@ export async function readTempAssetForUser(
   const asset = tempAssets.get(assetId);
 
   if (!asset) {
+    const persistedAsset = await readPersistedAssetForUser(assetId, userId);
+
+    if (persistedAsset) {
+      return persistedAsset;
+    }
+
     throw new TempAssetError("not_found", "临时资产不存在");
   }
 
@@ -129,6 +159,52 @@ export async function readTempAssetForUser(
           /* turbopackIgnore: true */ getTempAssetPath(asset.temp_storage_key)
         )
       : await getObjectStorageClient().getObject({ key: asset.temp_storage_key })
+  };
+}
+
+async function readPersistedAssetForUser(
+  assetId: string,
+  userId: string
+): Promise<ReadableTempAsset | null> {
+  const client = await getPersistedAssetClient();
+
+  if (!client) {
+    return null;
+  }
+
+  const row = await client.imageAsset.findFirst({
+    where: { id: assetId, userId, deletedAt: null }
+  });
+
+  if (!row) {
+    return null;
+  }
+
+  const storageKey =
+    row.storageKey ?? (isLocalAssetStorage() ? inferLocalStorageKey(row) : null);
+
+  if (!storageKey) {
+    return null;
+  }
+
+  const bytes = isLocalAssetStorage()
+    ? await readFile(/* turbopackIgnore: true */ getTempAssetPath(storageKey))
+    : await getObjectStorageClient().getObject({ key: storageKey });
+  const contentType = row.mimeType ?? mimeTypeForFormat(normalizeFormat(row.format));
+  const createdAt = row.createdAt.toISOString();
+
+  return {
+    id: row.id,
+    user_id: row.userId,
+    task_id: row.taskId ?? "",
+    mime_type: contentType,
+    width: row.width ?? undefined,
+    height: row.height ?? undefined,
+    size_bytes: row.sizeBytes ?? bytes.byteLength,
+    temp_storage_key: storageKey,
+    expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+    created_at: createdAt,
+    bytes
   };
 }
 
@@ -176,6 +252,15 @@ function getTempAssetStorageKey(filename: string) {
   return `${normalizeStoragePrefix()}temp-assets/${filename}`;
 }
 
+function inferLocalStorageKey(row: Pick<PersistedAssetRow, "id" | "format">) {
+  const format = normalizeFormat(row.format);
+  return `${row.id}.${format === "jpeg" ? "jpg" : format}`;
+}
+
+function normalizeFormat(format: string): "png" | "jpeg" | "webp" {
+  return format === "jpeg" || format === "webp" ? format : "png";
+}
+
 function isLocalAssetStorage() {
   const driver = process.env.ASSET_STORAGE_DRIVER?.trim().toLowerCase() || "local";
 
@@ -198,6 +283,30 @@ function getObjectStorageClient() {
   }
 
   return globalThis.__psypicObjectStorageClient;
+}
+
+async function getPersistedAssetClient() {
+  if (!process.env.DATABASE_URL?.trim()) {
+    return null;
+  }
+
+  if (globalThis.__psypicTempAssetPrismaClient !== undefined) {
+    return globalThis.__psypicTempAssetPrismaClient;
+  }
+
+  try {
+    const prismaModule = (await import("@prisma/client")) as unknown as {
+      PrismaClient?: new (options: { adapter: unknown }) => PersistedAssetClient;
+    };
+
+    globalThis.__psypicTempAssetPrismaClient = prismaModule.PrismaClient
+      ? await createPostgresPrismaClient(prismaModule.PrismaClient)
+      : null;
+  } catch {
+    globalThis.__psypicTempAssetPrismaClient = null;
+  }
+
+  return globalThis.__psypicTempAssetPrismaClient;
 }
 
 function createS3CompatibleStorageClient(): ObjectStorageClient {

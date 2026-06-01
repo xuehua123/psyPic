@@ -479,7 +479,10 @@ async function handleUpstreamSseBlock(input: {
         index: partialIndex,
         asset_id: asset.id,
         url: `/api/assets/${asset.id}`,
-        format: input.params.output_format
+        format: input.params.output_format,
+        storage_key: asset.temp_storage_key,
+        mime_type: asset.mime_type,
+        size_bytes: asset.size_bytes
       }
     });
     input.controller.enqueue(
@@ -510,7 +513,10 @@ async function handleUpstreamSseBlock(input: {
           url: `/api/assets/${asset.id}`,
           width: asset.width,
           height: asset.height,
-          format: input.params.output_format
+          format: input.params.output_format,
+          storage_key: asset.temp_storage_key,
+          mime_type: asset.mime_type,
+          size_bytes: asset.size_bytes
         };
       })
     );
