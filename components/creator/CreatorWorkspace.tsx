@@ -151,12 +151,14 @@ export default function CreatorWorkspace({
 }: {
   showAdminLink?: boolean;
 } = {}) {
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   const isTestEnv = typeof window !== "undefined" && 
     (window.navigator?.userAgent?.toLowerCase().includes("jsdom") || 
      (window as any).process?.env?.NODE_ENV === "test" || 
      (window as any).VITEST || 
      (globalThis as any).vi || 
      (globalThis as any).Vitest);
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   // 桌面端侧边栏与输入框折叠状态
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);

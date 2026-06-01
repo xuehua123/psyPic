@@ -37,12 +37,14 @@ export default function TaskStatusStrip({
   onCancelTask,
   onRetryGeneration
 }: TaskStatusStripProps) {
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   const isTestEnv = typeof window !== "undefined" && 
     (window.navigator?.userAgent?.toLowerCase().includes("jsdom") || 
      (window as any).process?.env?.NODE_ENV === "test" || 
      (window as any).VITEST || 
      (globalThis as any).vi || 
      (globalThis as any).Vitest);
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
   if (!currentTask) {
     return null;
