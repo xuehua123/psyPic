@@ -16,7 +16,8 @@
  *   helper，从 lib/creator/version-graph）；4 个 lucide icon
  */
 
-import { Copy, Download, ImagePlus, RotateCcw } from "lucide-react";
+import { Copy, Download, ImagePlus, RotateCcw, X } from "lucide-react";
+import { useState, useEffect } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useCreatorStudio } from "@/components/creator/studio/CreatorStudioContext";
@@ -25,6 +26,15 @@ import {
   summarizeNodeParams,
   type CreatorVersionNode
 } from "@/lib/creator/version-graph";
+
+const parseAspectRatio = (size?: string) => {
+  if (!size) return "1/1";
+  const [width, height] = size.split("x").map(Number);
+  if (width && height) {
+    return `${width}/${height}`;
+  }
+  return "1/1";
+};
 
 export default function ChatTurn({
   node,
@@ -42,6 +52,20 @@ export default function ChatTurn({
     copyPrompt,
     handleResultAsReference
   } = useCreatorStudio();
+
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+
+  // 监听 ESC 键关闭大图灯箱
+  useEffect(() => {
+    if (!lightboxImage) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setLightboxImage(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [lightboxImage]);
 
   return (
     <article
@@ -101,7 +125,15 @@ export default function ChatTurn({
             <div className="result-grid chat-result-grid">
               {node.images.map((image) => (
                 <article className="result-card" key={image.asset_id}>
-                  <img alt="生成结果" src={image.url} />
+                  <div className="relative group overflow-hidden cursor-zoom-in">
+                    <img 
+                      alt="生成结果" 
+                      src={image.url} 
+                      onClick={() => setLightboxImage(image.url)}
+                      style={{ aspectRatio: parseAspectRatio(node.params?.size) }}
+                      className="w-full transition-transform duration-300 hover:scale-[1.02] block object-contain"
+                    />
+                  </div>
                   <div className="result-card-body">
                     <strong>{image.asset_id}</strong>
                     <p>{node.requestId}</p>
@@ -147,6 +179,29 @@ export default function ChatTurn({
           )}
         </div>
       </div>
+
+      {/* 全屏灯箱 Lightbox 预览模式 */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200"
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            onClick={() => setLightboxImage(null)}
+            className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors p-2 bg-white/10 hover:bg-white/20 rounded-full"
+            type="button"
+            aria-label="关闭预览"
+          >
+            <X size={20} />
+          </button>
+          <img
+            alt="大图预览"
+            src={lightboxImage}
+            className="max-h-[90vh] max-w-[90vw] object-contain rounded-lg shadow-2xl zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </article>
   );
 }

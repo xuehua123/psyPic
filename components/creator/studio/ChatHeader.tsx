@@ -1,6 +1,14 @@
 "use client";
 
-import { Menu } from "lucide-react";
+import { 
+  Menu, 
+  PanelLeftClose, 
+  PanelLeftOpen, 
+  PanelRightClose, 
+  PanelRightOpen, 
+  MessageSquare, 
+  MessageSquareOff 
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 
@@ -20,12 +28,25 @@ type ChatHeaderProps = {
   conversationTitle: string;
   forkParentId: string | null;
   onOpenMobileSidebar?: () => void;
+  // 桌面端侧边栏与输入框折叠控制
+  leftSidebarCollapsed?: boolean;
+  onToggleLeftSidebar?: () => void;
+  rightSidebarCollapsed?: boolean;
+  onToggleRightSidebar?: () => void;
+  composerCollapsed?: boolean;
+  onToggleComposer?: () => void;
 };
 
 export default function ChatHeader({
   conversationTitle,
   forkParentId,
-  onOpenMobileSidebar
+  onOpenMobileSidebar,
+  leftSidebarCollapsed = false,
+  onToggleLeftSidebar,
+  rightSidebarCollapsed = false,
+  onToggleRightSidebar,
+  composerCollapsed = false,
+  onToggleComposer
 }: ChatHeaderProps) {
   return (
     <header className="chat-workspace-header">
@@ -42,7 +63,22 @@ export default function ChatHeader({
             <Menu aria-hidden size={18} />
           </Button>
         ) : null}
-        <div className="min-w-0">
+        
+        {/* 桌面端折叠左栏按钮 */}
+        {onToggleLeftSidebar && (
+          <Button
+            aria-label={leftSidebarCollapsed ? "展开项目栏" : "折叠项目栏"}
+            className="hidden md:inline-flex size-8 shrink-0 hover:bg-muted"
+            onClick={onToggleLeftSidebar}
+            size="icon"
+            type="button"
+            variant="ghost"
+          >
+            {leftSidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </Button>
+        )}
+
+        <div className="min-w-0 ml-1">
           <span className="sidebar-section-title">当前对话</span>
           <h1>{conversationTitle}</h1>
         </div>
@@ -51,6 +87,35 @@ export default function ChatHeader({
         {forkParentId ? (
           <span className="version-context-pill">分叉生成中</span>
         ) : null}
+
+        {/* 输入框折叠控制按钮 */}
+        {onToggleComposer && (
+          <Button
+            aria-label={composerCollapsed ? "显示输入框" : "隐藏输入框"}
+            className="size-8 p-0"
+            onClick={onToggleComposer}
+            type="button"
+            variant="ghost"
+            title={composerCollapsed ? "显示输入框" : "隐藏输入框"}
+          >
+            {composerCollapsed ? <MessageSquare size={16} /> : <MessageSquareOff size={16} />}
+          </Button>
+        )}
+
+        {/* 桌面端折叠右栏按钮 */}
+        {onToggleRightSidebar && (
+          <Button
+            aria-label={rightSidebarCollapsed ? "展开参数栏" : "折叠参数栏"}
+            className="hidden md:inline-flex size-8 p-0"
+            onClick={onToggleRightSidebar}
+            type="button"
+            variant="ghost"
+            title={rightSidebarCollapsed ? "展开参数栏" : "折叠参数栏"}
+          >
+            {rightSidebarCollapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
+          </Button>
+        )}
+
         <Button
           onClick={() => {
             const target = document.querySelector(

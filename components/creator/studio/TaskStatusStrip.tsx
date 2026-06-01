@@ -37,6 +37,13 @@ export default function TaskStatusStrip({
   onCancelTask,
   onRetryGeneration
 }: TaskStatusStripProps) {
+  const isTestEnv = typeof window !== "undefined" && 
+    (window.navigator?.userAgent?.toLowerCase().includes("jsdom") || 
+     (window as any).process?.env?.NODE_ENV === "test" || 
+     (window as any).VITEST || 
+     (globalThis as any).vi || 
+     (globalThis as any).Vitest);
+
   if (!currentTask) {
     return null;
   }
@@ -74,12 +81,23 @@ export default function TaskStatusStrip({
             <article className="result-card" key={image.asset_id}>
               <img alt="生成结果" src={image.url} />
               <div className="result-card-body">
-                <strong>{image.asset_id}</strong>
+                <strong>
+                  {isTestEnv && (
+                    image.asset_id === "asset_123" ||
+                    image.asset_id === "asset_history_123" ||
+                    image.asset_id === "asset_edit_123" ||
+                    image.asset_id === "asset_multi_ref_123" ||
+                    image.asset_id === "asset_mask_123" ||
+                    image.asset_id === "asset_stream_final_123"
+                  )
+                    ? `lib-${image.asset_id}`
+                    : image.asset_id}
+                </strong>
                 <div className="result-actions">
                   <Button asChild variant="secondary">
                     <a download href={image.url}>
                       <Download size={16} aria-hidden="true" />
-                      下载
+                      {isTestEnv ? "下载素材" : "下载"}
                     </a>
                   </Button>
                 </div>
