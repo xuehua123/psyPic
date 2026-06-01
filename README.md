@@ -119,6 +119,22 @@ Windows PowerShell：
 $env:DATABASE_URL="postgresql://psypic:psypic@localhost:5432/psypic"; pnpm prisma validate
 ```
 
+## 单服务器 staging 部署
+
+RC1 单机自托管部署文件已经内置：
+
+- `Dockerfile`
+- `docker-compose.single-server.yml`
+- `.env.single-server.example`
+- `deploy/Caddyfile.single-server.example`
+- `deploy/minio-init.sh`
+- `scripts/bootstrap-single-server.sh`
+- `scripts/deploy-single-server.sh`
+- `scripts/backup-single-server.sh`
+- `scripts/health-single-server.sh`
+
+完整手册见 [SINGLE_SERVER_STAGING_DEPLOYMENT.md](SINGLE_SERVER_STAGING_DEPLOYMENT.md)。
+
 ## 目录说明
 
 ```text

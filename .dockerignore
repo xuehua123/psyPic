@@ -1,0 +1,13 @@
+.git
+.next
+node_modules
+output
+.data
+.playwright-browsers
+coverage
+*.log
+.env
+.env.*
+!.env.example
+!.env.single-server.example
+tsconfig*.tsbuildinfo

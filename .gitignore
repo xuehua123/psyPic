@@ -9,6 +9,7 @@ output/
 .env
 .env.*
 !.env.example
+!.env.single-server.example
 *.log
 pnpm-debug.log*
 *.tsbuildinfo

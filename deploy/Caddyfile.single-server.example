@@ -1,0 +1,18 @@
+staging.example.com {
+  encode zstd gzip
+  reverse_proxy 127.0.0.1:3000
+
+  header {
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "strict-origin-when-cross-origin"
+  }
+}
+
+# Optional staging-only MinIO console.
+# Remove this block if you do not want the console exposed through HTTPS.
+minio-staging.example.com {
+  encode zstd gzip
+  reverse_proxy 127.0.0.1:9001
+}

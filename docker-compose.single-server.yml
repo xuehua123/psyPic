@@ -1,0 +1,107 @@
+services:
+  postgres:
+    image: postgres:17-bookworm
+    container_name: psypic-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - psypic_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: psypic-redis
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    command: sh -c 'redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"'
+    volumes:
+      - redisdata:/data
+    restart: unless-stopped
+    networks:
+      - psypic_net
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: psypic-minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":9001"
+    volumes:
+      - miniodata:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+    restart: unless-stopped
+    networks:
+      - psypic_net
+
+  minio-init:
+    image: minio/mc:latest
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      ASSET_STORAGE_BUCKET: ${ASSET_STORAGE_BUCKET}
+      ASSET_STORAGE_ACCESS_KEY_ID: ${ASSET_STORAGE_ACCESS_KEY_ID}
+      ASSET_STORAGE_SECRET_ACCESS_KEY: ${ASSET_STORAGE_SECRET_ACCESS_KEY}
+    depends_on:
+      - minio
+    networks:
+      - psypic_net
+    restart: "no"
+    volumes:
+      - ./deploy/minio-init.sh:/usr/local/bin/minio-init.sh:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/minio-init.sh"]
+
+  app:
+    build:
+      context: .
+    container_name: psypic-app
+    env_file: ${PSYPIC_ENV_FILE:-.env.production}
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - appdata:/app/.data
+      - appoutput:/app/output
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      minio-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - psypic_net
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
+  appdata:
+  appoutput:
+
+networks:
+  psypic_net:
+    name: psypic_net
