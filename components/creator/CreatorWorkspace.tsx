@@ -146,47 +146,50 @@ function mergeBoardCompositionIntoContext(
   };
 }
 
+function readStoredBoolean(key: string) {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  try {
+    return window.localStorage.getItem(key) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function writeStoredBoolean(key: string, value: boolean) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(key, String(value));
+  } catch {
+    // Storage can be disabled by privacy settings; UI state still updates in memory.
+  }
+}
+
 export default function CreatorWorkspace({
   showAdminLink = false
 }: {
   showAdminLink?: boolean;
 } = {}) {
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  const isTestEnv = typeof window !== "undefined" && 
-    (window.navigator?.userAgent?.toLowerCase().includes("jsdom") || 
-     (window as any).process?.env?.NODE_ENV === "test" || 
-     (window as any).VITEST || 
-     (globalThis as any).vi || 
-     (globalThis as any).Vitest);
-  /* eslint-enable @typescript-eslint/no-explicit-any */
-
   // 桌面端侧边栏与输入框折叠状态
-  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
-  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(false);
-  const [composerCollapsed, setComposerCollapsed] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && !isTestEnv) {
-      /* eslint-disable react-hooks/set-state-in-effect */
-      try {
-        const left = localStorage.getItem("psypic_left_collapsed") === "true";
-        const right = localStorage.getItem("psypic_right_collapsed") === "true";
-        const comp = localStorage.getItem("psypic_composer_collapsed") === "true";
-
-        if (left) setLeftSidebarCollapsed(true);
-        if (right) setRightSidebarCollapsed(true);
-        if (comp) setComposerCollapsed(true);
-      } catch (e) {
-        console.warn("LocalStorage blocked:", e);
-      }
-      /* eslint-enable react-hooks/set-state-in-effect */
-    }
-  }, [isTestEnv]);
+  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(() =>
+    readStoredBoolean("psypic_left_collapsed")
+  );
+  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(() =>
+    readStoredBoolean("psypic_right_collapsed")
+  );
+  const [composerCollapsed, setComposerCollapsed] = useState(() =>
+    readStoredBoolean("psypic_composer_collapsed")
+  );
 
   const handleToggleLeftSidebar = () => {
     setLeftSidebarCollapsed((prev) => {
       const next = !prev;
-      localStorage.setItem("psypic_left_collapsed", String(next));
+      writeStoredBoolean("psypic_left_collapsed", next);
       return next;
     });
   };
@@ -194,7 +197,7 @@ export default function CreatorWorkspace({
   const handleToggleRightSidebar = () => {
     setRightSidebarCollapsed((prev) => {
       const next = !prev;
-      localStorage.setItem("psypic_right_collapsed", String(next));
+      writeStoredBoolean("psypic_right_collapsed", next);
       return next;
     });
   };
@@ -202,7 +205,7 @@ export default function CreatorWorkspace({
   const handleToggleComposer = () => {
     setComposerCollapsed((prev) => {
       const next = !prev;
-      localStorage.setItem("psypic_composer_collapsed", String(next));
+      writeStoredBoolean("psypic_composer_collapsed", next);
       return next;
     });
   };
@@ -809,9 +812,6 @@ export default function CreatorWorkspace({
         duration_ms: nextResult.duration_ms,
         upstream_request_id: nextResult.upstream_request_id
       });
-      if (!isTestEnv) {
-        void loadServerLibrary();
-      }
       void refreshTaskStatus(nextResult.task_id);
 
     } catch {
@@ -971,9 +971,6 @@ export default function CreatorWorkspace({
             duration_ms: durationMs,
             upstream_request_id: upstreamRequestId
           });
-          if (!isTestEnv) {
-            void loadServerLibrary();
-          }
         }
 
         if (event.event === "error") {

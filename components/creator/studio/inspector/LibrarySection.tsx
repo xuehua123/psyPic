@@ -39,15 +39,6 @@ import {
 } from "@/lib/creator/board/library-drag";
 
 export default function LibrarySection() {
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  const isTestEnv = typeof window !== "undefined" && 
-    (window.navigator?.userAgent?.toLowerCase().includes("jsdom") || 
-     (window as any).process?.env?.NODE_ENV === "test" || 
-     (window as any).VITEST || 
-     (globalThis as any).vi || 
-     (globalThis as any).Vitest);
-  /* eslint-enable @typescript-eslint/no-explicit-any */
-
   const {
     libraryItems,
     libraryStatus,
@@ -171,18 +162,7 @@ export default function LibrarySection() {
                 src={item.thumbnail_url}
               />
               <div className="library-item-body">
-                <strong>
-                  {isTestEnv && (
-                    item.asset_id === "asset_123" ||
-                    item.asset_id === "asset_history_123" ||
-                    item.asset_id === "asset_edit_123" ||
-                    item.asset_id === "asset_multi_ref_123" ||
-                    item.asset_id === "asset_mask_123" ||
-                    item.asset_id === "asset_stream_final_123"
-                  )
-                    ? `lib-${item.asset_id}`
-                    : item.asset_id}
-                </strong>
+                <strong>{item.asset_id}</strong>
                 <p>{item.prompt}</p>
                 <p>
                   {item.task_id}

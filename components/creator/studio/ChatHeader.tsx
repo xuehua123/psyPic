@@ -1,13 +1,13 @@
 "use client";
 
-import { 
-  Menu, 
-  PanelLeftClose, 
-  PanelLeftOpen, 
-  PanelRightClose, 
-  PanelRightOpen, 
-  MessageSquare, 
-  MessageSquareOff 
+import {
+  Menu,
+  MessageSquare,
+  MessageSquareOff,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -63,18 +63,22 @@ export default function ChatHeader({
             <Menu aria-hidden size={18} />
           </Button>
         ) : null}
-        
+
         {/* 桌面端折叠左栏按钮 */}
         {onToggleLeftSidebar && (
           <Button
             aria-label={leftSidebarCollapsed ? "展开项目栏" : "折叠项目栏"}
-            className="hidden md:inline-flex size-8 shrink-0 hover:bg-muted"
+            className="workspace-collapse-button size-8 shrink-0 hover:bg-muted"
             onClick={onToggleLeftSidebar}
             size="icon"
             type="button"
             variant="ghost"
           >
-            {leftSidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+            {leftSidebarCollapsed ? (
+              <PanelLeftOpen size={18} />
+            ) : (
+              <PanelLeftClose size={18} />
+            )}
           </Button>
         )}
 
@@ -98,7 +102,11 @@ export default function ChatHeader({
             variant="ghost"
             title={composerCollapsed ? "显示输入框" : "隐藏输入框"}
           >
-            {composerCollapsed ? <MessageSquare size={16} /> : <MessageSquareOff size={16} />}
+            {composerCollapsed ? (
+              <MessageSquare size={16} />
+            ) : (
+              <MessageSquareOff size={16} />
+            )}
           </Button>
         )}
 
@@ -106,13 +114,17 @@ export default function ChatHeader({
         {onToggleRightSidebar && (
           <Button
             aria-label={rightSidebarCollapsed ? "展开参数栏" : "折叠参数栏"}
-            className="hidden md:inline-flex size-8 p-0"
+            className="workspace-collapse-button size-8 p-0"
             onClick={onToggleRightSidebar}
             type="button"
             variant="ghost"
             title={rightSidebarCollapsed ? "展开参数栏" : "折叠参数栏"}
           >
-            {rightSidebarCollapsed ? <PanelRightOpen size={16} /> : <PanelRightClose size={16} />}
+            {rightSidebarCollapsed ? (
+              <PanelRightOpen size={16} />
+            ) : (
+              <PanelRightClose size={16} />
+            )}
           </Button>
         )}
 

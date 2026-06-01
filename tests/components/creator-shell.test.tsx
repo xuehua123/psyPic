@@ -526,7 +526,9 @@ describe("CreatorWorkspace", () => {
     );
     await user.click(screen.getByRole("button", { name: /生成图片/ }));
 
-    expect(await screen.findByText("asset_switchable_123")).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText("asset_switchable_123")).length
+    ).toBeGreaterThan(0);
     const branchConversation = await screen.findByRole("button", {
       // 新副标题文案：「{branchLabel} · {count} 个节点 · {time}」
       name: /主线.*1 个节点/
@@ -572,7 +574,7 @@ describe("CreatorWorkspace", () => {
       "Original session prompt."
     );
     await user.click(screen.getByRole("button", { name: /生成图片/ }));
-    await screen.findByText("asset_fork_1");
+    expect((await screen.findAllByText("asset_fork_1")).length).toBeGreaterThan(0);
 
     // 此时 commercial 卡下有一条 branch session row；通过 dropdown 菜单
     // 触发 fork-same
@@ -618,7 +620,7 @@ describe("CreatorWorkspace", () => {
       "Source for derive."
     );
     await user.click(screen.getByRole("button", { name: /生成图片/ }));
-    await screen.findByText("asset_derive_1");
+    expect((await screen.findAllByText("asset_derive_1")).length).toBeGreaterThan(0);
 
     // 打开菜单 → 点「派生到新工作树」
     const kebabs = await screen.findAllByTestId("session-row-menu-button");
@@ -667,7 +669,9 @@ describe("CreatorWorkspace", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "同步素材库" }));
 
-    expect(await screen.findByText("asset_library_123")).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText("asset_library_123")).length
+    ).toBeGreaterThan(0);
     expect(screen.getAllByText("电商主图").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByRole("link", { name: "详情" })).toHaveAttribute(
       "href",
@@ -725,7 +729,9 @@ describe("CreatorWorkspace", () => {
 
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "同步素材库" }));
-    await screen.findByText("asset_publish_123");
+    expect(
+      (await screen.findAllByText("asset_publish_123")).length
+    ).toBeGreaterThan(0);
     await user.click(screen.getByRole("button", { name: "发布作品" }));
     await user.clear(screen.getByLabelText("作品标题"));
     await user.type(screen.getByLabelText("作品标题"), "社区展示作品");
@@ -799,15 +805,16 @@ describe("CreatorWorkspace", () => {
     );
     await user.click(screen.getByRole("button", { name: /生成图片/ }));
 
-    expect(await screen.findByText("asset_123")).toBeInTheDocument();
+    expect((await screen.findAllByText("asset_123")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("psypic_req_123").length).toBeGreaterThanOrEqual(
       1
     );
     expect(screen.getAllByText(/30 tokens/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByRole("link", { name: "下载" })).toHaveAttribute(
-      "href",
-      "/api/assets/asset_123"
-    );
+    expect(
+      screen
+        .getAllByRole("link", { name: "下载" })
+        .some((link) => link.getAttribute("href") === "/api/assets/asset_123")
+    ).toBe(true);
     expect(JSON.parse(fetchSpy.mock.calls[0][1].body as string).size).toBe(
       "1536x1024"
     );
@@ -1017,8 +1024,12 @@ describe("CreatorWorkspace", () => {
     await user.click(screen.getByTestId("advanced-close"));
     await user.click(screen.getByRole("button", { name: /生成图片/ }));
 
-    expect(await screen.findByText("asset_partial_123")).toBeInTheDocument();
-    expect(await screen.findByText("asset_stream_final_123")).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText("asset_partial_123")).length
+    ).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText("asset_stream_final_123")).length
+    ).toBeGreaterThan(0);
     expect((await screen.findAllByText("task_stream_123")).length).toBeGreaterThan(
       0
     );
@@ -1236,7 +1247,9 @@ describe("CreatorWorkspace", () => {
     );
     await user.click(screen.getByRole("button", { name: /生成图片/ }));
 
-    expect(await screen.findByText("asset_edit_123")).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText("asset_edit_123")).length
+    ).toBeGreaterThan(0);
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/images/edits",
       expect.objectContaining({
@@ -1304,7 +1317,9 @@ describe("CreatorWorkspace", () => {
     );
     await user.click(screen.getByRole("button", { name: /生成图片/ }));
 
-    expect(await screen.findByText("asset_multi_ref_123")).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText("asset_multi_ref_123")).length
+    ).toBeGreaterThan(0);
     const body = fetchSpy.mock.calls[0][1].body as FormData;
     expect(body.getAll("image")).toEqual([first, second]);
     expect(screen.getByText("front.png")).toBeInTheDocument();
@@ -1383,7 +1398,9 @@ describe("CreatorWorkspace", () => {
       );
       await user.click(screen.getByRole("button", { name: /生成图片/ }));
 
-      expect(await screen.findByText("asset_mask_123")).toBeInTheDocument();
+      expect(
+        (await screen.findAllByText("asset_mask_123")).length
+      ).toBeGreaterThan(0);
       const body = fetchSpy.mock.calls[0][1].body as FormData;
       expect(body.get("image")).toBe(reference);
       expect(body.get("mask")).toBeInstanceOf(File);

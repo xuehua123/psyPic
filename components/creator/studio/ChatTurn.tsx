@@ -126,11 +126,13 @@ export default function ChatTurn({
               {node.images.map((image) => (
                 <article className="result-card" key={image.asset_id}>
                   <div className="relative group overflow-hidden cursor-zoom-in">
-                    <img 
-                      alt="生成结果" 
-                      src={image.url} 
+                    <img
+                      alt="生成结果"
+                      src={image.url}
                       onClick={() => setLightboxImage(image.url)}
-                      style={{ aspectRatio: parseAspectRatio(node.params?.size) }}
+                      style={{
+                        aspectRatio: parseAspectRatio(node.params?.size)
+                      }}
                       className="w-full transition-transform duration-300 hover:scale-[1.02] block object-contain"
                     />
                   </div>

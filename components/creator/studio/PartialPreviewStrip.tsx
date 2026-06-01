@@ -19,15 +19,6 @@ type PartialPreviewStripProps = {
 export default function PartialPreviewStrip({
   partialImages
 }: PartialPreviewStripProps) {
-  /* eslint-disable @typescript-eslint/no-explicit-any */
-  const isTestEnv = typeof window !== "undefined" && 
-    (window.navigator?.userAgent?.toLowerCase().includes("jsdom") || 
-     (window as any).process?.env?.NODE_ENV === "test" || 
-     (window as any).VITEST || 
-     (globalThis as any).vi || 
-     (globalThis as any).Vitest);
-  /* eslint-enable @typescript-eslint/no-explicit-any */
-
   if (partialImages.length === 0) {
     return null;
   }
@@ -40,18 +31,7 @@ export default function PartialPreviewStrip({
           <article className="partial-preview-item" key={image.asset_id}>
             <img alt="流式预览" src={image.url} />
             <div>
-              <strong>
-                {isTestEnv && (
-                  image.asset_id === "asset_123" ||
-                  image.asset_id === "asset_history_123" ||
-                  image.asset_id === "asset_edit_123" ||
-                  image.asset_id === "asset_multi_ref_123" ||
-                  image.asset_id === "asset_mask_123" ||
-                  image.asset_id === "asset_stream_final_123"
-                )
-                  ? `lib-${image.asset_id}`
-                  : image.asset_id}
-              </strong>
+              <strong>{image.asset_id}</strong>
               <span>#{index + 1}</span>
             </div>
           </article>
