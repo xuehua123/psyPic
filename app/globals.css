@@ -3499,3 +3499,189 @@ a {
     transform: translateY(0);
   }
 }
+
+/* ==========================================================================
+   Cursor & VS Code IDE-Style High Density & Flat Explorer Redesign
+   ========================================================================== */
+
+/* 1. 彻底去除项目卡片大块 Card 外框与背景 */
+[data-testid^="project-card-"] {
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  margin-bottom: 2px !important;
+}
+
+/* 2. 文件夹/项目 Header 行：行高与内边距极限压缩 */
+[data-testid^="project-card-header-"] {
+  padding: 3px 6px !important;
+  font-size: 13px !important;
+  gap: 6px !important;
+  border-radius: 4px !important;
+  min-height: 28px !important;
+}
+
+[data-testid^="project-card-header-"]:hover {
+  background: var(--control-hover) !important;
+}
+
+/* 3. 文件夹图标与切换 chevron 尺寸紧凑化 */
+[data-testid^="project-card-header-"] .shrink-0 {
+  width: auto !important;
+  height: auto !important;
+  background: transparent !important;
+}
+
+[data-testid^="project-card-header-"] svg {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+/* 4. 项目展开后的会话桶：去除多余 Padding，缩进 12px */
+[data-testid^="project-card-"] .grid.gap-2 {
+  gap: 3px !important;
+  padding: 0 0 0 12px !important;
+  margin-top: 1px !important;
+}
+
+[data-testid^="project-card-"] section.grid.gap-1 {
+  gap: 1px !important;
+}
+
+/* 5. 会话行 (File Node)：极限紧凑化，去除高亮卡片边框 */
+[data-testid="conversation-row-branch"],
+[data-testid^="conversation-row-all-"] {
+  padding: 2px 6px !important;
+  gap: 6px !important;
+  font-size: 12.5px !important;
+  border-radius: 4px !important;
+  border: 1px solid transparent !important;
+  margin-bottom: 1px !important;
+  min-height: 26px !important;
+  box-shadow: none !important;
+}
+
+/* 高亮态使用极弱的中性高亮背景，如同 VS Code 选中文件，不使用刺眼粗框 */
+[data-testid="conversation-row-branch"][aria-pressed="true"],
+[data-testid^="conversation-row-all-"][aria-pressed="true"] {
+  background: rgba(var(--accent-rgb), 0.1) !important;
+  border-color: rgba(var(--accent-rgb), 0.2) !important;
+  color: var(--accent-strong) !important;
+}
+
+.dark [data-testid="conversation-row-branch"][aria-pressed="true"],
+.dark [data-testid^="conversation-row-all-"][aria-pressed="true"] {
+  background: rgba(45, 212, 191, 0.15) !important;
+  border-color: rgba(45, 212, 191, 0.3) !important;
+  color: var(--color-accent) !important;
+}
+
+/* 6. 会话行第二行辅助文本微调 */
+[data-testid="conversation-row-branch"] .text-[11px] {
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+  opacity: 0.8;
+  margin-top: 1px;
+}
+
+/* 7. 置顶/今天/昨天等桶分类小标题极限收缩 */
+[data-testid^="project-card-"] section .text-[11px].font-semibold {
+  font-size: 9.5px !important;
+  padding: 2px 6px !important;
+  margin-top: 4px !important;
+  margin-bottom: 2px !important;
+  opacity: 0.65;
+  letter-spacing: 0.05em;
+}
+
+/* 8. 未读小圆点尺寸调小，位置对齐 */
+[data-testid="session-unread-indicator"] {
+  width: 5px !important;
+  height: 5px !important;
+  margin-top: 6px !important;
+}
+
+/* 9. 新建项目虚线框收窄 */
+[data-testid="new-project-button"] {
+  margin-top: 2px !important;
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+  border-radius: 4px !important;
+}
+
+/* ==========================================================================
+   Cursor & VS Code Editor-style Tabs Redesign
+   ========================================================================== */
+[data-testid="creator-view-tabs"] {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  padding-top: 0 !important;
+  gap: 0 !important;
+}
+
+[data-testid="creator-view-tabs"] [role="tablist"] {
+  background: var(--bg) !important;
+  border: none !important;
+  border-bottom: 1px solid var(--line) !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  width: 100% !important;
+  height: 35px !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  box-shadow: none !important;
+}
+
+.dark [data-testid="creator-view-tabs"] [role="tablist"] {
+  background: #090d12 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-testid="creator-view-tabs"] [role="tab"] {
+  border-radius: 0 !important;
+  border: none !important;
+  border-right: 1px solid var(--line) !important;
+  padding: 6px 16px 8px !important;
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  height: 100% !important;
+  background: var(--surface-muted) !important;
+  color: var(--muted) !important;
+  box-shadow: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  position: relative !important;
+  top: 0 !important;
+}
+
+.dark [data-testid="creator-view-tabs"] [role="tab"] {
+  background: #11171f !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+[data-testid="creator-view-tabs"] [role="tab"]:hover {
+  background: var(--control-hover) !important;
+  color: var(--ink) !important;
+}
+
+[data-testid="creator-view-tabs"] [role="tab"][data-state="active"] {
+  background: var(--surface) !important;
+  color: var(--accent) !important;
+  font-weight: 600 !important;
+  border-top: 2px solid var(--accent) !important; /* 激活线 */
+  border-bottom: 1px solid var(--surface) !important;
+  margin-bottom: -1px;
+}
+
+.dark [data-testid="creator-view-tabs"] [role="tab"][data-state="active"] {
+  background: #0b1117 !important;
+  border-top: 2px solid var(--color-accent) !important;
+  border-bottom: 1px solid #0b1117 !important;
+}
+
+/* 调整 TabsContent 的 Padding */
+[data-testid="creator-view-tabs"] [role="tabpanel"] {
+  padding: 10px 16px !important;
+}
