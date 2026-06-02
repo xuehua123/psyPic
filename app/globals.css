@@ -334,8 +334,8 @@ a {
 .project-sidebar {
   display: flex;
   flex-direction: column;
-  padding: 16px 12px 12px;
-  gap: 16px;
+  padding: 12px 10px 10px;
+  gap: 12px;
   background: var(--surface-muted);
   color: var(--ink);
   border-right-color: var(--line);
@@ -462,8 +462,8 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 10px;
+  gap: 8px;
+  padding: 8px 10px;
   text-align: left;
   transition:
     background-color 160ms ease,
@@ -508,9 +508,9 @@ a {
 
 .project-conversation-tree {
   display: grid;
-  gap: 6px;
-  margin-left: 18px;
-  padding-left: 14px;
+  gap: 4px;
+  margin-left: 16px;
+  padding-left: 12px;
   border-left: 1px solid var(--line);
 }
 
@@ -640,8 +640,8 @@ a {
   overflow: auto;
   display: grid;
   align-content: start;
-  gap: 18px;
-  padding: 24px 28px 34px;
+  gap: 12px;
+  padding: 16px 20px 24px;
   background: var(--surface);
 }
 
@@ -1092,12 +1092,12 @@ a {
 
 .inspector-section {
   display: grid;
-  gap: 12px;
+  gap: 8px;
   border: 0;
   border-bottom: 1px solid var(--line);
   border-radius: 0;
   background: var(--surface);
-  padding: 16px 14px;
+  padding: 12px 12px;
   box-shadow: none;
 }
 
