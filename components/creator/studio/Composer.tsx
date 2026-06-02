@@ -150,7 +150,7 @@ export default function Composer() {
           className="chat-prompt-input"
           id="prompt"
           onChange={(event) => setPrompt(event.target.value)}
-          placeholder="描述你要生成的商业图片，或拖 / 粘图作为参考图自动切换图生图"
+          placeholder="描述商业图片，或拖 / 粘图作为参考图"
           value={prompt}
         />
         <div className="composer-actions">
@@ -175,6 +175,7 @@ export default function Composer() {
                 referenceImages.length >= MAX_REFERENCE_IMAGES || isGenerating
               }
               onClick={() => uploadInputRef.current?.click()}
+              size="sm"
               type="button"
               variant="ghost"
             >
@@ -184,35 +185,42 @@ export default function Composer() {
                 : "添加图"}
             </Button>
             <Button
+              aria-label="展开编辑器"
               data-testid="composer-expand-trigger"
               onClick={() => setExpandedOpen(true)}
+              size="sm"
               type="button"
               variant="ghost"
             >
               <Maximize2 size={14} aria-hidden="true" />
-              展开编辑器
+              展开
             </Button>
             <Button
+              aria-label={isAssistingPrompt ? "优化中" : "优化 Prompt"}
               variant="secondary"
               disabled={isAssistingPrompt || isGenerating}
               onClick={optimizePrompt}
+              size="sm"
               type="button"
             >
               <Sparkles size={16} aria-hidden="true" />
-              {isAssistingPrompt ? "优化中" : "优化 Prompt"}
+              {isAssistingPrompt ? "优化中" : "优化"}
             </Button>
             <Button
+              aria-label="收藏 Prompt"
               variant="secondary"
               disabled={isGenerating}
               onClick={() => void saveCurrentPromptFavorite()}
+              size="sm"
               type="button"
             >
               <Star size={16} aria-hidden="true" />
-              收藏 Prompt
+              收藏
             </Button>
             <Button
               disabled={isGenerating}
               onClick={submitGeneration}
+              size="sm"
               type="button"
             >
               <Play size={16} aria-hidden="true" />

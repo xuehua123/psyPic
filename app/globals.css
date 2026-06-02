@@ -577,6 +577,7 @@ a {
   min-width: 0;
   min-height: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto minmax(0, 1fr) auto;
   background: var(--control);
 }
@@ -796,11 +797,13 @@ a {
 }
 
 .chat-composer {
+  width: 100%;
+  min-width: 0;
   border-top: 1px solid var(--line);
   background: rgba(var(--surface-rgb), 0.97);
   backdrop-filter: blur(12px);
-  padding: 12px 20px 14px;
-  box-shadow: 0 -12px 28px rgba(var(--shadow-rgb), 0.07);
+  padding: 6px 14px 8px;
+  box-shadow: 0 -10px 24px rgba(var(--shadow-rgb), 0.06);
   transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1), opacity 220ms ease, padding 300ms cubic-bezier(0.4, 0, 0.2, 1), height 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -859,13 +862,14 @@ a {
 }
 
 .composer-inner {
-  width: min(100%, 1040px);
+  width: min(100%, 980px);
+  min-width: 0;
   margin: 0 auto;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
-  padding: 8px;
-  box-shadow: 0 8px 20px rgba(var(--shadow-rgb), 0.06);
+  padding: 6px;
+  box-shadow: 0 6px 16px rgba(var(--shadow-rgb), 0.05);
 }
 
 .composer-context-row {
@@ -894,23 +898,19 @@ a {
 
 .chat-prompt-input {
   width: 100%;
-  min-height: 74px;
-  /* max-height 170 → 240，给长 prompt 多 70px 呼吸；溢出后 textarea 内部
-     滚动，溢出超出感知时由 composer 「展开编辑器」按钮兜底进 Modal 写。 */
-  max-height: 240px;
-  /* field-sizing: content 让 textarea 自动按内容算高度（modern CSS，
-     Chrome 123+ / Safari 17.4+）；旧浏览器 fallback 到固定 min-height
-     的非 autosize 行为，仍可写但不撑高 —— 不影响功能。
-     plan slug calm-squishing-globe · Cut 2。 */
-  field-sizing: content;
+  height: 42px;
+  min-height: 42px;
+  max-height: 132px;
+  field-sizing: fixed;
   resize: none;
   border: 0;
   border-radius: 6px;
   background: var(--surface);
   color: var(--ink);
   outline: 0;
-  padding: 10px 8px;
-  line-height: 1.55;
+  padding: 7px 6px 6px;
+  line-height: 1.45;
+  overflow: auto;
   box-shadow: none;
 }
 
@@ -994,14 +994,15 @@ a {
 }
 
 .composer-actions {
-  min-height: 40px;
+  min-width: 0;
+  min-height: 30px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-top: 4px;
+  gap: 8px;
+  margin-top: 2px;
   border-top: 1px solid var(--line);
-  padding-top: 8px;
+  padding-top: 5px;
 }
 
 .studio-inspector {
@@ -1378,9 +1379,25 @@ a {
 .prompt-action-buttons {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 6px;
+  flex-wrap: nowrap;
   justify-content: flex-end;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.prompt-action-buttons::-webkit-scrollbar {
+  display: none;
+}
+
+.prompt-action-buttons [data-slot="button"] {
+  height: 28px;
+  min-height: 28px;
+  gap: 6px;
+  padding: 0 9px;
+  font-size: 12px;
+  flex: 0 0 auto;
 }
 
 .reference-dropzone {
@@ -2643,6 +2660,17 @@ a {
 .inline-hint {
   color: var(--muted);
   font-size: 12px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1320px) {
+  .inline-hint {
+    display: none;
+  }
 }
 
 .studio-inspector .version-stream,
@@ -2793,19 +2821,28 @@ a {
     flex-direction: column;
   }
 
+  .composer-actions {
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .inline-hint {
+    display: none;
+  }
+
   .chat-composer {
-    padding: 8px 10px 10px;
+    padding: 6px 8px 8px;
   }
 
   .composer-inner {
-    padding: 7px;
+    padding: 5px;
   }
 
   .chat-prompt-input {
-    min-height: 70px;
-    /* 窄屏 max-height 调到 200px，避免占满小屏 */
-    max-height: 200px;
-    field-sizing: content;
+    height: 40px;
+    min-height: 40px;
+    max-height: 118px;
+    field-sizing: fixed;
   }
 
   .brand-subtitle {
@@ -2899,20 +2936,30 @@ a {
 
 .quickpick-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 6px;
-  padding: 6px 4px;
+  gap: 4px;
+  padding: 3px 2px 4px;
   border-bottom: 1px solid var(--line);
-  margin-bottom: 6px;
+  margin-bottom: 3px;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.quickpick-row::-webkit-scrollbar {
+  display: none;
 }
 
 .quickpick-chip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 28px;
-  padding: 0 10px;
+  gap: 5px;
+  height: 24px;
+  padding: 0 7px;
+  max-width: 150px;
+  flex: 0 0 auto;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--surface);
@@ -2922,6 +2969,12 @@ a {
   cursor: pointer;
   transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
   white-space: nowrap;
+}
+
+.quickpick-chip > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .quickpick-chip:hover {
@@ -2948,6 +3001,34 @@ a {
 .quickpick-chip-hint {
   color: var(--ink-muted);
   font-size: 11px;
+}
+
+.quickpick-mode {
+  flex: 0 0 auto;
+}
+
+.quickpick-mode .segment {
+  min-height: 22px;
+  padding: 0 7px;
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .quickpick-row {
+    padding: 3px 1px 4px;
+  }
+
+  .quickpick-chip {
+    max-width: 132px;
+  }
+
+  .quickpick-chip-hint {
+    display: none;
+  }
+
+  .quickpick-mode .segment {
+    min-height: 22px;
+  }
 }
 
 /* TemplatePickerDialog 卡片 */
