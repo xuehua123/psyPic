@@ -303,7 +303,7 @@ a {
   height: 100%;
   min-height: 680px;
   display: grid;
-  grid-template-columns: 282px minmax(0, 1fr) 380px;
+  grid-template-columns: 230px minmax(0, 1fr) 310px;
   background: var(--bg);
   color: var(--ink);
   overflow: hidden;
@@ -354,11 +354,11 @@ a {
   }
 
   .chat-studio-shell.left-collapsed {
-    grid-template-columns: 0 minmax(0, 1fr) 380px;
+    grid-template-columns: 0 minmax(0, 1fr) 310px;
   }
 
   .chat-studio-shell.right-collapsed {
-    grid-template-columns: 282px minmax(0, 1fr) 0;
+    grid-template-columns: 230px minmax(0, 1fr) 0;
   }
 
   .chat-studio-shell.left-collapsed.right-collapsed {
@@ -653,6 +653,8 @@ a {
   padding: min(8vh, 68px) 0;
   text-align: left;
   color: var(--muted);
+  width: min(100%, 980px);
+  margin-inline: auto;
 }
 
 .studio-empty-state-panel {
@@ -746,8 +748,10 @@ a {
 .chat-message {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr);
-  gap: 10px;
+  gap: 12px;
   align-items: start;
+  width: min(100%, 980px);
+  margin-inline: auto;
 }
 
 .chat-avatar {
@@ -2795,7 +2799,7 @@ a {
 
 @media (max-width: 1120px) {
   .chat-studio-shell {
-    grid-template-columns: 236px minmax(0, 1fr);
+    grid-template-columns: 220px minmax(0, 1fr);
   }
 
   .studio-inspector {
@@ -3476,4 +3480,22 @@ a {
 
 .dark ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.24);
+}
+
+/* ==========================================================================
+   Smooth Tab Transition Animation
+   ========================================================================== */
+[data-testid="creator-view-tabs"] [role="tabpanel"] {
+  animation: tabFadeIn 0.3s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes tabFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
